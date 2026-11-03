@@ -175,4 +175,5 @@ SOFTWARE.
 ## 📬 Contact
 
 **Riddhi Bantia**
-[Add: email / LinkedIn / portfolio link]
+[email: riddhibantia@gmail.com 
+LinkedIn : https://www.linkedin.com/in/riddhi-bantia ]
