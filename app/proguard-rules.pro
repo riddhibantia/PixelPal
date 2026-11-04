@@ -42,7 +42,7 @@
     @androidx.room.* <methods>;
     @androidx.room.* <fields>;
 }
--keep class * extends androidx.room.RoomDatabase\$Callback { *; }
+-keep class * extends androidx.room.RoomDatabase$Callback { *; }
 
 # -----------------------------------------------------------------------------
 # kotlinx.serialization — the plugin generates a synthetic `$serializer`
