@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pixelpal-bridge"
+version = "2.0.0"
+description = "Connect terminal coding agents (Claude Code, agy, Codex, OMP, opencode, Hermes) to the PixelPal Android companion."
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+qr = ["qrcode"]
+dev = ["pytest"]
+
+[project.scripts]
+pixelpal-bridge = "pixelpal_bridge.cli:main"
+pixelpal-hook = "pixelpal_bridge.hook:main"
+
+[tool.setuptools.packages.find]
+include = ["pixelpal_bridge*"]
