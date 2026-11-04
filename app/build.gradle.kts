@@ -28,8 +28,12 @@ android {
         applicationId = "com.pixelpal.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        // CI stamps these from the git tag (e.g. v1.3.0 -> code 10300, name 1.3.0).
+        // Locally they fall back to the values below.
+        versionCode = providers.gradleProperty("PIXELPAL_VERSION_CODE")
+            .map { it.toInt() }.getOrElse(3)
+        versionName = providers.gradleProperty("PIXELPAL_VERSION_NAME")
+            .getOrElse("1.2.0")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -77,6 +81,13 @@ android {
                 .getOrElse(false)
             if (hasReleaseStore) {
                 signingConfig = signingConfigs.getByName("release")
+            } else if (gradle.startParameter.taskNames.any { it.contains("Release", true) }) {
+                // Silently producing an *unsigned* APK is a trap: it installs nowhere
+                // and users cannot update over it. Fail instead.
+                logger.warn(
+                    "WARNING: building a release without RELEASE_STORE_FILE — " +
+                        "the APK will be UNSIGNED and cannot be installed on a device."
+                )
             }
         }
         debug {
@@ -109,6 +120,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
+    implementation("androidx.compose.ui:ui-text-google-fonts")
 
     // Hilt DI
     implementation(libs.hilt.android)

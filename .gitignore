@@ -24,3 +24,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Release signing keys — NEVER commit. See RELEASING.md.
+.release-keys/
+release-keystore*
+*.jks

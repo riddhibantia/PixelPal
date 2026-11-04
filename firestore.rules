@@ -2,25 +2,21 @@ rules_version = '2';
 
 // PixelPal Firestore security rules.
 //
-// Two independent branches:
-//   1. /users/{uid}  — the existing app data. UNCHANGED by the relay work.
-//   2. /relays/{id}  — NEW. Lets a laptop bridge and the phone exchange agent
-//                      state + approval verdicts when they are NOT on the same
-//                      network. See tools/agent-bridge/README.md.
+// ONE branch: /users/{uid}. A signed-in user may read and write their own
+// documents and nothing else. Everything else is denied by default.
 //
-// Deploy with: firebase deploy --only firestore:rules
+// There used to be a second branch, /relays/{id}, which let a laptop bridge
+// and the phone exchange agent state through Firestore when they were not on
+// the same network. It was removed in favour of Tailscale: a private network
+// between the user's own devices, with no third party in the data path, no
+// per-user read quota (the relay cost 17,280 reads/day/user against a
+// 50,000/day free tier), and nothing to deploy before pairing works.
 //
-// Design notes for the relay branch:
-//  * The relay id is sha256(pairing code)[:32]. Reading the relays collection
-//    never reveals which code a document belongs to.
-//  * Both sides must be authenticated (anonymous auth) AND must already be
-//    named in the document (`bridgeUid` / `phoneUid`). Knowing a doc id is not
-//    enough to read it — you also have to be one of the two parties.
-//  * `verifier` is HMAC(relayKey, "pixelpal-handshake"); it proves possession of
-//    the pairing code to the OTHER party without ever transmitting the code.
-//    It is deliberately readable by both parties only, never by third parties.
-//  * Third parties (any other uid) are denied everything, explicitly, by the
-//    catch-all at the bottom.
+// Deploy (only needed for cloud sync of tasks/reminders/companion):
+//   firebase deploy --only firestore:rules
+//
+// Project: pixel-pet-a1cc6
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -50,99 +46,6 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
       // Activity/personality are local-only; deny cloud writes if ever created
-      match /{other=**} {
-        allow read, write: if false;
-      }
-    }
-
-    // ---------------------------------------------------------------
-    // Relay branch (new).
-    // ---------------------------------------------------------------
-    match /relays/{relayId} {
-
-      // --- helpers -------------------------------------------------
-      function signedIn() {
-        return request.auth != null;
-      }
-      // The bridge creates the doc. Only the creator may write bridgeUid.
-      function isBridge() {
-        return signedIn() && request.auth.uid == resource.data.bridgeUid;
-      }
-      // The phone claims the doc by writing its own uid once.
-      function isPhone() {
-        return signedIn()
-          && resource.data.keys().hasAny(['phoneUid'])
-          && resource.data.phoneUid == request.auth.uid;
-      }
-      function isParty() {
-        return isBridge() || isPhone();
-      }
-      function validPayload() {
-        // Bound what one write can store so the relay cannot be used as storage.
-        return request.resource.data.size() < 40
-            && request.resource.data.createdAt is int;
-      }
-
-      // --- handshake document --------------------------------------
-      // Anyone signed in may CREATE a relay they own (that is how a bridge
-      // registers). Once created, only the two parties can touch it, and the
-      // bridgeUid can never be reassigned.
-      allow create: if signedIn()
-        && request.resource.data.bridgeUid == request.auth.uid
-        && request.resource.data.verifier is string
-        && validPayload();
-
-      // The phone claims an existing relay by setting phoneUid to itself.
-      //
-      // NOTE: we compare *final values* rather than using
-      // diff().affectedKeys().hasOnly(['phoneUid']). With the client SDK a
-      // plain updateDoc() re-sends other fields, so affectedKeys() legitimately
-      // contains them and the strict check locked the phone out entirely
-      // (found by the end-to-end emulator test).
-      // An unclaimed relay may have phoneUid ABSENT (undefined) or explicitly
-      // null — the bridge may write either. Comparing `resource.data.phoneUid
-      // == null` throws on the undefined case and silently denies the claim
-      // (found by the emulator: "Property phoneUid is undefined on object"),
-      // so both cases are handled explicitly here.
-      allow update: if signedIn()
-        && (!resource.data.keys().hasAny(['phoneUid'])
-            || resource.data.phoneUid == null)
-        && request.resource.data.phoneUid == request.auth.uid
-        && request.resource.data.bridgeUid == resource.data.bridgeUid
-        && request.resource.data.verifier == resource.data.verifier;
-
-      // The bridge may refresh lastSeen.
-      allow update: if isBridge()
-        && request.resource.data.diff(resource.data)
-             .affectedKeys().hasOnly(['lastSeen', 'version']);
-
-      // Both parties may read the handshake (they need the verifier).
-      allow read: if isParty();
-
-      // The bridge may tear the relay down.
-      allow delete: if isBridge();
-
-      // --- current-state subdocument -------------------------------
-      // The bridge publishes; the phone reads. One doc, overwritten in place,
-      // so a poll is a single cheap GET rather than a query.
-      match /state/{docId} {
-        allow read: if signedIn() && (
-          get(/databases/$(database)/documents/relays/$(relayId)).data.bridgeUid == request.auth.uid
-          || get(/databases/$(database)/documents/relays/$(relayId)).data.phoneUid == request.auth.uid
-        );
-        allow write: if signedIn()
-          && get(/databases/$(database)/documents/relays/$(relayId)).data.bridgeUid == request.auth.uid;
-      }
-
-      // --- approval verdicts (phone -> bridge) ---------------------
-      match /inbox/{docId} {
-        allow read, delete: if signedIn()
-          && get(/databases/$(database)/documents/relays/$(relayId)).data.bridgeUid == request.auth.uid;
-        allow write: if signedIn()
-          && get(/databases/$(database)/documents/relays/$(relayId)).data.phoneUid == request.auth.uid;
-      }
-
-      // --- anything else inside a relay is forbidden ---------------
       match /{other=**} {
         allow read, write: if false;
       }

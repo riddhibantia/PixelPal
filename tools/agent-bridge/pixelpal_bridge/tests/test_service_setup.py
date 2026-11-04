@@ -13,7 +13,7 @@ import subprocess
 
 import pytest
 
-from pixelpal_bridge import cli, relay_crypto, service
+from pixelpal_bridge import cli, service
 
 
 @pytest.fixture()
@@ -107,49 +107,78 @@ class TestSetupCommand:
         return tmp_path
 
     def test_creates_config_with_private_mode(self, scratch):
-        cli.main(["setup", "--no-service", "--no-relay"])
+        cli.main(["setup", "--no-service"])
         assert cli.CONFIG_PATH.exists()
         mode = oct(cli.CONFIG_PATH.stat().st_mode)[-3:]
         assert mode == "600", f"pairing key file must not be world-readable (got {mode})"
 
     def test_is_idempotent_and_keeps_the_key(self, scratch):
-        cli.main(["setup", "--no-service", "--no-relay"])
+        cli.main(["setup", "--no-service"])
         first = json.loads(cli.CONFIG_PATH.read_text())["pairingKey"]
-        cli.main(["setup", "--no-service", "--no-relay"])
+        cli.main(["setup", "--no-service"])
         second = json.loads(cli.CONFIG_PATH.read_text())["pairingKey"]
         assert first == second, "re-running setup must not invalidate a paired phone"
 
     def test_creates_a_usable_key(self, scratch):
-        cli.main(["setup", "--no-service", "--no-relay"])
+        cli.main(["setup", "--no-service"])
         key = json.loads(cli.CONFIG_PATH.read_text())["pairingKey"]
         assert len(key) >= 30
 
     def test_no_agents_is_reported_not_crashed(self, scratch):
-        assert cli.main(["setup", "--no-service", "--no-relay"]) == 0
+        assert cli.main(["setup", "--no-service"]) == 0
 
-    def test_relay_skipped_leaves_no_relay_code(self, scratch):
-        cli.main(["setup", "--no-service", "--no-relay"])
+    def test_setup_writes_no_relay_config(self, scratch):
+        """The Firebase relay is gone: nothing cloud-related may be persisted."""
+        cli.main(["setup", "--no-service"])
         config = json.loads(cli.CONFIG_PATH.read_text())
-        assert "relayCode" not in config
+        for key in ("relayCode", "relayRefreshToken", "googleServicesPath"):
+            assert key not in config, f"{key} must not exist anymore"
+
+    def test_setup_prints_the_lan_address(self, scratch, capsys):
+        cli.main(["setup", "--no-service"])
+        out = capsys.readouterr().out
+        assert "Agent tab" in out
+        assert ":8787" in out or "127.0.0.1" in out or "http://" in out
+
+    def test_setup_reports_tailscale_when_present(self, scratch, monkeypatch, capsys):
+        monkeypatch.setattr(cli, "_tailscale_hostname", lambda: "https://box.ts.net")
+        cli.main(["setup", "--no-service"])
+        out = capsys.readouterr().out
+        assert "https://box.ts.net" in out
+
+    def test_setup_explains_how_to_get_tailscale_when_absent(self, scratch, monkeypatch, capsys):
+        monkeypatch.setattr(cli, "_tailscale_hostname", lambda: None)
+        cli.main(["setup", "--no-service"])
+        out = capsys.readouterr().out
+        assert "Tailscale" in out
+
+    def test_setup_has_no_pairing_code(self, scratch, capsys):
+        """Codes belonged to the relay; the LAN path needs no code."""
+        cli.main(["setup", "--no-service"])
+        out = capsys.readouterr().out
+        assert "type this in the app" not in out.lower()
+
+    def test_rerunning_setup_restarts_an_existing_daemon(self, scratch, monkeypatch):
+        restarted: list[str] = []
+        monkeypatch.setattr(cli.service, "is_installed", lambda: True)
+        monkeypatch.setattr(cli.service, "uninstall", lambda: restarted.append("uninstall") or True)
+        monkeypatch.setattr(
+            cli.service, "install", lambda port=8787: ("systemd", "fake unit")
+        )
+        cli.main(["setup"])
+        assert restarted == ["uninstall"], "the daemon must pick up the new config"
 
     def test_config_write_is_atomic_enough_not_to_lose_existing_fields(self, scratch):
         cli.CONFIG_PATH.write_text(json.dumps({"pairingKey": "existing", "port": 9999}))
-        cli.main(["setup", "--no-service", "--no-relay"])
+        cli.main(["setup", "--no-service"])
         config = json.loads(cli.CONFIG_PATH.read_text())
         assert config["pairingKey"] == "existing"
         assert config["port"] == 9999
 
 
-class TestPairingCodePresentation:
-    def test_printed_code_is_formatted_with_dashes(self, capsys):
-        code = relay_crypto.generate_code()
-        cli._print_code(code)
-        out = capsys.readouterr().out
-        assert "-" in out
-        assert out.count("─") > 4, "the code should be in a visible box"
-
-    def test_printed_code_normalizes_bad_input(self, capsys):
-        code = relay_crypto.normalize_code(relay_crypto.generate_code())
-        cli._print_code(code)
-        out = capsys.readouterr().out
-        assert relay_crypto.format_code(code) in out
+def test_unit_uses_the_interpreter_that_has_the_package(monkeypatch):
+    """A pipx/uv install lives in its own venv; /usr/bin/python3 has no package."""
+    monkeypatch.setattr(service.sys, "executable", "/home/me/.local/share/uv/tools/x/bin/python")
+    monkeypatch.setattr(service.shutil, "which", lambda name: "/usr/bin/python3")
+    text = service._systemd_unit_text(8787)
+    assert "ExecStart=/home/me/.local/share/uv/tools/x/bin/python" in text

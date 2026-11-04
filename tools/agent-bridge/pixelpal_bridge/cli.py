@@ -14,15 +14,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import secrets
 import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
 from . import install as installer
-from . import relay, relay_crypto, service
+from . import service
 from .model import AgentEvent, AgentSource, EventKind
 from .reducer import AgentRegistry
 from .server import CONFIG_PATH, BridgeState, serve
@@ -44,11 +47,35 @@ def _port_free(host: str, port: int) -> bool:
 
 
 def _bridge_running(port: int) -> bool:
+    return _bridge_health(port) is not None
+
+
+def _bridge_health(port: int) -> dict | None:
+    """Our own /health payload, or None if the port runs something else."""
+    import urllib.error
+    import urllib.request
+
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.3):
-            return True
-    except OSError:
-        return False
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1.0) as resp:
+            payload = json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) and payload.get("ok") is True else None
+
+
+def _pick_port(preferred: int) -> int | None:
+    """First free port at or after `preferred` (another dev server may hold it)."""
+    for candidate in range(preferred, preferred + 20):
+        if _port_free("0.0.0.0", candidate) and _port_free("127.0.0.1", candidate):
+            return candidate
+    return None
+
+
+def _configured_port() -> int:
+    try:
+        return int(json.loads(CONFIG_PATH.read_text()).get("port", 8787))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return 8787
 
 
 def _lan_ip() -> str | None:
@@ -64,6 +91,32 @@ def _lan_ip() -> str | None:
 # ---------------------------------------------------------------------------
 # commands
 # ---------------------------------------------------------------------------
+
+
+def _tailscale_hostname() -> str | None:
+    """
+    The machine's https URL on the tailnet, if Tailscale is up.
+
+    This is the supported way to reach the bridge from outside the home
+    network: a private, encrypted network between *your* devices, with no
+    third-party relay, no account cost and no quota. Returns None when
+    Tailscale is absent or logged out.
+    """
+    binary = shutil.which("tailscale")
+    if not binary:
+        return None
+    try:
+        host = subprocess.check_output(
+            [binary, "status", "--json"], stderr=subprocess.DEVNULL, timeout=5
+        )
+        info = json.loads(host)
+    except (subprocess.SubprocessError, OSError, json.JSONDecodeError):
+        return None
+    self_info = info.get("Self") or {}
+    dns_name = (self_info.get("DNSName") or "").rstrip(".")
+    if not dns_name or info.get("BackendState") != "Running":
+        return None
+    return f"https://{dns_name}"
 
 
 def cmd_serve(args) -> int:
@@ -91,6 +144,11 @@ def cmd_serve(args) -> int:
     if lan:
         print(f"  network   http://{lan}:{port}   <- use this in the app")
     print(f"  auth      {'pairing key required' if key else 'open on LAN (run `pair` to secure)'}")
+    tailnet = _tailscale_hostname()
+    if tailnet:
+        print(f"  tailscale {tailnet}")
+    else:
+        print("  tailnet   not available (install Tailscale to connect outside your Wi-Fi)")
     print()
     serve(host, port, state)
     return 0
@@ -107,7 +165,7 @@ def cmd_install(args) -> int:
         print(f"  • {name:12s} {path}")
 
     print()
-    result = installer.install(agents)
+    result = installer.install(agents, _configured_port())
     for agent, added in result.items():
         if added:
             print(f"  ✓ {agent:12s} registered {len(added)} hook(s)")
@@ -144,7 +202,8 @@ def _load_or_create_config() -> dict:
 
     changed = False
     if not config.get("pairingKey"):
-        config["pairingKey"] = relay_crypto.new_bridge_key()
+        # 32 bytes of CSPRNG entropy, hex. Stdlib only, no relay dependency.
+        config["pairingKey"] = secrets.token_hex(32)
         changed = True
     config.setdefault("port", 8787)
     config.setdefault("host", "0.0.0.0")
@@ -156,30 +215,17 @@ def _load_or_create_config() -> dict:
     return config
 
 
-def _google_services_path() -> Path | None:
-    """Find the app's google-services.json (relay needs the project id)."""
-    here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / "app" / "google-services.json"
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def _print_code(code: str) -> None:
-    """Print the pairing code large and unmissable."""
-    formatted = relay_crypto.format_code(relay_crypto.normalize_code(code))
-    print()
-    print("    ┌" + "─" * (len(formatted) + 6) + "┐")
-    print(f"    │   {formatted}   │")
-    print("    └" + "─" * (len(formatted) + 6) + "┘")
-    print()
+def _save_config(config: dict) -> None:
+    """Write the config back with the usual 0600 — it holds the bridge key."""
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config, indent=2))
+    CONFIG_PATH.chmod(0o600)
 
 
 def cmd_setup(args) -> int:
     """
-    One command. Installs hooks, starts the daemon, registers the relay, and
-    prints the code to type into the app.
+    One command. Installs hooks, starts the daemon, and prints the address to
+    type into the app.
     """
     print()
     print("  PixelPal setup")
@@ -188,30 +234,63 @@ def cmd_setup(args) -> int:
 
     problems: list[str] = []
 
-    # 1. Agents ---------------------------------------------------------
+    # 1. Config + key + port --------------------------------------------
+    # Before the hooks: the OMP extension has the bridge URL baked in, so it
+    # must be written with the port the daemon will actually use.
+    config = _load_or_create_config()
+    port = args.port or int(config.get("port", 8787))
+    print(f"  ✓ config       {CONFIG_PATH}")
+
+    # A dev server on 8787 (a web app, another bridge) would make the daemon
+    # crash-loop with "port already in use" and the user would never know why.
+    if not args.port and not _port_free("0.0.0.0", port):
+        if _bridge_health(port) is not None:
+            print(f"  · port         {port} already has a bridge running")
+        else:
+            replacement = _pick_port(port)
+            if replacement is None:
+                print(f"  ! port         {port} is taken and no free port was found")
+                problems.append("no free port")
+            else:
+                print(f"  ✓ port         {port} was taken — using {replacement}")
+                port = replacement
+                config["port"] = port
+                _save_config(config)
+
+    # 2. Agents ---------------------------------------------------------
     detected = installer.detected_agents()
     if not detected:
         print("  ! No supported agents found.")
         print("    Looked for: claude, agy, codex, omp, opencode, hermes")
         problems.append("no agents detected")
     else:
-        added = installer.install(args.agent or None)
+        added = installer.install(args.agent or None, port)
         for name in detected:
             entries = added.get(name) or []
             mark = "✓" if entries else "·"
             detail = f"{len(entries)} hook(s) added" if entries else "already set up"
             print(f"  {mark} {name:12s} {detail}")
 
-    # 2. Config + key ---------------------------------------------------
-    config = _load_or_create_config()
-    port = args.port or int(config.get("port", 8787))
-    print(f"  ✓ config       {CONFIG_PATH}")
+    # 3. Network reach ---------------------------------------------------
+    # No relay, no account, no quota: the phone talks to this machine either
+    # over the local network or, when it is away, over Tailscale (a private
+    # network between the user's own devices).
+    tailnet = _tailscale_hostname()
+    if tailnet:
+        print(f"  ✓ tailscale    {tailnet}")
+    else:
+        print("  · tailscale    not set up — same Wi-Fi only for now")
 
-    # 3. Daemon ---------------------------------------------------------
+    # 4. Daemon ---------------------------------------------------------
     if args.no_service:
         print("  · daemon       skipped (--no-service)")
+        problems.append("run `pixelpal-bridge serve` in a terminal to keep the bridge alive")
     else:
         try:
+            if service.is_installed():
+                # Restart so a changed port/host is picked up. The detached
+                # backend would otherwise leave the old process holding it.
+                service.uninstall()
             kind, description = service.install(port)
             print(f"  ✓ daemon       {description}")
             if kind == "detached":
@@ -222,44 +301,23 @@ def cmd_setup(args) -> int:
             print(f"  ! daemon       failed: {error}")
             problems.append("daemon install failed")
 
-    # 4. Relay ----------------------------------------------------------
-    relay_code = None
-    if args.no_relay:
-        print("  · relay        skipped (--no-relay) — same-network only")
-    else:
-        config_path = _google_services_path()
-        if config_path is None:
-            print("  ! relay        app/google-services.json not found")
-            problems.append("relay unavailable (no google-services.json)")
-        else:
-            try:
-                firebase = relay.FirebaseConfig.from_google_services(config_path)
-                relay_code = relay_crypto.generate_code()
-                client = relay.RelayClient(
-                    firebase, relay_code
-                )
-                client.register()
-                print(f"  ✓ relay        {firebase.project_id}")
-            except Exception as error:  # noqa: BLE001
-                print(f"  ! relay        failed: {error}")
-                print("                 deploy the rules first:")
-                print("                 firebase deploy --only firestore:rules")
-                problems.append("relay registration failed")
-
-    # 5. The code -------------------------------------------------------
+    # 5. How the phone connects -----------------------------------------
     print()
-    if relay_code:
-        print("  Pair your phone — type this in the app:")
-        _print_code(relay_code)
-        print("  Type it once. To pair another device, run `setup` again for a")
-        print("  fresh code — running it does not disturb paired devices.")
-    else:
-        print("  Same-network only. Pair with:")
-        print(f"    http://{_lan_ip() or 'YOUR-LAPTOP-IP'}:{port}")
-        print(f"    key: {config['pairingKey']}")
-
-    print(f"  Direct (LAN): http://{_lan_ip() or '127.0.0.1'}:{port}")
+    print("  In the app, go to the Agent tab. Use this address:")
     print()
+    lan = _lan_ip()
+    print(f"    http://{lan or 'YOUR-LAPTOP-IP'}:{port}")
+    print()
+    if tailnet:
+        print("  Away from this Wi-Fi, use the Tailscale address instead:")
+        print()
+        print(f"    {tailnet}")
+        print()
+    else:
+        print("  To reach this machine from outside your Wi-Fi, install Tailscale")
+        print("  on both your computer and your phone (free), sign in with the")
+        print("  same account, then run `pixelpal-bridge setup` again.")
+        print()
 
     if problems:
         print("  Notes:")
@@ -276,7 +334,7 @@ def cmd_status(args) -> int:
     import urllib.error
     import urllib.request
 
-    port = args.port
+    port = args.port or _configured_port()
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/agents", timeout=2) as resp:
             payload = json.loads(resp.read())
@@ -292,6 +350,7 @@ def cmd_status(args) -> int:
         age = agent.get("lastEventAgeSeconds")
         age_s = f"{age}s ago" if age is not None else "-"
         print(f"  {agent['agentName']:14s} {agent['status']:18s} {agent['message'][:40]:40s} {age_s}")
+
     return 0
 
 
@@ -359,7 +418,7 @@ def cmd_doctor(args) -> int:
             if hint:
                 print(f"      {hint}")
 
-    port = args.port
+    port = args.port or _configured_port()
     print("PixelPal bridge doctor")
     print()
 
@@ -409,6 +468,16 @@ def cmd_doctor(args) -> int:
             pass
     check(bool(config.get("pairingKey")), "pairing key set (LAN secured)",
           "run `pixelpal-bridge pair` — without it anyone on your LAN can connect")
+
+    print()
+    print("Away from this Wi-Fi")
+    tailnet = _tailscale_hostname()
+    if tailnet:
+        print(f"  ✓ Tailscale      {tailnet}")
+    else:
+        print("  · Tailscale off  same-Wi-Fi only")
+        print("      install Tailscale on this machine and your phone (free),")
+        print("      sign in to both, then run `pixelpal-bridge setup` again")
 
     print()
     print("OK" if ok else "Some checks failed — fix the ✗ items above.")
@@ -465,7 +534,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="pixelpal-bridge",
         description="Connect terminal coding agents to PixelPal.",
     )
-    parser.add_argument("--port", type=int, default=8787, help="bridge port (default 8787)")
+    parser.add_argument("--port", type=int, default=None, help="bridge port (default: from config, else 8787)")
     sub = parser.add_subparsers(dest="command")
 
     serve_p = sub.add_parser("serve", help="run the bridge")
@@ -480,11 +549,15 @@ def main(argv: list[str] | None = None) -> int:
     un_p = sub.add_parser("uninstall", help="remove the hooks install added")
     un_p.set_defaults(func=cmd_uninstall)
 
-    setup_p = sub.add_parser("setup", help="one-shot setup: hooks + daemon + pairing code")
+    setup_p = sub.add_parser("setup", help="one-shot setup: hooks + daemon + connect address")
     setup_p.add_argument("--port", type=int, default=None)
     setup_p.add_argument("--agent", action="append", help="limit to one agent (repeatable)")
     setup_p.add_argument("--no-service", action="store_true", help="don't install the daemon")
-    setup_p.add_argument("--no-relay", action="store_true", help="same-network only")
+    setup_p.add_argument(
+        "--google-services",
+        metavar="PATH",
+        help="path to the app's google-services.json (default: search the repo)",
+    )
     setup_p.set_defaults(func=cmd_setup)
 
     status_p = sub.add_parser("status", help="print current agents")

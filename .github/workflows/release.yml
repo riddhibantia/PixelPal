@@ -1,0 +1,188 @@
+name: Release
+
+# Triggered by pushing a tag like v1.3.0.
+#
+# Produces one self-contained GitHub Release:
+#   PixelPal-<ver>.apk        signed, installable directly from the phone
+#   pixelpal-bridge-<ver>.tar.gz   the laptop bridge (pure stdlib)
+#   SHA256SUMS                so users can verify what they downloaded
+#
+# Requires four repository secrets (see RELEASING.md):
+#   RELEASE_STORE_BASE64, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS,
+#   RELEASE_KEY_PASSWORD
+#
+# The same key must sign every release forever: Android refuses to update an
+# installed app whose signing key changed, and users would have to uninstall
+# (losing local data) to move to the new version.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.3.0)'
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # ---- Resolve and validate the version -------------------------------
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          REF="${{ github.event.inputs.tag || github.ref_name }}"
+          NAME="${REF#v}"
+          if ! printf '%s' "$NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$REF' is not semver (expected vMAJOR.MINOR.PATCH)"
+            exit 1
+          fi
+          MAJOR="${NAME%%.*}"
+          REST="${NAME#*.}"
+          MINOR="${REST%%.*}"
+          PATCH="${REST#*.}"
+          CODE=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+          echo "name=$NAME"   >> "$GITHUB_OUTPUT"
+          echo "code=$CODE"   >> "$GITHUB_OUTPUT"
+          echo "Releasing $NAME (versionCode $CODE)"
+
+      # ---- Signing --------------------------------------------------------
+      # Fail fast with a clear message rather than shipping an unsigned APK.
+      - name: Check signing secrets
+        run: |
+          missing=""
+          [ -n "${{ secrets.RELEASE_STORE_BASE64 }}" ] || missing="$missing RELEASE_STORE_BASE64"
+          [ -n "${{ secrets.RELEASE_STORE_PASSWORD }}" ] || missing="$missing RELEASE_STORE_PASSWORD"
+          [ -n "${{ secrets.RELEASE_KEY_ALIAS }}" ] || missing="$missing RELEASE_KEY_ALIAS"
+          [ -n "${{ secrets.RELEASE_KEY_PASSWORD }}" ] || missing="$missing RELEASE_KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing signing secrets:$missing — see RELEASING.md"
+            exit 1
+          fi
+
+      - name: Decode keystore
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.RELEASE_STORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/pixelpal.jks"
+          echo "Keystore decoded ($(stat -c%s "$RUNNER_TEMP/pixelpal.jks") bytes)"
+
+      - name: Create local.properties
+        run: echo "GEMINI_API_KEY=" > local.properties
+
+      - name: Assemble signed release APK
+        env:
+          RELEASE_STORE_FILE: ${{ runner.temp }}/pixelpal.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew :app:assembleRelease \
+            -PRELEASE_STORE_FILE="$RELEASE_STORE_FILE" \
+            -PRELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD" \
+            -PRELEASE_KEY_ALIAS="$RELEASE_KEY_ALIAS" \
+            -PRELEASE_KEY_PASSWORD="$RELEASE_KEY_PASSWORD" \
+            -PPIXELPAL_VERSION_NAME="${{ steps.ver.outputs.name }}" \
+            -PPIXELPAL_VERSION_CODE="${{ steps.ver.outputs.code }}" \
+            --stacktrace
+
+      # A release that is not actually signed must never reach users.
+      - name: Verify the APK is signed
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "APK: $APK"
+          if command -v apksigner >/dev/null 2>&1; then SIGNER=apksigner; else
+            SIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort | tail -1)
+          fi
+          "$SIGNER" verify --print-certs "$APK" | head -5
+          echo "Signing verified."
+
+      # ---- Bundle the bridge ----------------------------------------------
+      - name: Stage release files
+        id: stage
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "$(find app/build/outputs/apk/release -name '*.apk' | head -1)" \
+             "dist/PixelPal-${{ steps.ver.outputs.name }}.apk"
+          # Exclude stale bytecode: committed .pyc can shadow source and it
+          # bloats the download for no benefit.
+          tar -czf "dist/pixelpal-bridge-${{ steps.ver.outputs.name }}.tar.gz" \
+             --exclude='__pycache__' --exclude='*.pyc' \
+             -C tools agent-bridge/pixelpal_bridge agent-bridge/pyproject.toml \
+                agent-bridge/README.md
+          echo "Staged:"; ls -la dist
+
+      - name: Generate SHA256SUMS
+        run: cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      # ---- Publish --------------------------------------------------------
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: PixelPal ${{ steps.ver.outputs.name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            dist/*
+          body: |
+            ## Install on your Android phone
+
+            1. Download **PixelPal-${{ steps.ver.outputs.name }}.apk** below.
+            2. Open it. Android will ask to allow installing from this source —
+               allow it once, then tap Install.
+            3. Open PixelPal. Your pet appears right away.
+
+            ## Connect your coding agents
+
+            On your computer, install the bridge (Python 3.9+, no other deps):
+
+            ```bash
+            pipx install ./pixelpal-bridge-${{ steps.ver.outputs.name }}.tar.gz
+            pixelpal-bridge setup
+            ```
+
+            `setup` installs hooks for every coding agent it finds, starts the
+            bridge in the background, and prints the address to enter in the
+            app's **Agent** tab.
+
+            ## Verify your download (optional)
+
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+
+            ## Files
+
+            | File | What it is |
+            |---|---|
+            | `PixelPal-*.apk` | The Android app. This is what you install. |
+            | `pixelpal-bridge-*.tar.gz` | The bridge source, if you prefer to run it yourself. |
+            | `SHA256SUMS` | Checksums for every file above. |
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/pixelpal.jks"
