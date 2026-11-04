@@ -18,3 +18,9 @@ pp_device.db
 
 agent-endpoint/commands.log
 agent-endpoint/pet_art/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
