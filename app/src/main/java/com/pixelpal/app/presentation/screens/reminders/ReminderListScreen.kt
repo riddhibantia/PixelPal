@@ -1,15 +1,21 @@
 package com.pixelpal.app.presentation.screens.reminders
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.animation.AnimationState
+import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.EmptyState
 import com.pixelpal.app.presentation.components.PixelPalBottomBar
@@ -46,6 +53,7 @@ import com.pixelpal.app.presentation.theme.Spacing
 
 private enum class ReminderFilter { UPCOMING, COMPLETED }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReminderListScreen(
     navController: NavController,
@@ -54,6 +62,7 @@ fun ReminderListScreen(
     val pendingReminders by viewModel.pendingReminders.collectAsState()
     val completedReminders by viewModel.completedReminders.collectAsState()
     val companion by viewModel.companion.collectAsState()
+    val categoryFilter by viewModel.categoryFilter.collectAsState()
     var filter by remember { mutableStateOf(ReminderFilter.UPCOMING) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -125,6 +134,40 @@ fun ReminderListScreen(
                     shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                 ) {
                     Text("Completed")
+                }
+            }
+
+            // Category filter: "All" + one chip per category. Filtering happens
+            // in the ViewModel so the empty states below stay honest.
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.screenHorizontal)
+                    .padding(top = Spacing.sm),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                FilterChip(
+                    selected = categoryFilter == null,
+                    onClick = { viewModel.setCategoryFilter(null) },
+                    label = { Text("All") }
+                )
+                ReminderCategory.ALL.forEach { option ->
+                    FilterChip(
+                        selected = categoryFilter == option,
+                        onClick = {
+                            viewModel.setCategoryFilter(
+                                if (categoryFilter == option) null else option
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = option.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text(option.displayName) }
+                    )
                 }
             }
 

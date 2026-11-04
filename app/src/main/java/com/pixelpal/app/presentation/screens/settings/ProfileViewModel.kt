@@ -37,6 +37,13 @@ class ProfileViewModel @Inject constructor(
     /** True while a real bidirectional cloud sync is in flight. */
     val isSyncing: StateFlow<Boolean> = syncCoordinator.isSyncing
 
+    /**
+     * Last full-sync failure message, or null when the last sync succeeded.
+     * Surfaced in the Cloud Sync card so a failing sync is visible instead of
+     * only being logged (see MEMORY.md §2 defect 18).
+     */
+    val lastSyncError: StateFlow<String?> = syncCoordinator.lastSyncError
+
     /** Reads the currently stored values directly (DataStore) — not the StateFlow initial value. */
     suspend fun currentUserName(): String = preferencesManager.getUserName()
 
@@ -53,7 +60,11 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun triggerCloudSync() {
-        viewModelScope.launch { syncCoordinator.fullSync() }
+        viewModelScope.launch {
+            // fullSync records its own failure in lastSyncError; the Result is
+            // intentionally ignored here because the Flow drives the UI.
+            syncCoordinator.fullSync()
+        }
     }
 
     fun signOut() {

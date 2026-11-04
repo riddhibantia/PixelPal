@@ -6,6 +6,7 @@ import com.pixelpal.app.data.local.db.PixelPalDatabase
 import com.pixelpal.app.data.local.db.DatabaseMigrations
 import com.pixelpal.app.data.local.db.dao.ActivityEventDao
 import com.pixelpal.app.data.local.db.dao.AgentConnectionDao
+import com.pixelpal.app.data.local.db.dao.AgentSessionDao
 import com.pixelpal.app.data.local.db.dao.BondDao
 import com.pixelpal.app.data.local.db.dao.CompanionDao
 import com.pixelpal.app.data.local.db.dao.PersonalityDao
@@ -47,7 +48,8 @@ object DatabaseModule {
             DatabaseMigrations.MIGRATION_10_11,
             DatabaseMigrations.MIGRATION_11_12,
             DatabaseMigrations.MIGRATION_12_13,
-            DatabaseMigrations.MIGRATION_13_14
+            DatabaseMigrations.MIGRATION_13_14,
+            DatabaseMigrations.MIGRATION_14_15
         )
         // Dev builds may move between versions freely; wiping on downgrade beats crashing.
         .fallbackToDestructiveMigrationOnDowngrade()
@@ -74,6 +76,9 @@ object DatabaseModule {
 
     @Provides
     fun provideAgentConnectionDao(db: PixelPalDatabase): AgentConnectionDao = db.agentConnectionDao()
+
+    @Provides
+    fun provideAgentSessionDao(db: PixelPalDatabase): AgentSessionDao = db.agentSessionDao()
 
     @Provides
     fun provideActivityEventDao(db: PixelPalDatabase): ActivityEventDao = db.activityEventDao()

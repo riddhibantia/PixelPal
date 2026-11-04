@@ -1,8 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    PixelPal string resources.
+
+    NAMING CONVENTION (follow it when appending — do not restructure this file):
+      <area>_<feature>_<element>
+
+      area     = screen or subsystem, lowercase snake_case:
+                 about, theme, settings, home, tasks, reminders, workspace,
+                 activity, auth, onboarding, overlay, widget, permissions, ...
+      feature  = the screen/component surface within that area, optional for
+                 whole-screen strings (e.g. about_title, theme_option_system)
+      element  = what the string is: title, subtitle, description, label,
+                 action, empty, hint, error, snackbar, dialog_*, content_description
+
+    Examples:
+      about_privacy_body           body copy in the About screen's Privacy group
+      about_action_send_feedback   a button/row action on About
+      theme_option_system_name     display name of the "system" theme option
+      theme_selected_description   contentDescription for a selected swatch
+
+    Rules:
+      - Only include strings for UI copy. Do NOT move logs, DataStore keys,
+        Firestore field names, route names or other identifiers here.
+      - Format args use positional placeholders: %1$s (string/int via %1$d).
+        Escape a literal apostrophe as \' and quotes as \" .
+      - The five entries at the top predate the convention and are referenced
+        by AndroidManifest.xml / widgets — keep their names stable.
+-->
 <resources>
+    <!-- Manifest / OS-surface references (names fixed — do not rename). -->
     <string name="app_name">Pixel Pet</string>
     <string name="accessibility_service_description">Used by PixelPal to detect when your keyboard opens, so your pet can jump out of the way!</string>
     <string name="accessibility_service_label">PixelPal Keyboard Detection</string>
     <string name="widget_tasks_description">PixelPal Tasks — see and complete tasks from your home screen</string>
     <string name="widget_home_description">PixelPal Home — companion status, tasks and agent at a glance</string>
+
+    <!-- ── AboutScreen ───────────────────────────────────────────────────── -->
+
+    <string name="about_title">About PixelPal</string>
+    <string name="about_app_name">PixelPal</string>
+    <string name="about_tagline">Your Living Pixel Companion</string>
+    <string name="about_version">Version %1$s</string>
+
+    <string name="about_section_support">Support</string>
+    <string name="about_support_feedback_title">Help &amp; Feedback</string>
+    <string name="about_support_feedback_description">Tell us how PixelPal can be better</string>
+    <string name="about_feedback_email_subject">PixelPal Feedback</string>
+    <string name="about_feedback_chooser_title">Send feedback</string>
+
+    <string name="about_section_privacy">Privacy</string>
+    <string name="about_privacy_local">By default everything stays on this device: your companion, tasks, reminders, activity and preferences are stored locally. No account is needed to use PixelPal.</string>
+    <string name="about_privacy_cloud">If you sign in, your companion, tasks and reminders also sync through Firebase Cloud Firestore to your own account. That cloud data belongs to your account only, is not shared with other users, and is never sold. Its access rules are the ones configured in this build\'s Firebase project.</string>
+    <string name="about_privacy_guest">Guest mode signs you in anonymously: there is no email or name attached, and the same cloud sync applies to you while you\'re signed in.</string>
+    <string name="about_privacy_agent">Your AI agent connection (provider, endpoints, API keys) and the network calls that feature makes are always handled on-device — PixelPal has no backend server of its own to send them to.</string>
+
+    <string name="about_footer_made_with">Made with ♥ and pixels</string>
+
+    <!-- ── ThemePicker (shared by Settings sheet + Customize cards) ──────── -->
+
+    <string name="theme_sheet_title">Appearance</string>
+    <string name="theme_option_dark_name">Dark</string>
+    <string name="theme_option_light_name">Light</string>
+    <string name="theme_option_spring_name">Spring</string>
+    <string name="theme_option_autumn_name">Autumn</string>
+    <string name="theme_option_system_name">System</string>
+    <string name="theme_option_system_description">Match your device wallpaper and dark mode</string>
+    <string name="theme_selected_description">Selected</string>
+    <string name="theme_card_description">%1$s theme</string>
+    <string name="theme_card_description_selected">%1$s theme, selected</string>
 </resources>

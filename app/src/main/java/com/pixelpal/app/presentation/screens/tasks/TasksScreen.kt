@@ -29,14 +29,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -45,9 +50,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.animation.AnimationState
+import com.pixelpal.app.domain.model.Task
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.EmptyState
 import com.pixelpal.app.presentation.components.LoadingState
+import com.pixelpal.app.presentation.components.PixelPalSnackbarHost
+import com.pixelpal.app.presentation.components.SnackbarEvent
 import com.pixelpal.app.presentation.navigation.Screen
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
@@ -65,8 +73,28 @@ fun TasksScreen(
     val companion by viewModel.companion.collectAsState()
     val widgetEnabled by viewModel.tasksWidgetEnabled.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Swipe- or detail-delete emits TaskDeleted; Undo reinserts the snapshot
+    // (task + subtasks). Mirrors ReminderViewModel's delete/undo pattern.
+    LaunchedEffect(Unit) {
+        viewModel.snackbarEvents.collect { event ->
+            val result = snackbarHostState.showSnackbar(
+                message = event.message,
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                when (event) {
+                    is SnackbarEvent.TaskDeleted -> viewModel.undoDeleteTask()
+                    else -> {}
+                }
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { PixelPalSnackbarHost(hostState = snackbarHostState) },
         bottomBar = {
             com.pixelpal.app.presentation.components.PixelPalBottomBar(
                 navController = navController,
@@ -281,6 +309,7 @@ private fun TaskRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                TaskDueLabel(task = task)
             }
 
             if (subtasks.isNotEmpty()) {
@@ -300,4 +329,29 @@ private fun TaskRow(
             )
         }
     }
+}
+
+/**
+ * Relative due line on a task row ("Due today 18:00", "Overdue — was due
+ * yesterday", "Due 12 Nov") in the error color while overdue.
+ */
+@Composable
+private fun TaskDueLabel(task: Task) {
+    // Re-key on the local day so "Due tomorrow"/"Overdue" roll over at midnight
+    // for a screen left open in the foreground.
+    val todayKey = remember { java.util.Calendar.getInstance() }
+        .let { it.get(java.util.Calendar.YEAR) * 1000 + it.get(java.util.Calendar.DAY_OF_YEAR) }
+    val info = remember(task.dueAt, task.isDone, task.id, todayKey) { taskDueInfo(task) } ?: return
+    Spacer(modifier = Modifier.height(2.dp))
+    Text(
+        text = info.label,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = if (info.isOverdue) FontWeight.SemiBold else FontWeight.Normal,
+        color = if (info.isOverdue) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        maxLines = 1
+    )
 }

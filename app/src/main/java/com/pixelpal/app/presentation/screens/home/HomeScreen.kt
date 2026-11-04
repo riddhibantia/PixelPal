@@ -143,7 +143,7 @@ fun HomeScreen(
                         viewModel = viewModel,
                         onTasksClick = { navController.navigate(Screen.Tasks.route) },
                         onRemindersClick = { navController.navigate(Screen.Reminders.route) },
-                        onAgentClick = { navController.navigate(Screen.CompanionWorkspace.route) }
+                        onAgentClick = { navController.navigate(Screen.ConnectedAgents.route) }
                     )
 
                     Spacer(modifier = Modifier.height(Spacing.md))

@@ -166,8 +166,18 @@ class OverlaySession(
         view?.applyTint(bodyColorArgb, accentColorArgb)
     }
 
-    /** Shows THIS session's speech bubble anchored above ITS OWN pet. */
-    fun showMessage(text: String) {
+    /**
+     * Shows THIS session's speech bubble anchored above ITS OWN pet.
+     *
+     * When [actions] is non-empty (reminder Complete/Snooze) the bubble becomes
+     * interactive: it stays until the user picks an action or taps the bubble
+     * instead of auto-dismissing after [AUTO_DISMISS_MS], and tapping the bubble
+     * no longer dismisses it (that would steal the tap from the buttons).
+     */
+    fun showMessage(
+        text: String,
+        actions: List<SpeechBubbleOverlayView.Action> = emptyList()
+    ) {
         bubbleDismissJob?.cancel()
         bubbleView?.let { old ->
             try {
@@ -195,7 +205,11 @@ class OverlaySession(
         bubbleParams = layoutParams
 
         bubble.showText(text)
-        bubble.setOnClickListener { hideBubble() }
+        if (actions.isEmpty()) {
+            bubble.setOnClickListener { hideBubble() }
+        } else {
+            bubble.showActions(actions)
+        }
 
         try {
             windowManager.addView(bubble, layoutParams)
@@ -205,7 +219,9 @@ class OverlaySession(
         }
 
         bubbleDismissJob = scope.launch {
-            delay(4000L)
+            // Interactive bubbles survive longer than chatter: the user needs
+            // time to read and reach for a button.
+            delay(if (actions.isEmpty()) AUTO_DISMISS_MS else INTERACTIVE_DISMISS_MS)
             hideBubble()
         }
     }
@@ -225,14 +241,18 @@ class OverlaySession(
     private fun hideBubble() {
         bubbleDismissJob?.cancel()
         bubbleDismissJob = null
-        bubbleView?.let { b ->
+        val bubble = bubbleView
+        bubbleView = null
+        bubbleParams = null
+        if (bubble == null) return
+        // animateOut is pixel-cheap and makes the removal read as intentional;
+        // the view is detached either way, so a missed callback is harmless.
+        bubble.animateOut {
             try {
-                windowManager.removeView(b)
+                windowManager.removeView(bubble)
             } catch (_: Exception) {
             }
         }
-        bubbleView = null
-        bubbleParams = null
     }
 
     private fun flashReaction(state: AnimationState) {
@@ -316,5 +336,9 @@ class OverlaySession(
         /** Default spawn stagger so two pets never start stacked on each other. */
         private const val SLOT_STAGGER_X_DP = 90f
         private const val SLOT_STAGGER_Y_DP = 120f
+
+        /** Chatter auto-dismisses quickly; action bubbles wait for the user. */
+        private const val AUTO_DISMISS_MS = 4_000L
+        private const val INTERACTIVE_DISMISS_MS = 20_000L
     }
 }

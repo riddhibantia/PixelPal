@@ -9,21 +9,37 @@ import android.content.Intent
 import android.widget.RemoteViews
 import com.pixelpal.app.R
 import com.pixelpal.app.data.local.db.PixelPalDatabase
+import com.pixelpal.app.domain.model.Task
+import com.pixelpal.app.domain.repository.TaskRepository
+import com.pixelpal.app.domain.usecase.task.CompleteTaskUseCase
 import com.pixelpal.app.presentation.MainActivity
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
 import timber.log.Timber
 
+/**
+ * Hilt access for widget code. App widgets are not `@AndroidEntryPoint`
+ * components, so everything the widget needs is pulled through a single entry
+ * point instead of being re-implemented inline.
+ *
+ * Deliberately requests [CompleteTaskUseCase] (not the DAOs/BondEngine
+ * separately): completing a task from the widget must be *exactly* the in-app
+ * flow — mark done + TASK_COMPLETED activity (TaskRepositoryImpl.completeTask,
+ * transactional) + bond reward through BondEngine.recordTaskCompleted (the
+ * single source of bond rules) + widget refresh + cloud push.
+ */
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface TasksWidgetEntryPoint {
     fun database(): PixelPalDatabase
+    fun taskRepository(): TaskRepository
+    fun completeTaskUseCase(): CompleteTaskUseCase
 }
 
 class TasksWidgetProvider : AppWidgetProvider() {
@@ -31,8 +47,8 @@ class TasksWidgetProvider : AppWidgetProvider() {
     companion object {
         const val ACTION_TOGGLE_TASK = "com.pixelpal.app.widget.TOGGLE_TASK"
         const val EXTRA_TASK_ID = "task_id"
-        const val ACTION_ADD_TASK = "com.pixelpal.app.widget.ADD_TASK"
 
+        /** Refreshes the task list widget AND the companion home widget. */
         fun updateAllWidgets(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, TasksWidgetProvider::class.java))
@@ -46,9 +62,10 @@ class TasksWidgetProvider : AppWidgetProvider() {
             // Also update home widget
             HomeWidgetProvider.updateAllWidgets(context)
         }
-    }
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        /** Application-scoped worker scope: outlives any single provider instance. */
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
@@ -57,93 +74,86 @@ class TasksWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        when (intent.action) {
-            ACTION_TOGGLE_TASK -> {
-                val taskId = intent.getLongExtra(EXTRA_TASK_ID, -1L)
-                if (taskId != -1L) handleToggle(context, taskId)
+        if (intent.action == ACTION_TOGGLE_TASK) {
+            // Own the whole broadcast: every widget instance shares this
+            // PendingIntent, so the coroutine must complete inside
+            // goAsync()/finish() — otherwise the toggle and its bond award
+            // are lost whenever the (cold, widget-only) process dies.
+            val taskId = intent.getLongExtra(EXTRA_TASK_ID, -1L)
+            if (taskId == -1L) {
+                super.onReceive(context, intent)
+                return
             }
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    handleToggle(context, taskId)
+                } catch (e: Exception) {
+                    Timber.e(e, "TasksWidget: toggle failed for task $taskId")
+                } finally {
+                    pendingResult.finish()
+                }
+            }
+            return
         }
+        super.onReceive(context, intent)
     }
 
-    private fun handleToggle(context: Context, taskId: Long) {
-        scope.launch(Dispatchers.IO) {
-            try {
-                val entryPoint = EntryPointAccessors.fromApplication(
-                    context.applicationContext, TasksWidgetEntryPoint::class.java
-                )
-                val db = entryPoint.database()
-                val taskDao = db.taskDao()
-                val bondDao = db.bondDao()
-                val companionDao = db.companionDao()
-                val activityDao = db.activityEventDao()
+    /**
+     * Mirrors in-app completion precisely:
+     *  - pending task → [CompleteTaskUseCase]: mark done + TASK_COMPLETED
+     *    activity (TaskRepositoryImpl.completeTask, transactional) + bond via
+     *    BondEngine.recordTaskCompleted + cloud push.
+     *  - already-done task → un-complete only (no bond, no activity) — exactly
+     *    what [TaskRepository.toggleTask] does for the in-app checkbox.
+     * Widgets are refreshed in all cases.
+     */
+    private suspend fun handleToggle(context: Context, taskId: Long) {
+        val entryPoint = EntryPointAccessors.fromApplication(
+            context.applicationContext, TasksWidgetEntryPoint::class.java
+        )
+        val db = entryPoint.database()
+        val taskRepository = entryPoint.taskRepository()
+        val completeTaskUseCase = entryPoint.completeTaskUseCase()
 
-                // Get task to know companionId and current state — query directly
-                // Use a simple approach: toggle via DAO
-                val companion = companionDao.getPrimaryDirect() ?: return@launch
-                // Check current state by querying tasks
-                val tasks = mutableListOf<com.pixelpal.app.data.local.db.entity.TaskEntity>()
-                // We need to find the task — use a direct query via taskDao is limited.
-                // Workaround: fetch all tasks for companion and find by id
-                // TaskDao.getTasks is a Flow, we need a suspend direct query. Add one if missing.
-                // For now, try to toggle: attempt markDone, if already done markUndone will be called via toggle logic.
-                // Simpler: we store isDone in the widget via task state at render time. But onReceive we don't know.
-                // Let's add a direct query method — for now use reflection-style: try both
-                // We'll query via database directly
-                val cursor = db.openHelper.readableDatabase.query(
-                    "SELECT isDone, companionId FROM tasks WHERE id = $taskId"
-                )
-                var isDone = false
-                var companionId = companion.id
-                if (cursor.moveToFirst()) {
-                    isDone = cursor.getInt(0) != 0
-                    companionId = cursor.getLong(1)
-                }
-                cursor.close()
-
-                if (isDone) {
-                    taskDao.markUndone(taskId, System.currentTimeMillis())
-                } else {
-                    taskDao.markDone(taskId, System.currentTimeMillis())
-                    // Award bond progress — same as CompleteTaskUseCase
-                    val bond = bondDao.getBondDirect(companionId)
-                    if (bond != null) {
-                        val newLevel = (bond.level + 2).coerceAtMost(100)
-                        bondDao.insertOrUpdate(
-                            bond.copy(
-                                level = newLevel,
-                                totalInteractions = bond.totalInteractions + 1,
-                                lastInteractionTime = System.currentTimeMillis()
-                            )
-                        )
-                        // Milestone check
-                        if (newLevel > bond.level && newLevel % 5 == 0) {
-                            activityDao.insert(
-                                com.pixelpal.app.data.local.db.entity.ActivityEventEntity(
-                                    companionId = companionId,
-                                    type = "BOND_LEVEL_UP",
-                                    title = "${companion.name} reached Bond Level $newLevel"
-                                )
-                            )
-                        }
-                    }
-                    activityDao.insert(
-                        com.pixelpal.app.data.local.db.entity.ActivityEventEntity(
-                            companionId = companionId,
-                            type = "TASK_COMPLETED",
-                            title = "Task completed"
-                        )
-                    )
-                }
-                // Refresh widgets
-                updateAllWidgets(context)
-            } catch (_: Exception) { }
+        // Tasks are shown per companion but toggled by device-local row id.
+        val entity = db.taskDao().getTaskById(taskId)
+        if (entity == null) {
+            Timber.w("TasksWidget: task $taskId no longer exists, refreshing widgets only")
+            updateAllWidgets(context)
+            return
         }
+        val task = Task(
+            id = entity.id,
+            companionId = entity.companionId,
+            title = entity.title,
+            description = entity.description,
+            isDone = entity.isDone,
+            dueAt = entity.dueAt,
+            createdAt = entity.createdAt,
+            completedAt = entity.completedAt,
+            photoUri = entity.photoUri
+        )
+
+        if (task.isDone) {
+            // Undo: no bond, no activity — TaskRepositoryImpl.toggleTask's
+            // documented "not done" branch.
+            taskRepository.toggleTask(task)
+        } else {
+            // Completion goes through the SAME use case the app uses so the
+            // widget can never drift from in-app bond/activity semantics.
+            completeTaskUseCase(task)
+        }
+        Timber.d("TasksWidget: toggled task ${task.id} (wasDone=${task.isDone})")
+
+        // The repository/use-case paths already refresh widgets; this is the
+        // safety net for the exception paths above.
+        updateAllWidgets(context)
     }
 
     private fun updateWidget(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
         Timber.d("TasksWidget: onUpdate called for widget $appWidgetId")
-        scope.launch(Dispatchers.IO) {
+        scope.launch {
             try {
                 val entryPoint = EntryPointAccessors.fromApplication(
                     context.applicationContext, TasksWidgetEntryPoint::class.java
@@ -184,8 +194,6 @@ class TasksWidgetProvider : AppWidgetProvider() {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                 )
                 views.setOnClickPendingIntent(R.id.widget_add_task, openPending)
-                // Also make whole header clickable
-                views.setOnClickPendingIntent(R.id.widget_task_row_0, openPending)
 
                 if (tasks.isEmpty()) {
                     for (i in 0..5) {
@@ -217,8 +225,9 @@ class TasksWidgetProvider : AppWidgetProvider() {
                                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                             )
                             views.setOnClickPendingIntent(getCheckboxId(i), togglePending)
-                            // Also make row clickable
-                            views.setOnClickPendingIntent(getRowId(i), togglePending)
+                            // Also make the title clickable — the row itself is an
+                            // open-app target so the widget's main click still works.
+                            views.setOnClickPendingIntent(getTitleId(i), togglePending)
                         } else {
                             views.setViewVisibility(getRowId(i), android.view.View.GONE)
                         }

@@ -1,11 +1,15 @@
 package com.pixelpal.app.data.repository
 
+import android.content.Context
 import com.pixelpal.app.data.local.db.dao.SubtaskDao
 import com.pixelpal.app.data.local.db.dao.TaskDao
 import com.pixelpal.app.data.local.db.entity.SubtaskEntity
 import com.pixelpal.app.data.remote.firebase.FirestoreSyncEngine
 import com.pixelpal.app.domain.model.Subtask
 import com.pixelpal.app.domain.repository.SubtaskRepository
+import com.pixelpal.app.worker.CloudPushScheduler
+import com.pixelpal.app.worker.FirestorePushWorker
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -13,6 +17,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SubtaskRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val dao: SubtaskDao,
     private val taskDao: TaskDao,
     private val syncEngine: FirestoreSyncEngine
@@ -36,9 +41,7 @@ class SubtaskRepositoryImpl @Inject constructor(
             updatedAt = System.currentTimeMillis()
         )
         val id = dao.insert(entity)
-        parentCloudId(taskId)?.let { parent ->
-            syncEngine.pushSubtaskAsync(entity.copy(id = id), parent)
-        }
+        pushAndRetry(entity.copy(id = id))
     }
 
     override suspend fun toggle(subtask: Subtask) {
@@ -50,9 +53,7 @@ class SubtaskRepositoryImpl @Inject constructor(
             entity.copy(isDone = true, completedAt = now, updatedAt = now)
         }
         dao.setDone(entity.id, updated.isDone, updated.completedAt, updated.updatedAt)
-        parentCloudId(entity.taskId)?.let { parent ->
-            syncEngine.pushSubtaskAsync(updated, parent)
-        }
+        pushAndRetry(updated)
     }
 
     override suspend fun rename(subtaskId: Long, title: String) {
@@ -60,19 +61,35 @@ class SubtaskRepositoryImpl @Inject constructor(
         val entity = dao.getById(subtaskId) ?: return
         val updated = entity.copy(title = title.trim(), updatedAt = System.currentTimeMillis())
         dao.update(updated)
-        parentCloudId(entity.taskId)?.let { parent ->
-            syncEngine.pushSubtaskAsync(updated, parent)
-        }
+        pushAndRetry(updated)
     }
 
     override suspend fun delete(subtask: Subtask) {
         val entity = dao.getById(subtask.id)
         if (entity != null) {
             dao.delete(entity)
+            // Soft delete: a tombstone is written instead of removing the doc.
             syncEngine.deleteSubtaskAsync(entity.cloudId)
+            CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_DELETE_SUBTASK, entity.cloudId)
         } else {
             dao.delete(subtask.toEntity())
         }
+    }
+
+    /**
+     * Instant push (UI snappiness) + retryable queued push (offline safety).
+     * The parent task's cloudId is resolved here (not stored on the subtask) and
+     * passed to the scheduler only for diagnostics — the worker re-derives it.
+     */
+    private suspend fun pushAndRetry(entity: SubtaskEntity) {
+        val parent = parentCloudId(entity.taskId) ?: return
+        syncEngine.pushSubtaskAsync(entity, parent)
+        CloudPushScheduler.enqueue(
+            context,
+            FirestorePushWorker.TYPE_SUBTASK,
+            entity.cloudId,
+            parentCloudId = parent
+        )
     }
 
     private fun SubtaskEntity.toDomain() = Subtask(

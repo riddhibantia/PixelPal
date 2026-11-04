@@ -142,6 +142,28 @@ fun TaskDetailScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.md))
 
+                // ── Due date (set/clear fires an immediate update + reschedules
+                //    the "Task due" notification) ──
+                SectionHeader(title = "Due date")
+                DueDateSection(
+                    dueAt = task.dueAt,
+                    onDueAtChange = { due -> viewModel.setDueAt(due) }
+                )
+                task.dueAt?.let { _ ->
+                    val info = taskDueInfo(task)
+                    if (info != null && info.isOverdue) {
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            text = info.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(start = Spacing.xs)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
                 // ── Main task completion ──
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -41,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
@@ -61,7 +64,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import com.pixelpal.app.domain.model.Companion
+import com.pixelpal.app.domain.model.ReminderCategory
+import com.pixelpal.app.domain.model.ReminderSound
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GroupDivider
@@ -87,6 +91,9 @@ fun CreateReminderScreen(
     viewModel: ReminderViewModel = hiltViewModel()
 ) {
     var title by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf(ReminderCategory.CUSTOM) }
+    var saveBlocked by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     var selectedMode by remember { mutableStateOf(TimeMode.QUICK) }
@@ -106,8 +113,18 @@ fun CreateReminderScreen(
         initialSelectedDateMillis = System.currentTimeMillis()
     )
 
-    var soundUri by remember { mutableStateOf<String?>(null) }
-    var soundName by remember { mutableStateOf("Default Sound") }
+    // User-picked ringtone; null = "not chosen" so the category's sound hint
+    // decides (see ReminderCategory.soundHint / ReminderNotificationHelper).
+    var pickedSoundUri by remember { mutableStateOf<String?>(null) }
+    var pickedSoundName by remember { mutableStateOf<String?>(null) }
+    // Explicit logical override (currently only "Silent").
+    var explicitSound by remember { mutableStateOf<ReminderSound?>(null) }
+
+    val soundSummary = when {
+        explicitSound == ReminderSound.NONE -> "Silent"
+        pickedSoundUri != null -> pickedSoundName ?: "Custom sound"
+        else -> "${category.displayName} default (${category.soundHint.displayName})"
+    }
 
     val dateFormatter = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
 
@@ -124,11 +141,21 @@ fun CreateReminderScreen(
                 @Suppress("DEPRECATION")
                 result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
             }
-            soundUri = uri?.toString()
-            soundName = if (uri != null) {
-                RingtoneManager.getRingtone(context, uri).getTitle(context)
+            if (uri == null) {
+                // The system picker hands back null for "silent": this used to be
+                // stored as soundUri=null, which means "default sound" downstream.
+                // Record it as an explicit silent choice instead.
+                explicitSound = ReminderSound.NONE
+                pickedSoundUri = null
+                pickedSoundName = null
             } else {
-                "Silent"
+                explicitSound = null
+                pickedSoundUri = uri.toString()
+                pickedSoundName = try {
+                    RingtoneManager.getRingtone(context, uri)?.getTitle(context) ?: "Custom sound"
+                } catch (e: Exception) {
+                    "Custom sound"
+                }
             }
         }
     }
@@ -173,23 +200,40 @@ fun CreateReminderScreen(
 
     fun saveReminder() {
         val triggerTime = computeTriggerTime() ?: return
+        // Hard guard: never persist a reminder we cannot schedule exactly. This
+        // was the bug — the permission result was ignored and an inexact alarm
+        // silently replaced the user's intent.
+        if (!PermissionHelper.canScheduleExactAlarms(context)) {
+            saveBlocked = true
+            return
+        }
         if (title.isNotBlank()) {
             val cal = Calendar.getInstance().apply { timeInMillis = triggerTime }
             viewModel.createReminder(
                 title = title,
-                message = null,
+                message = message,
                 triggerTime = triggerTime,
                 hour = cal.get(Calendar.HOUR_OF_DAY),
                 minute = cal.get(Calendar.MINUTE),
-                soundUri = soundUri
+                soundUri = pickedSoundUri,
+                category = category,
+                sound = explicitSound
             )
         }
     }
 
+    // Exact-alarm permission flow: only persist the reminder when the user
+    // actually granted it. Cancelling (or returning without the grant) used to
+    // save an inexact alarm silently, which looked like the reminder was lost.
     val exactAlarmLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        saveReminder()
+        if (PermissionHelper.canScheduleExactAlarms(context)) {
+            saveBlocked = false
+            saveReminder()
+        } else {
+            saveBlocked = true
+        }
     }
 
     fun onSavePressed() {
@@ -231,9 +275,51 @@ fun CreateReminderScreen(
             SectionHeader(title = "What")
             AppTextField(
                 value = title,
-                onValueChange = { title = it },
+                onValueChange = {
+                    title = it
+                    if (it.isNotBlank()) saveBlocked = false
+                },
                 label = "Reminder",
                 placeholder = "What do you want to be reminded of?"
+            )
+
+            Spacer(modifier = Modifier.height(Spacing.md))
+            AppTextField(
+                value = message,
+                onValueChange = { message = it.take(MAX_MESSAGE_LENGTH) },
+                label = "Details (optional)",
+                placeholder = "Extra context Pixel can show when it fires",
+                singleLine = false,
+                supportingText = "${message.length}/$MAX_MESSAGE_LENGTH"
+            )
+
+            // ── CATEGORY ──
+            SectionHeader(title = "Category")
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                ReminderCategory.ALL.forEach { option ->
+                    FilterChip(
+                        selected = category == option,
+                        onClick = { category = option },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = option.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        label = { Text(option.displayName) }
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = "Sound: ${category.soundHint.displayName} by default. $CATEGORY_HINT",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // ── WHEN ──
@@ -378,17 +464,58 @@ fun CreateReminderScreen(
                 SettingsRow(
                     title = "Notification Sound",
                     description = "The sound Pixel plays when the reminder fires",
-                    value = soundName,
+                    value = soundSummary,
                     icon = Icons.Default.MusicNote,
                     onClick = {
                         val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                             putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
                             putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
                             putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+                            explicitSound?.let { if (it != ReminderSound.NONE) pickedSoundUri?.let { uri -> putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, Uri.parse(uri)) } }
                         }
                         ringtoneLauncher.launch(intent)
                     }
                 )
+            }
+
+            // Genuinely silent is its own choice; on API 26+ it also routes the
+            // notification through a silent channel (see ReminderNotificationHelper).
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            FilterChip(
+                selected = explicitSound == ReminderSound.NONE,
+                onClick = {
+                    explicitSound = if (explicitSound == ReminderSound.NONE) null else ReminderSound.NONE
+                    if (explicitSound == ReminderSound.NONE) {
+                        pickedSoundUri = null
+                        pickedSoundName = null
+                    }
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.NotificationsOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                label = { Text("Silent — no sound at all") }
+            )
+
+            if (saveBlocked) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                Surface(
+                    shape = RoundedCornerShape(Radius.medium),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Exact alarms aren't allowed yet, so this reminder was NOT saved. " +
+                            "Allow PixelPal to schedule exact alarms (Settings → Alarms & reminders) " +
+                            "and press Save again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(Spacing.md)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(Spacing.lg))
@@ -401,3 +528,6 @@ fun CreateReminderScreen(
         }
     }
 }
+
+private const val MAX_MESSAGE_LENGTH = 200
+private const val CATEGORY_HINT = "Meeting and Assignment use a soft chime, Medicine rings like an alarm."

@@ -86,7 +86,15 @@ data class FirestoreTask(
     val dueAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * Tombstone flag: deletes are pushed as SOFT deletes (the document stays
+     * with `deleted = true`) instead of hard document deletes, so a device
+     * that never observed the delete cannot resurrect the row by re-pushing
+     * its stale local copy. Tombstoned docs are ignored on pull/apply and are
+     * never overwritten by a push.
+     */
+    val deleted: Boolean = false
 )
 
 fun TaskEntity.toFirestore(): FirestoreTask = FirestoreTask(
@@ -133,7 +141,15 @@ data class FirestoreReminder(
     val snoozeCount: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * Tombstone flag: deletes are pushed as SOFT deletes (the document stays
+     * with `deleted = true`) instead of hard document deletes, so a device
+     * that never observed the delete cannot resurrect the row by re-pushing
+     * its stale local copy. Tombstoned docs are ignored on pull/apply and are
+     * never overwritten by a push.
+     */
+    val deleted: Boolean = false
 )
 
 fun ReminderEntity.toFirestore(): FirestoreReminder = FirestoreReminder(
@@ -188,7 +204,15 @@ data class FirestoreSubtask(
     val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null,
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * Tombstone flag: deletes are pushed as SOFT deletes (the document stays
+     * with `deleted = true`) instead of hard document deletes, so a device
+     * that never observed the delete cannot resurrect the row by re-pushing
+     * its stale local copy. Tombstoned docs are ignored on pull/apply and are
+     * never overwritten by a push.
+     */
+    val deleted: Boolean = false
 )
 
 fun com.pixelpal.app.data.local.db.entity.SubtaskEntity.toFirestore(parentCloudId: String): FirestoreSubtask = FirestoreSubtask(
@@ -251,4 +275,100 @@ fun FirestoreBond.toDomain(companionId: Long = 1L): Bond = Bond(
     lastInteractionTime = lastInteractionTime,
     streakDays = streakDays,
     lastStreakDate = lastStreakDate
+)
+
+
+/**
+ * Drops null-valued entries so the result is `Map<String, Any>`.
+ *
+ * A null field is never meaningful in a `SetOptions.merge()` write — merging
+ * simply leaves the remote field untouched, which is what "this entity has no
+ * value here" means for an optional column. Firestore also rejects nulls for
+ * some typed fields, so omitting is safer than writing them.
+ */
+private fun nonNullMapOf(vararg pairs: Pair<String, Any?>): Map<String, Any> {
+    val out = LinkedHashMap<String, Any>(pairs.size)
+    for ((k, v) in pairs) if (v != null) out[k] = v
+    return out
+}
+
+// ==============================================================
+// Write payload helpers
+// ==============================================================
+
+/*
+ * Firestore treats `@DocumentId` as the document KEY, never a stored field, so
+ * write payloads must not include it. These helpers produce the field map used
+ * by writes that also carry a server timestamp (`syncServerTs`), which is why
+ * writes go through a Map instead of the data class directly: the same map can
+ * hold a `FieldValue.serverTimestamp()` alongside the entity fields.
+ *
+ * Keep each map in sync with its data class — a missing field silently stops
+ * syncing that column, so the corresponding unit test asserts the key sets.
+ */
+
+internal fun FirestoreCompanion.toMap(): Map<String, Any> = nonNullMapOf(
+    "name" to name,
+    "petType" to petType,
+    "role" to role,
+    "description" to description,
+    "species" to species,
+    "color" to color,
+    "pattern" to pattern,
+    "hatId" to hatId,
+    "outfitId" to outfitId,
+    "accessoryId" to accessoryId,
+    "isFavorite" to isFavorite,
+    "updatedAt" to updatedAt
+)
+
+internal fun FirestoreTask.toMap(): Map<String, Any> = nonNullMapOf(
+    "title" to title,
+    "description" to description,
+    "isDone" to isDone,
+    "dueAt" to dueAt,
+    "createdAt" to createdAt,
+    "completedAt" to completedAt,
+    "updatedAt" to updatedAt,
+    "deleted" to deleted
+)
+
+internal fun FirestoreReminder.toMap(): Map<String, Any> = nonNullMapOf(
+    "title" to title,
+    "message" to message,
+    "triggerTime" to triggerTime,
+    "hour" to hour,
+    "minute" to minute,
+    "soundUri" to soundUri,
+    "recurrence" to recurrence,
+    "recurrenceInterval" to recurrenceInterval,
+    "category" to category,
+    "status" to status,
+    "snoozeCount" to snoozeCount,
+    "createdAt" to createdAt,
+    "completedAt" to completedAt,
+    "updatedAt" to updatedAt,
+    "deleted" to deleted
+)
+
+internal fun FirestoreSubtask.toMap(): Map<String, Any> = nonNullMapOf(
+    "parentCloudId" to parentCloudId,
+    "title" to title,
+    "isDone" to isDone,
+    "sortOrder" to sortOrder,
+    "createdAt" to createdAt,
+    "completedAt" to completedAt,
+    "updatedAt" to updatedAt,
+    "deleted" to deleted
+)
+
+internal fun FirestoreBond.toMap(): Map<String, Any> = nonNullMapOf(
+    "level" to level,
+    "totalInteractions" to totalInteractions,
+    "streakDays" to streakDays,
+    "lastStreakDate" to lastStreakDate,
+    "lastInteractionTime" to lastInteractionTime,
+    "tapsToday" to tapsToday,
+    "feedsToday" to feedsToday,
+    "updatedAt" to updatedAt
 )

@@ -7,6 +7,9 @@ enum class ActivityType(val id: String) {
     BOND_LEVEL_UP("BOND_LEVEL_UP"),
     STREAK_MILESTONE("STREAK_MILESTONE"),
     REMINDER_COMPLETED("REMINDER_COMPLETED"),
+
+    /** A one-shot reminder came due while the device was off (boot catch-up). */
+    MISSED_REMINDER("MISSED_REMINDER"),
     TASK_ADDED("TASK_ADDED"),
     TASK_COMPLETED("TASK_COMPLETED"),
     AGENT_CONNECTED("AGENT_CONNECTED"),

@@ -183,11 +183,21 @@ private fun ScanFrame(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Accepts either a plain endpoint (legacy provider setup) or a
+ * `pixelpal://pair?host=…&port=…&key=…` code printed by `pixelpal-bridge pair`.
+ * The scheme code carries the pairing key, so it must be recognised here or
+ * scanning it would be rejected as "not a URL".
+ */
 private fun isPairableUrl(url: String): Boolean {
-    val lower = url.lowercase()
+    val trimmed = url.trim()
+    if (trimmed.startsWith("pixelpal://", ignoreCase = true)) {
+        return trimmed.startsWith("pixelpal://pair", ignoreCase = true)
+    }
+    val lower = trimmed.lowercase()
     val looksLikeUrl = lower.startsWith("http://") || lower.startsWith("https://") ||
         lower.startsWith("ws://") || lower.startsWith("wss://")
-    return looksLikeUrl && GenericHttpAgentConnector.isAllowedEndpoint(url)
+    return looksLikeUrl && GenericHttpAgentConnector.isAllowedEndpoint(trimmed)
 }
 
 const val SCANNED_URL_KEY = "scanned_url"

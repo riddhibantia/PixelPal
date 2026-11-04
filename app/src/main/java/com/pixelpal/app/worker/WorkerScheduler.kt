@@ -47,17 +47,6 @@ class WorkerScheduler @Inject constructor(
         )
     }
 
-    fun triggerImmediateSync() {
-        val request = androidx.work.OneTimeWorkRequestBuilder<FirestoreSyncWorker>()
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            )
-            .build()
-        WorkManager.getInstance(context).enqueue(request)
-    }
-
     /**
      * Unique periodic polling for one agent companion. Network-constrained and
      * keyed by companion id so re-saving config never duplicates work.

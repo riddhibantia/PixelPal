@@ -7,6 +7,7 @@ import com.pixelpal.app.domain.repository.ActivityEventRepository
 import com.pixelpal.app.domain.repository.ReminderRepository
 import com.pixelpal.app.domain.usecase.reminder.SnoozeReminderUseCase
 import com.pixelpal.app.overlay.OverlayManager
+import com.pixelpal.app.overlay.SpeechBubbleOverlayView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -89,44 +90,96 @@ class CompanionEngine @Inject constructor(
         scope.launch {
             emotionEngine.triggerEmotion(Emotion.THINKING, durationMs = 60_000L)
 
-            // The system notification is posted by AlarmReceiver; the Dynamic Island
-            // is a bonus overlay shown only when the floating companion is visible.
-            if (!overlayManager.isShowing()) return@launch
+            // The system notification is posted by AlarmReceiver. When the floating
+            // companion is visible, surface the reminder on an overlay:
+            //   1. inline Complete / Snooze actions in the pet's speech bubble —
+            //      the friendliest surface, since the user is already looking at it;
+            //   2. fallback to the Dynamic Island at the top of the screen when no
+            //      session is mounted for this companion.
+            val targetCompanionId = reminder.companionId ?: activeCompanionManager.getActiveCompanionIdDirect()
+            val bubbleCompanionId = targetCompanionId?.takeIf { overlayManager.isShowing(it) }
 
-            // Recurring reminders were already re-armed for their next occurrence when
-            // the alarm fired; completing one records the win without killing the schedule.
-            val isRecurring =
-                reminder.recurrence != "ONCE" || (reminder.recurrenceInterval ?: 0L) > 0L
+            val shownAsBubble = bubbleCompanionId != null && overlayManager.showSpeechBubble(
+                companionId = bubbleCompanionId,
+                text = reminderBubbleText(reminder),
+                actions = reminderActions(reminder)
+            )
+            if (shownAsBubble) return@launch
+
+            if (!overlayManager.isShowing()) return@launch
 
             overlayManager.showDynamicIsland(
                 title = reminder.title,
                 timeLabel = formatTime(reminder.triggerTime),
                 note = reminder.message,
-                onComplete = {
-                    scope.launch {
-                        if (!isRecurring) {
-                            reminderRepository.complete(reminder.id)
-                        }
-                        val companionId = reminder.companionId
-                            ?: activeCompanionManager.getActiveCompanionIdDirect()
-                        if (companionId != null) {
-                            bondEngine.recordReminderCompleted(companionId)
-                            activityEventRepository.record(
-                                companionId,
-                                ActivityType.REMINDER_COMPLETED,
-                                "Completed reminder \"${reminder.title}\""
-                            )
-                        }
-                        emotionEngine.triggerEmotion(Emotion.HAPPY)
-                    }
-                },
-                onSnooze = {
-                    scope.launch {
-                        snoozeReminderUseCase(reminder.id, minutes = 10)
-                        emotionEngine.triggerEmotion(Emotion.THINKING, durationMs = 10_000L)
-                    }
-                }
+                onComplete = { onReminderCompleted(reminder) },
+                onSnooze = { onReminderSnoozed(reminder) }
             )
+        }
+    }
+
+    /**
+     * Complete actions for the reminder's speech bubble, in render order.
+     * Both surfaces (bubble + Dynamic Island) go through the SAME handlers so
+     * bond/activity/snooze semantics can never drift apart.
+     */
+    private fun reminderActions(reminder: Reminder) = listOf(
+        SpeechBubbleOverlayView.Action(
+            label = "Snooze 10m",
+            style = SpeechBubbleOverlayView.ActionStyle.NEUTRAL,
+            callback = { onReminderSnoozed(reminder) }
+        ),
+        SpeechBubbleOverlayView.Action(
+            label = "Done",
+            style = SpeechBubbleOverlayView.ActionStyle.PRIMARY,
+            emphasized = true,
+            callback = { onReminderCompleted(reminder) }
+        )
+    )
+
+    private fun reminderBubbleText(reminder: Reminder): String = buildString {
+        append("Reminder: ").append(reminder.title)
+        reminder.message?.takeIf { it.isNotBlank() }?.let { append(" — ").append(it) }
+        append(" (").append(formatTime(reminder.triggerTime)).append(")")
+    }
+
+    /**
+     * Mirrors the Dynamic Island's complete semantics EXACTLY (single source of
+     * truth for both entry points): a one-shot reminder is marked completed; a
+     * recurring one already re-armed itself for its next occurrence in
+     * AlarmReceiver, so completing it only records the win.
+     */
+    private fun onReminderCompleted(reminder: Reminder) {
+        scope.launch {
+            // Recurring reminders were already re-armed for their next occurrence when
+            // the alarm fired; completing one records the win without killing the schedule.
+            val isRecurring =
+                reminder.recurrence != "ONCE" || (reminder.recurrenceInterval ?: 0L) > 0L
+
+            if (!isRecurring) {
+                reminderRepository.complete(reminder.id)
+            }
+            val companionId = reminder.companionId
+                ?: activeCompanionManager.getActiveCompanionIdDirect()
+            if (companionId != null) {
+                bondEngine.recordReminderCompleted(companionId)
+                activityEventRepository.record(
+                    companionId,
+                    ActivityType.REMINDER_COMPLETED,
+                    "Completed reminder \"${reminder.title}\""
+                )
+            }
+            emotionEngine.triggerEmotion(Emotion.HAPPY)
+            overlayManager.dismissDynamicIsland()
+        }
+    }
+
+    /** Snooze = 10 minutes via the shared use case (same as the notification action). */
+    private fun onReminderSnoozed(reminder: Reminder) {
+        scope.launch {
+            snoozeReminderUseCase(reminder.id, minutes = 10)
+            emotionEngine.triggerEmotion(Emotion.THINKING, durationMs = 10_000L)
+            overlayManager.dismissDynamicIsland()
         }
     }
 

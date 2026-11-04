@@ -35,6 +35,9 @@ class GeminiAgentConnector @Inject constructor() : AgentConnector {
     fun isConfigured(): Boolean = generativeModel != null && isUsableKey(activeKey)
 
     companion object {
+        /** Default model, referenced by the local status message. */
+        private const val MODEL_NAME = "gemini-1.5-flash"
+
         /** Gradle injects "" or the literal placeholder when no key is set. */
         fun isUsableKey(key: String): Boolean {
             if (key.isBlank()) return false
@@ -49,7 +52,7 @@ class GeminiAgentConnector @Inject constructor() : AgentConnector {
     /**
      * Initializes the Gemini Generative Model with the provided API key and model type.
      */
-    fun initialize(apiKey: String, modelName: String = "gemini-1.5-flash") {
+    fun initialize(apiKey: String, modelName: String = MODEL_NAME) {
         if (!isUsableKey(apiKey)) {
             generativeModel = null
             activeKey = ""
@@ -71,24 +74,51 @@ class GeminiAgentConnector @Inject constructor() : AgentConnector {
     /**
      * Standard status check adhering to [AgentConnector].
      */
+    /**
+     * Gemini "availability" check — deliberately LOCAL and FREE.
+     *
+     * This used to call `generateContent` on every periodic poll, which spent
+     * real API tokens/quota to ask "are you alive?" every 15 minutes, forever.
+     * That is pure waste: Gemini is a chat provider, not a polling agent, so
+     * its status is simply "configured or not".
+     *
+     * A real round-trip happens only when the user explicitly asks for one
+     * (see [verifyNow]); periodic polling never bills.
+     */
     override suspend fun checkNow(endpointUrl: String): AgentCheckResult {
+        return if (generativeModel != null) {
+            AgentCheckResult(
+                state = AgentState.ONLINE,
+                message = "Gemini ready — $MODEL_NAME"
+            )
+        } else {
+            AgentCheckResult(
+                AgentState.DISCONNECTED,
+                "Gemini API key not configured — add one in AI Agent settings"
+            )
+        }
+    }
+
+    /**
+     * Explicit, user-initiated live check. Costs one (tiny) API call, so it is
+     * never scheduled — only called from "Check Now".
+     */
+    suspend fun verifyNow(): AgentCheckResult {
         val model = generativeModel
             ?: return AgentCheckResult(
                 AgentState.DISCONNECTED,
                 "Gemini API key not configured — add one in AI Agent settings"
             )
-
         return withContext(Dispatchers.IO) {
             try {
-                val prompt = "Respond in 5 words with a status check as a digital pet companion."
-                val response = model.generateContent(prompt)
+                val response = model.generateContent("Reply with the single word: ok")
                 val text = response.text?.trim().orEmpty()
                 AgentCheckResult(
                     state = AgentState.ONLINE,
-                    message = text.ifBlank { "Ready to assist!" }
+                    message = text.ifBlank { "Gemini reachable" }
                 )
             } catch (e: Exception) {
-                Timber.e(e, "Gemini status check failed")
+                Timber.e(e, "Gemini verification failed")
                 AgentCheckResult(AgentState.ERROR, e.localizedMessage ?: "Gemini API error")
             }
         }

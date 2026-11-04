@@ -12,6 +12,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -180,6 +182,7 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     val isSyncing by viewModel.isSyncing.collectAsState()
+                    val syncError by viewModel.lastSyncError.collectAsState()
                     val accountText = when {
                         !viewModel.isUserLoggedIn -> "Not Connected to Cloud"
                         viewModel.isAnonymousUser -> "Guest Mode (Local & Cloud Sync Active)"
@@ -197,6 +200,14 @@ fun ProfileScreen(
                         text = "Firestore automatically backs up your pet, tasks, reminders, and streaks in real-time.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Last-sync status: failures were previously only logged,
+                    // so a broken sync looked identical to a healthy one.
+                    SyncStatusRow(
+                        loggedIn = viewModel.isUserLoggedIn,
+                        isSyncing = isSyncing,
+                        syncError = syncError
                     )
 
                     Spacer(modifier = Modifier.height(Spacing.xs))
@@ -267,6 +278,47 @@ fun ProfileScreen(
                 navController.popBackStack()
             },
             onDismiss = { showDiscardDialog = false }
+        )
+    }
+}
+
+/**
+ * Small inline status line for the Cloud Sync card. Shows the last full-sync
+ * failure (with the raw reason) so sync breakage is visible to the user
+ * instead of only appearing in logcat.
+ */
+@Composable
+private fun SyncStatusRow(
+    loggedIn: Boolean,
+    isSyncing: Boolean,
+    syncError: String?
+) {
+    val (text, color) = when {
+        !loggedIn -> "Sync is off — sign in to back up to the cloud." to
+            MaterialTheme.colorScheme.onSurfaceVariant
+        isSyncing -> "Syncing…" to MaterialTheme.colorScheme.onSurfaceVariant
+        syncError != null -> "Last sync failed: $syncError" to MaterialTheme.colorScheme.error
+        else -> "Up to date with the cloud." to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = when {
+                syncError != null && loggedIn -> Icons.Default.ErrorOutline
+                else -> Icons.Default.Sync
+            },
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.height(16.dp)
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = color
         )
     }
 }

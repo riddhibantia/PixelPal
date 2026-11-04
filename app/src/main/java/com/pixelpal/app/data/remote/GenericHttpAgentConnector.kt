@@ -105,8 +105,6 @@ class GenericHttpAgentConnector @Inject constructor(
             connector.parseEnvelope(body)
     }
 
-    private fun isAllowedScheme(url: String): Boolean = isAllowedEndpoint(url)
-
     private fun parseEnvelope(body: String): AgentCheckResult? {
         return try {
             val envelope = json.decodeFromString<AgentEnvelope>(body)

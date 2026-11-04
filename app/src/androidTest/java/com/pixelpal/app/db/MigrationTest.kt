@@ -110,6 +110,50 @@ class MigrationTest {
         }
     }
 
+    /**
+     * v15 adds `agent_sessions` (multi-agent state from pixelpal-bridge).
+     * `runMigrationsAndValidate` compares the result against the exported
+     * schema, so a column typo here fails the test rather than a user's app.
+     */
+    @Test
+    @Throws(IOException::class)
+    fun migrate14To15_createsAgentSessionsTable() {
+        helper.createDatabase(TEST_DB, 14).close()
+
+        helper.runMigrationsAndValidate(
+            TEST_DB,
+            15,
+            true,
+            DatabaseMigrations.MIGRATION_14_15
+        ).use { db ->
+            // Table exists and accepts a row with the full contract.
+            db.execSQL(
+                """
+                INSERT INTO agent_sessions
+                    (id, source, sessionId, agentName, project, status, message,
+                     currentTask, progress, pendingApprovalId, pendingApprovalAction,
+                     lastEventAt, toolsCompleted, companionId, bridgeId)
+                VALUES ('claude_code:s1', 'claude_code', 's1', 'Claude Code', 'demo',
+                        'WORKING', 'editing Main.kt', 'Edit', NULL, NULL, NULL,
+                        1700000000000, 3, 1, '192.168.1.20:8787')
+                """.trimIndent()
+            )
+            db.query("SELECT status, toolsCompleted FROM agent_sessions").use { c ->
+                assert(c.moveToFirst()) { "inserted row not found" }
+                assert(c.getString(0) == "WORKING") { "status not stored" }
+                assert(c.getInt(1) == 3) { "toolsCompleted not stored" }
+            }
+
+            val indices = mutableListOf<String>()
+            db.query("SELECT name FROM sqlite_master WHERE type = 'index'").use { c ->
+                while (c.moveToNext()) indices += c.getString(0)
+            }
+            assert(indices.contains("index_agent_sessions_source")) { "missing source index: $indices" }
+            assert(indices.contains("index_agent_sessions_lastEventAt")) { "missing lastEventAt index" }
+            assert(indices.contains("index_agent_sessions_companionId")) { "missing companionId index" }
+        }
+    }
+
     companion object {
         private const val TEST_DB = "migration-test"
     }

@@ -158,7 +158,7 @@ fun CustomizeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
-                    themeOptions.forEach { option ->
+                    themeOptions().forEach { option ->
                         ThemeCard(
                             option = option,
                             selected = currentTheme.equals(option.id, ignoreCase = true),

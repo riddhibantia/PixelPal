@@ -83,9 +83,23 @@ class ReminderScheduler @Inject constructor(
         }
     }
 
-    suspend fun rescheduleAll() {
+    /**
+     * Re-arms every pending/triggered reminder after a reboot (alarms do not
+     * survive a restart).
+     *
+     * @return the past-due **one-shot** reminders that were deliberately left
+     *   untouched, in the order they were found. They are NOT rescheduled (an
+     *   alarm for a past instant fires immediately, which is spam) and NOT
+     *   marked here — [BootCatchUpWorker] owns them: it marks them TRIGGERED,
+     *   records the MISSED_REMINDER activity (no bond — the user didn't act)
+     *   and posts one aggregated "you missed N reminders" notification.
+     *   Recurring past-due reminders are rolled forward to their next
+     *   occurrence and reported as not missed.
+     */
+    suspend fun rescheduleAll(): List<Reminder> {
         val pendingReminders = reminderRepository.getPendingReminders().first()
         val now = System.currentTimeMillis()
+        val missed = mutableListOf<Reminder>()
         for (reminder in pendingReminders) {
             if (reminder.triggerTime > now) {
                 scheduleReminder(reminder)
@@ -97,9 +111,16 @@ class ReminderScheduler @Inject constructor(
                     val updated = reminder.copy(triggerTime = next, snoozeCount = 0)
                     reminderRepository.update(updated)
                     scheduleReminder(updated)
+                } else {
+                    // One-shot already in the past: nothing to arm. Hand it to
+                    // the boot catch-up so it cannot stay PENDING forever.
+                    missed += reminder
+                    Timber.w("Past-due one-shot reminder ${reminder.id} (\"${reminder.title}\") left for boot catch-up")
                 }
             }
         }
+        Timber.d("rescheduleAll: ${pendingReminders.size} pending, ${missed.size} missed one-shot(s)")
+        return missed
     }
 
     /**

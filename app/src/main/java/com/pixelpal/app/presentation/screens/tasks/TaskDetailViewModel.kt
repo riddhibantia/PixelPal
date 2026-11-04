@@ -8,6 +8,7 @@ import com.pixelpal.app.domain.model.Task
 import com.pixelpal.app.domain.repository.SubtaskRepository
 import com.pixelpal.app.domain.repository.TaskRepository
 import com.pixelpal.app.domain.usecase.task.CompleteTaskUseCase
+import com.pixelpal.app.worker.TaskDueScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +32,8 @@ class TaskDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val taskRepository: TaskRepository,
     private val subtaskRepository: SubtaskRepository,
-    private val completeTaskUseCase: CompleteTaskUseCase
+    private val completeTaskUseCase: CompleteTaskUseCase,
+    private val taskDueScheduler: TaskDueScheduler
 ) : ViewModel() {
 
     private val taskId: Long = savedStateHandle.get<Long>("taskId") ?: -1L
@@ -48,8 +50,11 @@ class TaskDetailViewModel @Inject constructor(
             if (task.isDone) {
                 // Untick: flip local+cloud state without a second bond reward.
                 taskRepository.toggleTask(task)
+                // Re-arm the due notification only if the due time is still ahead.
+                taskDueScheduler.schedule(task.copy(isDone = false))
             } else {
                 completeTaskUseCase(task)
+                taskDueScheduler.cancel(task)
             }
         }
     }
@@ -69,7 +74,21 @@ class TaskDetailViewModel @Inject constructor(
 
     fun deleteTask() {
         val current = uiState.value.task ?: return
-        viewModelScope.launch { taskRepository.deleteTask(current) }
+        viewModelScope.launch {
+            taskDueScheduler.cancel(current)
+            taskRepository.deleteTask(current)
+        }
+    }
+
+    /** Sets or clears (null) the task's due time and keeps the due work in sync. */
+    fun setDueAt(dueAt: Long?) {
+        val current = uiState.value.task ?: return
+        if (current.dueAt == dueAt) return
+        viewModelScope.launch {
+            val updated = current.copy(dueAt = dueAt)
+            taskRepository.updateTask(updated)
+            taskDueScheduler.schedule(updated)
+        }
     }
 
     fun addSubtask(title: String) {

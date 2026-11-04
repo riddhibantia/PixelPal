@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.pixelpal.app.data.local.db.dao.ActivityEventDao
 import com.pixelpal.app.data.local.db.dao.AgentConnectionDao
+import com.pixelpal.app.data.local.db.dao.AgentSessionDao
 import com.pixelpal.app.data.local.db.dao.BondDao
 import com.pixelpal.app.data.local.db.dao.CompanionDao
 import com.pixelpal.app.data.local.db.dao.PersonalityDao
@@ -12,6 +13,7 @@ import com.pixelpal.app.data.local.db.dao.SubtaskDao
 import com.pixelpal.app.data.local.db.dao.TaskDao
 import com.pixelpal.app.data.local.db.entity.ActivityEventEntity
 import com.pixelpal.app.data.local.db.entity.AgentConnectionEntity
+import com.pixelpal.app.data.local.db.entity.AgentSessionEntity
 import com.pixelpal.app.data.local.db.entity.BondEntity
 import com.pixelpal.app.data.local.db.entity.CompanionEntity
 import com.pixelpal.app.data.local.db.entity.PersonalityEntity
@@ -28,9 +30,10 @@ import com.pixelpal.app.data.local.db.entity.TaskEntity
         TaskEntity::class,
         SubtaskEntity::class,
         AgentConnectionEntity::class,
+        AgentSessionEntity::class,
         ActivityEventEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class PixelPalDatabase : RoomDatabase() {
@@ -38,6 +41,7 @@ abstract class PixelPalDatabase : RoomDatabase() {
     abstract fun bondDao(): BondDao
     abstract fun personalityDao(): PersonalityDao
     abstract fun companionDao(): CompanionDao
+    abstract fun agentSessionDao(): AgentSessionDao
     abstract fun taskDao(): TaskDao
     abstract fun subtaskDao(): SubtaskDao
     abstract fun agentConnectionDao(): AgentConnectionDao

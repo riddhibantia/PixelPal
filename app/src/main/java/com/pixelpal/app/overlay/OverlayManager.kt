@@ -133,6 +133,30 @@ class OverlayManager @Inject constructor(
         sessions[companionId]?.showMessage(text)
     }
 
+    /**
+     * Action-bearing speech bubble (reminder Complete/Snooze). Returns `false`
+     * when no session is mounted for [companionId], letting the caller fall
+     * back to another surface (the Dynamic Island) instead of dropping the
+     * reminder interaction entirely.
+     */
+    fun showSpeechBubble(
+        companionId: Long,
+        text: String,
+        actions: List<SpeechBubbleOverlayView.Action>
+    ): Boolean {
+        val session = sessions[companionId] ?: return false
+        session.showMessage(text, actions)
+        return true
+    }
+
+    /** Retires the island window without running any swipe action. */
+    fun dismissDynamicIsland() {
+        removeDynamicIsland()
+    }
+
+    /** True while a reminder island is on screen. */
+    fun isDynamicIslandShowing(): Boolean = islandView != null
+
     // ── Global reminder island (unchanged behavior, single instance) ───────
 
     private var islandView: DynamicIslandView? = null

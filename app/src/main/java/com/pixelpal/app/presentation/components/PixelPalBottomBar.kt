@@ -40,7 +40,7 @@ private data class NavDestination(
 private val destinations = listOf(
     NavDestination(Screen.Home, Icons.Filled.Home, Icons.Outlined.Home, "Home"),
     NavDestination(Screen.Tasks, Icons.Filled.Checklist, Icons.Outlined.Checklist, "Tasks"),
-    NavDestination(Screen.CompanionWorkspace, Icons.Filled.SmartToy, Icons.Outlined.SmartToy, "Agent"),
+    NavDestination(Screen.ConnectedAgents, Icons.Filled.SmartToy, Icons.Outlined.SmartToy, "Agent"),
     NavDestination(Screen.Reminders, Icons.Filled.Notifications, Icons.Outlined.Notifications, "Reminders"),
     NavDestination(Screen.Settings, Icons.Filled.Settings, Icons.Outlined.Settings, "Settings")
 )

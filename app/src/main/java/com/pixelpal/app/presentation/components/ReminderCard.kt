@@ -2,6 +2,7 @@ package com.pixelpal.app.presentation.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixelpal.app.domain.model.Reminder
+import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Sizing
 import com.pixelpal.app.presentation.theme.Spacing
@@ -48,6 +50,8 @@ fun ReminderCard(
 ) {
     val timeStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(reminder.triggerTime))
     val dayLabel = dayLabelFor(reminder.triggerTime)
+    val category = ReminderCategory.fromId(reminder.category)
+    val categoryTint = categoryTint(category)
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -60,6 +64,24 @@ fun ReminderCard(
                 .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Category badge: icon tinted per category, doubles as the row's
+            // visual anchor so categories are distinguishable at a glance.
+            Surface(
+                shape = RoundedCornerShape(Radius.medium),
+                color = categoryTint.copy(alpha = 0.14f),
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = category.icon,
+                        contentDescription = category.displayName,
+                        tint = categoryTint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(Spacing.md))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = reminder.title,
@@ -107,6 +129,11 @@ fun ReminderCard(
                         text = dayLabel,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "· ${category.displayName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = categoryTint
                     )
                 }
             }
@@ -158,3 +185,18 @@ private fun dayLabelFor(triggerTime: Long): String {
         else -> SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date(triggerTime))
     }
 }
+
+/**
+ * Category accent. Material's scheme has no per-category color slot, so this
+ * derives a stable, theme-aware tint from the theme's own roles.
+ */
+@Composable
+private fun categoryTint(category: ReminderCategory): androidx.compose.ui.graphics.Color =
+    when (category) {
+        ReminderCategory.MEETING -> MaterialTheme.colorScheme.primary
+        ReminderCategory.MEDICINE -> MaterialTheme.colorScheme.error
+        ReminderCategory.BIRTHDAY -> MaterialTheme.colorScheme.tertiary
+        ReminderCategory.SHOPPING -> MaterialTheme.colorScheme.secondary
+        ReminderCategory.ASSIGNMENT -> MaterialTheme.colorScheme.primary
+        ReminderCategory.CUSTOM -> MaterialTheme.colorScheme.onSurfaceVariant
+    }

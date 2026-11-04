@@ -1,9 +1,11 @@
 package com.pixelpal.app.presentation.components
 
+import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +26,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.theme.AutumnPalette
 import com.pixelpal.app.presentation.theme.DarkPalette
 import com.pixelpal.app.presentation.theme.LightPalette
@@ -39,21 +44,69 @@ import com.pixelpal.app.presentation.theme.Sizing
 import com.pixelpal.app.presentation.theme.SpringPalette
 import com.pixelpal.app.presentation.theme.Spacing
 
-/** Display metadata for each selectable theme — swatches come from the centralized palettes. */
+/**
+ * Display metadata for each selectable theme — swatches come from the centralized
+ * palettes. [name] is a resolved (already-localized) string so this stays a plain,
+ * non-composable registry; [descriptionRes] and [id] are stable platform values
+ * (readable from ViewModels / PreferencesManager.kt).
+ */
+@Immutable
 data class ThemeOption(
     val id: String,
     val name: String,
     val background: Color,
     val surface: Color,
-    val accent: Color
+    val accent: Color,
+    /** Optional supporting line shown in the full picker sheet only (null = none). */
+    val descriptionRes: Int? = null
 )
 
-val themeOptions = listOf(
-    ThemeOption("dark", "Dark", DarkPalette.Background, DarkPalette.Surface, DarkPalette.Primary),
-    ThemeOption("light", "Light", LightPalette.Background, LightPalette.Surface, LightPalette.Primary),
-    ThemeOption("spring", "Spring", SpringPalette.Background, SpringPalette.Surface, SpringPalette.Primary),
-    ThemeOption("autumn", "Autumn", AutumnPalette.Background, AutumnPalette.Surface, AutumnPalette.Primary)
-)
+/** Id of the adaptive theme — [com.pixelpal.app.presentation.theme.PixelPalTheme] matches this exactly. */
+const val SYSTEM_THEME_ID = "system"
+
+/**
+ * Every selectable theme, with display names resolved from resources at call time.
+ *
+ * "dark"/"light"/"spring"/"autumn" are fixed palettes; [SYSTEM_THEME_ID] adapts
+ * to the device (wallpaper dynamic color on Android 12+, otherwise PixelPal's
+ * own dark/light palette following the system dark-mode setting — see Theme.kt).
+ */
+@Composable
+fun themeOptions(): List<ThemeOption> {
+    val systemOption = if (supportsDynamicColor()) {
+        ThemeOption(
+            id = SYSTEM_THEME_ID,
+            name = stringResource(R.string.theme_option_system_name),
+            background = DarkPalette.Surface,
+            surface = DarkPalette.Primary,
+            accent = LightPalette.Primary,
+            descriptionRes = R.string.theme_option_system_description
+        )
+    } else {
+        // Pre-Android 12: no wallpaper colors, so preview the palette "system"
+        // actually resolves to right now (system dark -> Dark, else Light).
+        // (Palettes are objects, not a common supertype — branch explicitly.)
+        val systemIsDark = isSystemInDarkTheme()
+        ThemeOption(
+            id = SYSTEM_THEME_ID,
+            name = stringResource(R.string.theme_option_system_name),
+            background = if (systemIsDark) DarkPalette.Background else LightPalette.Background,
+            surface = if (systemIsDark) DarkPalette.Surface else LightPalette.Surface,
+            accent = if (systemIsDark) DarkPalette.Primary else LightPalette.Primary
+        )
+    }
+    return listOf(
+        systemOption,
+        ThemeOption("dark", stringResource(R.string.theme_option_dark_name), DarkPalette.Background, DarkPalette.Surface, DarkPalette.Primary),
+        ThemeOption("light", stringResource(R.string.theme_option_light_name), LightPalette.Background, LightPalette.Surface, LightPalette.Primary),
+        ThemeOption("spring", stringResource(R.string.theme_option_spring_name), SpringPalette.Background, SpringPalette.Surface, SpringPalette.Primary),
+        ThemeOption("autumn", stringResource(R.string.theme_option_autumn_name), AutumnPalette.Background, AutumnPalette.Surface, AutumnPalette.Primary)
+    )
+}
+
+/** True on Android 12+ where "system" renders wallpaper-derived dynamic color. */
+private fun supportsDynamicColor(): Boolean =
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
 /**
  * The single theme selector for the whole app.
@@ -76,14 +129,15 @@ fun ThemePickerSheet(
             modifier = Modifier.padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.sm)
         ) {
             Text(
-                text = "Appearance",
+                text = stringResource(R.string.theme_sheet_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(Spacing.md))
 
-            themeOptions.forEach { option ->
+            val options = themeOptions()
+            options.forEach { option ->
                 val selected = currentTheme.equals(option.id, ignoreCase = true)
                 Row(
                     modifier = Modifier
@@ -117,16 +171,24 @@ fun ThemePickerSheet(
                         }
                     }
                     Spacer(modifier = Modifier.width(Spacing.md))
-                    Text(
-                        text = option.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = option.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        option.descriptionRes?.let { descriptionRes ->
+                            Text(
+                                text = stringResource(descriptionRes),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     if (selected) {
                         Icon(
                             imageVector = Icons.Default.Check,
-                            contentDescription = "Selected",
+                            contentDescription = stringResource(R.string.theme_selected_description),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(Sizing.icon)
                         )
@@ -144,7 +206,7 @@ fun ThemePickerSheet(
                         }
                     }
                 }
-                if (option != themeOptions.last()) {
+                if (option.id != options.last().id) {
                     GroupDivider()
                 }
             }
@@ -165,6 +227,12 @@ fun ThemeCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Resolve the a11y label outside the non-composable `semantics {}` lambda.
+    val cardDescription = if (selected) {
+        stringResource(R.string.theme_card_description_selected, option.name)
+    } else {
+        stringResource(R.string.theme_card_description, option.name)
+    }
     Column(
         modifier = modifier
             .clickable(onClickLabel = option.name) { onClick() }
@@ -182,7 +250,7 @@ fun ThemeCard(
                 RoundedCornerShape(Radius.large)
             )
             .padding(Spacing.md)
-            .semantics { contentDescription = "${option.name} theme" + if (selected) ", selected" else "" },
+            .semantics { contentDescription = cardDescription },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Stacked palette preview

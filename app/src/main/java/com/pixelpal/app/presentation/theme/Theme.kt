@@ -115,10 +115,18 @@ fun PixelPalTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val useDynamic = theme.equals("system", ignoreCase = true) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val systemTheme = theme.equals("system", ignoreCase = true)
+    val systemDark = isSystemInDarkThemeCompat()
+    // Dynamic color (wallpaper-derived) requires Android 12+.
+    val useDynamic = systemTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
-        useDynamic && isSystemInDarkThemeCompat() -> dynamicDarkColorScheme(context)
+        useDynamic && systemDark -> dynamicDarkColorScheme(context)
         useDynamic -> dynamicLightColorScheme(context)
+        // Pre-Android 12 "system": dynamic color is unavailable, so fall back to
+        // PixelPal's own dark/light palettes following the OS dark-mode setting
+        // (before this, "system" silently rendered as Dark on pre-31 devices).
+        systemTheme && systemDark -> DarkColorScheme
+        systemTheme -> LightColorScheme
         else -> when (theme.lowercase()) {
             "light" -> LightColorScheme
             "spring" -> SpringColorScheme

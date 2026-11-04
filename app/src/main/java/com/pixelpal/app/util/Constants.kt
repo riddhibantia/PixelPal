@@ -10,7 +10,6 @@ object Constants {
     const val KEY_OVERLAY_X = "overlay_x"
     const val KEY_OVERLAY_Y = "overlay_y"
     const val KEY_OVERLAY_ENABLED = "overlay_enabled"
-    const val KEY_OVERLAY_COMPANION_IDS = "overlay_companion_ids"
     const val KEY_SELECTED_PET_TYPE = "selected_pet_type"
     const val KEY_PET_NAME = "pet_name"
     const val KEY_USER_NAME = "user_name"
@@ -24,13 +23,27 @@ object Constants {
     const val KEY_TASKS_WIDGET_ENABLED = "tasks_widget_enabled"
     const val KEY_GEMINI_API_KEY_OVERRIDE = "gemini_api_key_override"
 
+    /** pixelpal-bridge pairing: base URL and shared key (see tools/agent-bridge). */
+    const val KEY_AGENT_BRIDGE_URL = "agent_bridge_url"
+    const val KEY_AGENT_BRIDGE_KEY = "agent_bridge_key"
+    const val KEY_AGENT_BRIDGE_ID = "agent_bridge_id"
+
+    /** Relay pairing: the Firestore doc id derived from the 9-char code. */
+    const val KEY_AGENT_RELAY_ID = "agent_relay_id"
+
     // Notification channels
     const val CHANNEL_COMPANION = "companion_channel"
     const val CHANNEL_REMINDER = "reminder_channel"
+    /** Silent sibling of [CHANNEL_REMINDER] — no sound, no vibration. */
+    const val CHANNEL_REMINDER_SILENT = "reminder_channel_silent"
     const val CHANNEL_AGENT = "agent_channel"
+    /** Task due-date notification channel (TaskDueWorker). */
+    const val CHANNEL_TASK_DUE = "task_due_channel"
     const val CHANNEL_COMPANION_NAME = "Companion"
     const val CHANNEL_REMINDER_NAME = "Reminders"
+    const val CHANNEL_REMINDER_SILENT_NAME = "Reminders (silent)"
     const val CHANNEL_AGENT_NAME = "AI Agents"
+    const val CHANNEL_TASK_DUE_NAME = "Task Due Dates"
 
     // Overlay defaults
     const val OVERLAY_SIZE_DP = 64f
@@ -55,6 +68,16 @@ object Constants {
     const val NOTIFICATION_ID_REMINDER = 1003
     const val NOTIFICATION_ID_AGENT = 1004
 
+    /** Aggregated "you missed N reminders" notification (BootCatchUpWorker). */
+    const val NOTIFICATION_ID_MISSED_REMINDERS = 1005
+
+    /**
+     * Base id for "Task due" notifications (TaskDueWorker). Added to the task's
+     * Room row id, so the id stays stable per task and never collides with the
+     * reminder (1003+id) or agent (1004+…) ranges.
+     */
+    const val NOTIFICATION_ID_TASK_DUE = 1100
+
     // Companion limits & agent polling
     const val MAX_BOND_LEVEL = 100
     const val MAX_SIMULTANEOUS_OVERLAYS = 1
@@ -63,6 +86,8 @@ object Constants {
     const val BOND_GRANTING_TAPS_PER_DAY = 3
     const val DEFAULT_AGENT_POLL_INTERVAL_MIN = 15L
     const val AGENT_WORK_PREFIX = "agent_poll_"
+    /** Unique WorkManager name prefix for per-task due notifications. */
+    const val TASK_DUE_WORK_PREFIX = "task_due_"
     /** Polling interval choices offered in the workspace (WorkManager floor is 15 min). */
     val AGENT_POLL_INTERVAL_OPTIONS_MIN = listOf(15L, 30L, 60L, 120L)
 
@@ -75,5 +100,4 @@ object Constants {
 
     // Room database
     const val DATABASE_NAME = "pixelpal_database_v2"
-    const val DATABASE_VERSION = 12
 }

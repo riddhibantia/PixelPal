@@ -40,6 +40,9 @@ sealed class Screen(val route: String) {
     object About : Screen("about")
     object Permissions : Screen("permissions")
     object CompanionWorkspace : Screen("workspace")
+
+    /** Multi-agent hub backed by the pixelpal-bridge (the "Agent" tab). */
+    object ConnectedAgents : Screen("connected_agents")
     object Tasks : Screen("tasks")
     object NewTask : Screen("new_task")
     object TaskDetail : Screen("task_detail/{taskId}") {
@@ -123,6 +126,13 @@ fun PixelPalNavGraph(
         }
         composable(Screen.CompanionWorkspace.route) {
             CompanionWorkspaceScreen(navController = navController)
+        }
+        composable(Screen.ConnectedAgents.route) {
+            com.pixelpal.app.presentation.screens.agents.ConnectedAgentsScreen(
+                onBack = { navController.popBackStack() },
+                onScanQr = { navController.navigate(Screen.QrScan.route) },
+                onOpenManualSetup = { navController.navigate(Screen.CompanionWorkspace.route) }
+            )
         }
         composable(Screen.QrScan.route) {
             com.pixelpal.app.presentation.screens.agent.QrScanScreen(navController = navController)

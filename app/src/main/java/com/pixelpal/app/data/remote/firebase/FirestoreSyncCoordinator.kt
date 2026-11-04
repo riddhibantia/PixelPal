@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,13 +26,20 @@ import javax.inject.Singleton
  * Orchestrates true 2-way Cloud Firestore synchronization:
  *
  *  - Cloud → local: full pull-on-login plus real-time snapshot listeners that
- *    apply remote tasks/reminders into Room with last-write-wins on `updatedAt`.
+ *    apply remote tasks/reminders/subtasks into Room with last-write-wins on
+ *    [SyncPolicy.effectiveUpdatedAt] (`max(updatedAt, syncServerTs)`).
  *    Remote changes are written through the DAOs directly (never the
  *    repositories), so they never echo back to the cloud.
  *  - Local → cloud: repositories push each write through the engine, and
  *    [fullSync] batch-pushes everything (also the hourly worker path).
+ *  - Deletes are TOMBSTONES: a `deleted = true` cloud document removes the
+ *    matching local row (never inserts one) and is never overwritten by a
+ *    plain push, so an offline device cannot resurrect a deleted row.
  *  - Companion & bond are singleton documents restored from the cloud only
  *    when the newer side wins on `updatedAt` (last-write-wins).
+ *  - Rows that arrive before the local account is materialised (no primary
+ *    companion / no parent task yet) are BUFFERED in memory and re-applied via
+ *    [drainPendingApplies] instead of being silently dropped.
  *  - [signOut] wipes all local user data BEFORE auth sign-out so the next
  *    account (or guest) never inherits the previous user's data.
  */
@@ -69,6 +78,49 @@ class FirestoreSyncCoordinator @Inject constructor(
     private var realtimeUid: String? = null
     private var realtimeJobs = emptyList<kotlinx.coroutines.Job>()
 
+    // ------------------------------------------------------------------
+    // Pending-apply buffer (cloud rows that could not be attached to Room yet)
+    // ------------------------------------------------------------------
+
+    /** A cloud row awaiting its local anchor (companion row / parent task). */
+    private sealed interface PendingApply {
+        val cloudId: String
+        val cloudEffective: Long
+
+        data class Task(
+            override val cloudId: String,
+            override val cloudEffective: Long,
+            val row: FirestoreTask
+        ) : PendingApply
+
+        data class Reminder(
+            override val cloudId: String,
+            override val cloudEffective: Long,
+            val row: FirestoreReminder
+        ) : PendingApply
+
+        data class Subtask(
+            override val cloudId: String,
+            override val cloudEffective: Long,
+            val row: FirestoreSubtask
+        ) : PendingApply
+    }
+
+    /** Insertion-ordered (oldest first) so a parent task is attached before its subtasks. */
+    private val pendingApplies = linkedMapOf<String, PendingApply>()
+
+    /** Serialises buffer mutations and drains (realtime + pull paths race). */
+    private val pendingLock = Mutex()
+
+    /** Cap so a long signed-out/first-run period cannot grow the buffer unbounded. */
+    private companion object {
+        const val MAX_PENDING_APPLIES = 2_000
+    }
+
+    /** Number of buffered cloud rows (diagnostics / tests). */
+    val pendingApplyCount: Int
+        get() = pendingApplies.size
+
     /**
      * Starts the real-time cloud → local listeners, pinned to the CURRENT
      * authenticated uid. Safe to call repeatedly; no-ops when signed out so a
@@ -88,24 +140,34 @@ class FirestoreSyncCoordinator @Inject constructor(
         cancelRealtimeSync()
         realtimeUid = uid
         Timber.d("[FIRESTORE] Starting realtime listeners for uid=%s", uid)
+        val epoch = sessionEpoch
 
         realtimeJobs = listOf(
             scope.launch {
                 syncEngine.observeCloudTasksFor(uid).collect { remoteTasks ->
-                    runCatching { remoteTasks.forEach { applyCloudTask(it) } }
-                        .onFailure { Timber.e(it, "[FIRESTORE] Failed applying cloud tasks") }
+                    if (epoch != sessionEpoch) return@collect
+                    runCatching {
+                        drainPendingApplies()
+                        remoteTasks.forEach { applyCloudTask(it) }
+                    }.onFailure { Timber.e(it, "[FIRESTORE] Failed applying cloud tasks") }
                 }
             },
             scope.launch {
                 syncEngine.observeCloudRemindersFor(uid).collect { remoteReminders ->
-                    runCatching { remoteReminders.forEach { applyCloudReminder(it) } }
-                        .onFailure { Timber.e(it, "[FIRESTORE] Failed applying cloud reminders") }
+                    if (epoch != sessionEpoch) return@collect
+                    runCatching {
+                        drainPendingApplies()
+                        remoteReminders.forEach { applyCloudReminder(it) }
+                    }.onFailure { Timber.e(it, "[FIRESTORE] Failed applying cloud reminders") }
                 }
             },
             scope.launch {
                 syncEngine.observeCloudSubtasksFor(uid).collect { remoteSubtasks ->
-                    runCatching { remoteSubtasks.forEach { applyCloudSubtask(it) } }
-                        .onFailure { Timber.e(it, "[FIRESTORE] Failed applying cloud subtasks") }
+                    if (epoch != sessionEpoch) return@collect
+                    runCatching {
+                        drainPendingApplies()
+                        remoteSubtasks.forEach { applyCloudSubtask(it) }
+                    }.onFailure { Timber.e(it, "[FIRESTORE] Failed applying cloud subtasks") }
                 }
             }
         )
@@ -144,7 +206,8 @@ class FirestoreSyncCoordinator @Inject constructor(
         _isSyncing.value = true
         try {
             Timber.d("[FIRESTORE] fullSync start for uid=%s", uid)
-            pullAndApplyCloud()
+            val tombstoned = HashSet<String>()
+            pullAndApplyCloud(tombstoned)
             if (epoch != sessionEpoch) {
                 Timber.w("[FIRESTORE] fullSync aborted: session changed mid-sync")
                 return Result.failure(java.util.concurrent.CancellationException("Session changed"))
@@ -161,7 +224,8 @@ class FirestoreSyncCoordinator @Inject constructor(
                 tasks = tasks,
                 subtasks = subtasks,
                 reminders = reminders,
-                bond = bond?.toDomainModel()
+                bond = bond?.toDomainModel(),
+                tombstonedIds = tombstoned
             )
             if (pushResult.isFailure) {
                 val msg = pushResult.exceptionOrNull()?.message
@@ -170,11 +234,11 @@ class FirestoreSyncCoordinator @Inject constructor(
             } else {
                 _lastSyncError.value = null
                 Timber.d(
-                    "[FIRESTORE] fullSync complete for uid=%s (companion=%s)",
-                    uid, primary?.name
+                    "[FIRESTORE] fullSync complete for uid=%s (companion=%s, %d writes)",
+                    uid, primary?.name, pushResult.getOrDefault(0)
                 )
             }
-            return pushResult
+            return pushResult.map { }
         } finally {
             _isSyncing.value = false
         }
@@ -188,61 +252,170 @@ class FirestoreSyncCoordinator @Inject constructor(
     /**
      * Pull-on-login restore: applies cloud tasks/reminders with last-write-wins,
      * and restores companion/bond from the cloud when the cloud copy is newer.
+     *
+     * [tombstonedOut] collects every cloud id seen as a tombstone so
+     * [pushAllLocalToCloud] never overwrites one.
      */
-    private suspend fun pullAndApplyCloud() {
+    private suspend fun pullAndApplyCloud(tombstonedOut: MutableSet<String> = HashSet()) {
         syncEngine.pullTasksFromCloud().onSuccess { remoteTasks ->
-            remoteTasks.forEach { applyCloudTask(it) }
+            drainPendingApplies()
+            remoteTasks.forEach {
+                if (it.model.deleted) tombstonedOut += it.model.id
+                applyCloudTask(it)
+            }
         }.onFailure { Timber.w(it, "Pull tasks failed") }
 
         syncEngine.pullRemindersFromCloud().onSuccess { remoteReminders ->
-            remoteReminders.forEach { applyCloudReminder(it) }
+            drainPendingApplies()
+            remoteReminders.forEach {
+                if (it.model.deleted) tombstonedOut += it.model.id
+                applyCloudReminder(it)
+            }
         }.onFailure { Timber.w(it, "Pull reminders failed") }
 
         syncEngine.pullSubtasksFromCloud().onSuccess { remoteSubtasks ->
-            remoteSubtasks.forEach { applyCloudSubtask(it) }
+            drainPendingApplies()
+            remoteSubtasks.forEach {
+                if (it.model.deleted) tombstonedOut += it.model.id
+                applyCloudSubtask(it)
+            }
         }.onFailure { Timber.w(it, "Pull subtasks failed") }
 
+        // Companion is pulled before draining: tasks/reminders buffered while no
+        // primary existed can be attached the moment it lands.
         applyCloudCompanion()
+        drainPendingApplies()
         applyCloudBond()
     }
 
-    private suspend fun applyCloudTask(cloud: FirestoreTask) {
-        if (cloud.id.isBlank()) return
-        val local = taskDao.getByCloudId(cloud.id)
-        if (local == null) {
-            val companionId = companionDao.getPrimaryDirect()?.id ?: return
-            taskDao.insert(cloud.toEntity(localId = 0, companionId = companionId))
-        } else if (cloud.updatedAt > local.updatedAt) {
-            taskDao.update(cloud.toEntity(localId = local.id, companionId = local.companionId))
+    // ------------------------------------------------------------------
+    // Apply (cloud → local)
+    // ------------------------------------------------------------------
+
+    private suspend fun applyCloudTask(cloud: CloudRow<FirestoreTask>) {
+        val row = cloud.model
+        if (row.id.isBlank()) return
+        val effective = SyncPolicy.effectiveUpdatedAt(row.updatedAt, cloud.serverTsMillis)
+        val local = taskDao.getByCloudId(row.id)
+        when (
+            SyncPolicy.mergeAction(
+                cloudDeleted = row.deleted,
+                cloudEffective = effective,
+                localExists = local != null,
+                localUpdatedAt = local?.updatedAt ?: 0L
+            )
+        ) {
+            SyncPolicy.MergeAction.UPDATE -> {
+                val companionId = companionDao.getPrimaryDirect()?.id
+                if (companionId == null) {
+                    // P0 #1: a task cannot exist without its companion row (FK
+                    // CASCADE). Buffer instead of dropping it on the floor.
+                    buffer(PendingApply.Task(row.id, effective, row))
+                    return
+                }
+                if (local == null) {
+                    taskDao.insert(row.toEntity(localId = 0, companionId = companionId))
+                } else {
+                    taskDao.update(
+                        row.toEntity(localId = local.id, companionId = local.companionId)
+                            .copy(updatedAt = SyncPolicy.localTimestampAfterApply(effective, local.updatedAt))
+                    )
+                }
+            }
+            SyncPolicy.MergeAction.TOMBSTONE -> {
+                local?.let { taskDao.delete(it) }
+                Timber.d("[FIRESTORE] Task %s deleted remotely (tombstone)", row.id)
+            }
+            SyncPolicy.MergeAction.KEEP_LOCAL ->
+                Timber.d("[FIRESTORE] Local task %s is newer than cloud tombstone; keeping", row.id)
+            SyncPolicy.MergeAction.SKIP -> Unit
         }
     }
 
-    private suspend fun applyCloudReminder(cloud: FirestoreReminder) {
-        if (cloud.id.isBlank()) return
-        val local = reminderDao.getByCloudId(cloud.id)
-        if (local == null) {
-            val companionId = companionDao.getPrimaryDirect()?.id
-            reminderDao.insert(cloud.toEntity(localId = 0, companionId = companionId))
-        } else if (cloud.updatedAt > local.updatedAt) {
-            reminderDao.update(cloud.toEntity(localId = local.id, companionId = local.companionId))
+    private suspend fun applyCloudReminder(cloud: CloudRow<FirestoreReminder>) {
+        val row = cloud.model
+        if (row.id.isBlank()) return
+        val effective = SyncPolicy.effectiveUpdatedAt(row.updatedAt, cloud.serverTsMillis)
+        val local = reminderDao.getByCloudId(row.id)
+        when (
+            SyncPolicy.mergeAction(
+                cloudDeleted = row.deleted,
+                cloudEffective = effective,
+                localExists = local != null,
+                localUpdatedAt = local?.updatedAt ?: 0L
+            )
+        ) {
+            SyncPolicy.MergeAction.UPDATE -> {
+                val companionId = companionDao.getPrimaryDirect()?.id
+                if (companionId == null && local == null) {
+                    // companionId is SET NULL on reminders, so a reminder *could*
+                    // be inserted unattached — but it would then be invisible to
+                    // the per-companion flows and never repaired. Buffer instead.
+                    buffer(PendingApply.Reminder(row.id, effective, row))
+                    return
+                }
+                if (local == null) {
+                    reminderDao.insert(row.toEntity(localId = 0, companionId = companionId))
+                } else {
+                    reminderDao.update(
+                        row.toEntity(localId = local.id, companionId = local.companionId)
+                            .copy(updatedAt = SyncPolicy.localTimestampAfterApply(effective, local.updatedAt))
+                    )
+                }
+            }
+            SyncPolicy.MergeAction.TOMBSTONE -> {
+                local?.let { reminderDao.delete(it) }
+                Timber.d("[FIRESTORE] Reminder %s deleted remotely (tombstone)", row.id)
+            }
+            SyncPolicy.MergeAction.KEEP_LOCAL ->
+                Timber.d("[FIRESTORE] Local reminder %s is newer than cloud tombstone; keeping", row.id)
+            SyncPolicy.MergeAction.SKIP -> Unit
         }
     }
 
-    private suspend fun applyCloudSubtask(cloud: FirestoreSubtask) {
-        if (cloud.id.isBlank() || cloud.parentCloudId.isBlank()) return
-        val local = subtaskDao.getByCloudId(cloud.id)
-        val parent = taskDao.getByCloudId(cloud.parentCloudId) ?: return
-        if (local == null) {
-            subtaskDao.insert(cloud.toSubtaskEntity(localId = 0, taskId = parent.id))
-        } else if (local.taskId != parent.id || cloud.updatedAt > local.updatedAt) {
-            subtaskDao.update(cloud.toSubtaskEntity(localId = local.id, taskId = parent.id))
+    private suspend fun applyCloudSubtask(cloud: CloudRow<FirestoreSubtask>) {
+        val row = cloud.model
+        if (row.id.isBlank() || row.parentCloudId.isBlank()) return
+        val effective = SyncPolicy.effectiveUpdatedAt(row.updatedAt, cloud.serverTsMillis)
+        val local = subtaskDao.getByCloudId(row.id)
+        when (
+            SyncPolicy.mergeAction(
+                cloudDeleted = row.deleted,
+                cloudEffective = effective,
+                localExists = local != null,
+                localUpdatedAt = local?.updatedAt ?: 0L
+            )
+        ) {
+            SyncPolicy.MergeAction.UPDATE -> {
+                val parent = taskDao.getByCloudId(row.parentCloudId)
+                if (parent == null) {
+                    // The parent task has not arrived yet (listener ordering).
+                    buffer(PendingApply.Subtask(row.id, effective, row))
+                    return
+                }
+                if (local == null) {
+                    subtaskDao.insert(row.toSubtaskEntity(localId = 0, taskId = parent.id))
+                } else if (local.taskId != parent.id || SyncPolicy.shouldApplyRemote(effective, local.updatedAt)) {
+                    subtaskDao.update(
+                        row.toSubtaskEntity(localId = local.id, taskId = parent.id)
+                            .copy(updatedAt = SyncPolicy.localTimestampAfterApply(effective, local.updatedAt))
+                    )
+                }
+            }
+            SyncPolicy.MergeAction.TOMBSTONE -> {
+                local?.let { subtaskDao.delete(it) }
+                Timber.d("[FIRESTORE] Subtask %s deleted remotely (tombstone)", row.id)
+            }
+            SyncPolicy.MergeAction.KEEP_LOCAL ->
+                Timber.d("[FIRESTORE] Local subtask %s is newer than cloud tombstone; keeping", row.id)
+            SyncPolicy.MergeAction.SKIP -> Unit
         }
     }
 
     private suspend fun applyCloudCompanion() {
         val cloudResult = syncEngine.pullCompanionFromCloud()
-        val cloud = cloudResult.getOrNull()
-        if (cloud == null) {
+        val cloudRow = cloudResult.getOrNull()
+        if (cloudRow == null) {
             if (cloudResult.isFailure) {
                 Timber.w(
                     "[FIRESTORE] Companion pull failed: %s",
@@ -253,15 +426,19 @@ class FirestoreSyncCoordinator @Inject constructor(
             }
             return
         }
+        val cloud = cloudRow.model
+        val cloudEffective = SyncPolicy.effectiveUpdatedAt(cloud.updatedAt, cloudRow.serverTsMillis)
         val local = companionDao.getPrimaryDirect()
         if (local == null) {
-            companionDao.insert(cloud.toEntityWithTimestamps(cloudUpdatedAt = cloud.updatedAt))
+            companionDao.insert(cloud.toEntityWithTimestamps(cloudUpdatedAt = cloudEffective))
             Timber.d("[FIRESTORE] Companion restored from cloud (name=%s)", cloud.name)
-        } else if (cloud.updatedAt > local.updatedAt || isFreshUneditedLocal(local)) {
+        } else if (SyncPolicy.shouldApplyRemote(cloudEffective, local.updatedAt) || isFreshUneditedLocal(local)) {
             // A fresh bootstrap seed (createdAt == updatedAt, never edited) always
             // loses to an existing cloud row: otherwise a post-wipe reseed with a
             // newer timestamp would permanently hide the user's real companion.
-            companionDao.update(cloud.toEntityWithTimestamps(cloudUpdatedAt = cloud.updatedAt, local = local))
+            companionDao.update(
+                cloud.toEntityWithTimestamps(cloudUpdatedAt = cloudEffective, local = local)
+            )
             Timber.d("[FIRESTORE] Companion restored from cloud (name=%s)", cloud.name)
         }
     }
@@ -326,8 +503,8 @@ class FirestoreSyncCoordinator @Inject constructor(
 
     private suspend fun applyCloudBond() {
         val cloudResult = syncEngine.pullBondFromCloud()
-        val cloud = cloudResult.getOrNull()
-        if (cloud == null) {
+        val cloudRow = cloudResult.getOrNull()
+        if (cloudRow == null) {
             if (cloudResult.isFailure) {
                 Timber.w(
                     "[FIRESTORE] Bond pull failed: %s",
@@ -336,6 +513,8 @@ class FirestoreSyncCoordinator @Inject constructor(
             }
             return
         }
+        val cloud = cloudRow.model
+        val cloudEffective = SyncPolicy.effectiveUpdatedAt(cloud.updatedAt, cloudRow.serverTsMillis)
         val primary = companionDao.getPrimaryDirect() ?: return
         val local = bondDao.getBondDirect(primary.id)
         if (local == null) {
@@ -349,11 +528,11 @@ class FirestoreSyncCoordinator @Inject constructor(
                     lastInteractionTime = cloud.lastInteractionTime,
                     streakDays = cloud.streakDays,
                     lastStreakDate = cloud.lastStreakDate,
-                    updatedAt = cloud.updatedAt
+                    updatedAt = cloudEffective
                 )
             )
             Timber.d("[FIRESTORE] Bond metrics restored from cloud (level=%d)", cloud.level)
-        } else if (cloud.updatedAt > local.updatedAt || isFreshDefaultBond(local)) {
+        } else if (SyncPolicy.shouldApplyRemote(cloudEffective, local.updatedAt) || isFreshDefaultBond(local)) {
             bondDao.insertOrUpdate(
                 local.copy(
                     level = cloud.level,
@@ -363,7 +542,7 @@ class FirestoreSyncCoordinator @Inject constructor(
                     lastInteractionTime = cloud.lastInteractionTime,
                     streakDays = cloud.streakDays,
                     lastStreakDate = cloud.lastStreakDate,
-                    updatedAt = cloud.updatedAt
+                    updatedAt = SyncPolicy.localTimestampAfterApply(cloudEffective, local.updatedAt)
                 )
             )
         }
@@ -373,14 +552,214 @@ class FirestoreSyncCoordinator @Inject constructor(
     private fun isFreshDefaultBond(local: BondEntity): Boolean =
         local.totalInteractions == 0 && local.level <= 0 && local.updatedAt == 0L
 
+    // ------------------------------------------------------------------
+    // Pending-apply buffer
+    // ------------------------------------------------------------------
+
+    private suspend fun buffer(pending: PendingApply) {
+        pendingLock.withLock {
+            if (pendingApplies.size >= MAX_PENDING_APPLIES) {
+                val evicted = pendingApplies.remove(pendingApplies.keys.first())
+                Timber.w(
+                    "[FIRESTORE] Pending-apply buffer full (%d); evicting oldest %s",
+                    MAX_PENDING_APPLIES, evicted?.cloudId
+                )
+            }
+            // Newest cloud state per cloudId wins (realtime updates supersede).
+            pendingApplies[pending.cloudId] = pending
+        }
+        Timber.w(
+            "[FIRESTORE] Buffered cloud row %s (no primary companion / parent task yet); will retry after bootstrap",
+            pending.cloudId
+        )
+    }
+
+    /**
+     * Re-applies every buffered cloud row that can now be attached to Room.
+     *
+     * Called before each apply batch (realtime and pull paths) and after the
+     * companion is restored in [fullSync]. Rows that still have no anchor stay
+     * buffered; nothing is ever dropped silently.
+     *
+     * @return number of rows drained.
+     */
+    suspend fun drainPendingApplies(): Int {
+        if (pendingApplies.isEmpty()) return 0
+        // Nothing can be attached before the primary companion exists; the
+        // buffer is drained again right after the companion is restored.
+        if (companionDao.getPrimaryDirect() == null) return 0
+        val drained = pendingLock.withLock {
+            val snapshot = pendingApplies.values.toList()
+            pendingApplies.clear()
+            snapshot
+        }
+        var applied = 0
+        for (pending in drained) {
+            when (pending) {
+                is PendingApply.Task ->
+                    // Re-applying a task that is still unattachable re-buffers it.
+                    if (companionDao.getPrimaryDirect() != null) {
+                        taskDao.getByCloudId(pending.cloudId)?.let { local ->
+                            if (SyncPolicy.shouldApplyRemote(pending.cloudEffective, local.updatedAt)) {
+                                taskDao.update(
+                                    pending.row.toEntity(localId = local.id, companionId = local.companionId)
+                                        .copy(updatedAt = SyncPolicy.localTimestampAfterApply(pending.cloudEffective, local.updatedAt))
+                                )
+                            }
+                        } ?: taskDao.insert(
+                            pending.row.toEntity(localId = 0, companionId = companionDao.getPrimaryDirect()!!.id)
+                        )
+                        applied++
+                    } else {
+                        buffer(pending)
+                    }
+                is PendingApply.Reminder ->
+                    if (companionDao.getPrimaryDirect() != null) {
+                        reminderDao.getByCloudId(pending.cloudId)?.let { local ->
+                            if (SyncPolicy.shouldApplyRemote(pending.cloudEffective, local.updatedAt)) {
+                                reminderDao.update(
+                                    pending.row.toEntity(localId = local.id, companionId = local.companionId)
+                                        .copy(updatedAt = SyncPolicy.localTimestampAfterApply(pending.cloudEffective, local.updatedAt))
+                                )
+                            }
+                        } ?: reminderDao.insert(
+                            pending.row.toEntity(localId = 0, companionId = companionDao.getPrimaryDirect()!!.id)
+                        )
+                        applied++
+                    } else {
+                        buffer(pending)
+                    }
+                is PendingApply.Subtask -> {
+                    val parent = taskDao.getByCloudId(pending.row.parentCloudId)
+                    if (parent == null) {
+                        buffer(pending)
+                    } else {
+                        subtaskDao.getByCloudId(pending.cloudId)?.let { local ->
+                            if (local.taskId != parent.id || SyncPolicy.shouldApplyRemote(pending.cloudEffective, local.updatedAt)) {
+                                subtaskDao.update(
+                                    pending.row.toSubtaskEntity(localId = local.id, taskId = parent.id)
+                                        .copy(updatedAt = SyncPolicy.localTimestampAfterApply(pending.cloudEffective, local.updatedAt))
+                                )
+                            }
+                        } ?: subtaskDao.insert(pending.row.toSubtaskEntity(localId = 0, taskId = parent.id))
+                        applied++
+                    }
+                }
+            }
+        }
+        if (applied > 0) {
+            Timber.i(
+                "[FIRESTORE] Drained %d buffered cloud rows (%d still waiting for their anchor)",
+                applied, pendingApplies.size
+            )
+        }
+        return applied
+    }
+
+    /** Drops buffered rows without applying them (sign-out / account switch). */
+    private suspend fun clearPendingApplies() {
+        val dropped = pendingLock.withLock {
+            val n = pendingApplies.size
+            pendingApplies.clear()
+            n
+        }
+        if (dropped > 0) {
+            Timber.d("[FIRESTORE] Cleared %d buffered cloud rows on sign-out", dropped)
+        }
+    }
+
+    /**
+     * Reflects a cloud tombstone discovered by a refused PUSH (§push guards) in
+     * Room, so a row deleted on another device disappears here as well instead
+     * of being pushed forever.
+     */
+    private suspend fun mirrorPushTombstone(type: String, cloudId: String) {
+        when (type) {
+            FirestorePushWorkerTypes.TASK ->
+                taskDao.getByCloudId(cloudId)?.let { taskDao.delete(it) }
+            FirestorePushWorkerTypes.REMINDER ->
+                reminderDao.getByCloudId(cloudId)?.let { reminderDao.delete(it) }
+            FirestorePushWorkerTypes.SUBTASK ->
+                subtaskDao.getByCloudId(cloudId)?.let { subtaskDao.delete(it) }
+        }
+        Timber.i("[FIRESTORE] Applied remote tombstone for %s %s", type, cloudId)
+    }
+
+    /** Result of pushing one entity on behalf of the retry worker. */
+    enum class PushOutcome {
+        /** The cloud now holds this write. */
+        DONE,
+
+        /** A newer cloud tombstone won; the local row was removed. */
+        REMOVED_REMOTELY,
+
+        /** Transport/exception failure — let WorkManager retry with backoff. */
+        RETRY
+    }
+
+    /**
+     * Pushes one entity by cloud id (the retry-worker path).
+     *
+     * Unlike the listener path, a refused push here means the *cloud* holds a
+     * tombstone that outranks this local row, so the row is removed locally
+     * instead of being re-pushed forever.
+     */
+    suspend fun pushEntity(type: String, cloudId: String): PushOutcome {
+        return try {
+            val outcome = when (type) {
+                FirestorePushWorkerTypes.TASK -> {
+                    val entity = taskDao.getByCloudId(cloudId) ?: return PushOutcome.DONE
+                    syncEngine.syncTaskToCloud(entity)
+                }
+                FirestorePushWorkerTypes.REMINDER -> {
+                    val entity = reminderDao.getByCloudId(cloudId) ?: return PushOutcome.DONE
+                    syncEngine.syncReminderToCloud(entity)
+                }
+                FirestorePushWorkerTypes.SUBTASK -> {
+                    val subtask = subtaskDao.getByCloudId(cloudId) ?: return PushOutcome.DONE
+                    val parent = taskDao.getTaskById(subtask.taskId) ?: return PushOutcome.DONE
+                    syncEngine.syncSubtaskToCloud(subtask, parent.cloudId)
+                }
+                FirestorePushWorkerTypes.DELETE_TASK -> syncEngine.deleteTaskFromCloud(cloudId)
+                FirestorePushWorkerTypes.DELETE_REMINDER -> syncEngine.deleteReminderFromCloud(cloudId)
+                FirestorePushWorkerTypes.DELETE_SUBTASK -> syncEngine.deleteSubtaskFromCloud(cloudId)
+                else -> {
+                    Timber.w("[FIRESTORE] Unknown push type %s", type)
+                    return PushOutcome.DONE
+                }
+            }
+            val pushed = outcome.getOrElse {
+                Timber.w(it, "[FIRESTORE] Push %s %s failed", type, cloudId)
+                return PushOutcome.RETRY
+            }
+            if (pushed) {
+                PushOutcome.DONE
+            } else {
+                mirrorPushTombstone(entityTypeOf(type), cloudId)
+                PushOutcome.REMOVED_REMOTELY
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "[FIRESTORE] Push %s %s threw", type, cloudId)
+            PushOutcome.RETRY
+        }
+    }
+
+    private fun entityTypeOf(pushType: String): String = when (pushType) {
+        FirestorePushWorkerTypes.DELETE_TASK -> FirestorePushWorkerTypes.TASK
+        FirestorePushWorkerTypes.DELETE_REMINDER -> FirestorePushWorkerTypes.REMINDER
+        FirestorePushWorkerTypes.DELETE_SUBTASK -> FirestorePushWorkerTypes.SUBTASK
+        else -> pushType
+    }
+
     /**
      * Wipes ALL local user data, then signs out of Firebase. Guarantees the
      * next sign-in (any account, including guest) starts clean instead of
      * pushing the previous user's data under the new uid.
      *
      * The wipe runs BEFORE auth sign-out in the same coroutine, the realtime
-     * listeners are cancelled, and [sessionEpoch] is bumped so any in-flight
-     * fullSync aborts instead of re-pushing stale rows under the next uid.
+     * listeners are cancelled, the pending-apply buffer is cleared, and
+     * [sessionEpoch] is bumped so any in-flight fullSync aborts instead of
+     * re-pushing stale rows under the next uid.
      */
     fun signOut() {
         scope.launch { signOutSuspend() }
@@ -389,6 +768,7 @@ class FirestoreSyncCoordinator @Inject constructor(
     suspend fun signOutSuspend() {
         sessionEpoch++
         cancelRealtimeSync()
+        clearPendingApplies()
         try {
             clearAllLocalData()
         } catch (e: Exception) {
@@ -406,4 +786,17 @@ class FirestoreSyncCoordinator @Inject constructor(
         companionDao.deleteAll()
         Timber.d("Local user data cleared for sign-out")
     }
+}
+
+/**
+ * Push types shared with `FirestorePushWorker` without importing the
+ * Android/WorkManager layer into this file's data class.
+ */
+object FirestorePushWorkerTypes {
+    const val TASK = com.pixelpal.app.worker.FirestorePushWorker.TYPE_TASK
+    const val REMINDER = com.pixelpal.app.worker.FirestorePushWorker.TYPE_REMINDER
+    const val SUBTASK = com.pixelpal.app.worker.FirestorePushWorker.TYPE_SUBTASK
+    const val DELETE_TASK = com.pixelpal.app.worker.FirestorePushWorker.TYPE_DELETE_TASK
+    const val DELETE_REMINDER = com.pixelpal.app.worker.FirestorePushWorker.TYPE_DELETE_REMINDER
+    const val DELETE_SUBTASK = com.pixelpal.app.worker.FirestorePushWorker.TYPE_DELETE_SUBTASK
 }

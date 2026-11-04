@@ -9,16 +9,12 @@ import com.pixelpal.app.data.local.db.dao.TaskDao
 import com.pixelpal.app.data.local.db.entity.ActivityEventEntity
 import com.pixelpal.app.data.local.db.entity.TaskEntity
 import com.pixelpal.app.data.remote.firebase.FirestoreSyncEngine
-import androidx.work.Constraints
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
 import com.pixelpal.app.domain.model.ActivityType
 import com.pixelpal.app.domain.model.Task
 import com.pixelpal.app.domain.repository.TaskRepository
 import com.pixelpal.app.widget.TasksWidgetProvider
 import com.pixelpal.app.widget.HomeWidgetProvider
+import com.pixelpal.app.worker.CloudPushScheduler
 import com.pixelpal.app.worker.FirestorePushWorker
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -54,14 +50,17 @@ class TaskRepositoryImpl @Inject constructor(
             )
         taskDao.update(entity)
         syncEngine.pushTaskAsync(entity)
+        // Offline-safe retry: unique work + KEEP collapses repeats of the same row.
+        CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_TASK, entity.cloudId)
     }
 
     override suspend fun addTask(task: Task): Long {
         val entity = task.toEntity(updatedAt = System.currentTimeMillis())
         val id = taskDao.insert(entity)
-        // Fire-and-forget for instant UI + WorkManager retry for offline (Blue Man Group roadmap)
-        syncEngine.pushTaskAsync(entity.copy(id = id))
-        enqueuePush(FirestorePushWorker.TYPE_TASK, entity.cloudId)
+        val persisted = entity.copy(id = id)
+        // Fire-and-forget for instant UI + WorkManager retry for offline.
+        syncEngine.pushTaskAsync(persisted)
+        CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_TASK, persisted.cloudId)
         TasksWidgetProvider.updateAllWidgets(context)
         HomeWidgetProvider.updateAllWidgets(context)
         return id
@@ -81,7 +80,7 @@ class TaskRepositoryImpl @Inject constructor(
                 )
             )
         }
-        taskDao.getTaskById(task.id)?.let(syncEngine::pushTaskAsync)
+        pushAndRetry(task.id)
         TasksWidgetProvider.updateAllWidgets(context)
         HomeWidgetProvider.updateAllWidgets(context)
         return true
@@ -90,7 +89,7 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun toggleTask(task: Task) {
         if (task.isDone) {
             taskDao.markUndone(task.id, System.currentTimeMillis())
-            taskDao.getTaskById(task.id)?.let(syncEngine::pushTaskAsync)
+            pushAndRetry(task.id)
         } else {
             completeTask(task)
             return
@@ -102,12 +101,15 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun deleteTask(task: Task) {
         val entity = taskDao.getTaskById(task.id)
         if (entity != null) {
-            // Delete cloud subtasks first (local rows cascade with the task).
+            // Tombstone the child subtasks first, then the task itself: a peer
+            // that pulls between the two writes still sees the parent.
             subtaskDao.getByTaskDirect(entity.id).forEach { subtask ->
                 syncEngine.deleteSubtaskAsync(subtask.cloudId)
+                CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_DELETE_SUBTASK, subtask.cloudId)
             }
             taskDao.delete(entity)
             syncEngine.deleteTaskAsync(entity.cloudId)
+            CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_DELETE_TASK, entity.cloudId)
         } else {
             taskDao.delete(task.toEntity())
         }
@@ -118,10 +120,22 @@ class TaskRepositoryImpl @Inject constructor(
     override suspend fun reinsertTask(task: Task): Long {
         val entity = task.toEntity(updatedAt = System.currentTimeMillis())
         val id = taskDao.insert(entity)
-        syncEngine.pushTaskAsync(entity.copy(id = id))
+        val persisted = entity.copy(id = id)
+        syncEngine.pushTaskAsync(persisted)
+        CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_TASK, persisted.cloudId)
         TasksWidgetProvider.updateAllWidgets(context)
         HomeWidgetProvider.updateAllWidgets(context)
         return id
+    }
+
+    /**
+     * Instant push (UI snappiness) + retryable queued push (offline safety).
+     * The row is re-read so the push carries the DAO's post-write timestamp.
+     */
+    private suspend fun pushAndRetry(taskId: Long) {
+        val entity = taskDao.getTaskById(taskId) ?: return
+        syncEngine.pushTaskAsync(entity)
+        CloudPushScheduler.enqueue(context, FirestorePushWorker.TYPE_TASK, entity.cloudId)
     }
 
     private fun TaskEntity.toDomain() = Task(
@@ -135,16 +149,6 @@ class TaskRepositoryImpl @Inject constructor(
         completedAt = completedAt,
         photoUri = photoUri
     )
-
-    private fun enqueuePush(type: String, cloudId: String) {
-        if (cloudId.isBlank()) return
-        val req = OneTimeWorkRequestBuilder<FirestorePushWorker>()
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setBackoffCriteria(androidx.work.BackoffPolicy.EXPONENTIAL, 10_000L, java.util.concurrent.TimeUnit.MILLISECONDS)
-            .setInputData(workDataOf(FirestorePushWorker.KEY_TYPE to type, FirestorePushWorker.KEY_CLOUD_ID to cloudId))
-            .build()
-        WorkManager.getInstance(context).enqueue(req)
-    }
 
     private fun Task.toEntity(updatedAt: Long = 0L) = TaskEntity(
         id = id,

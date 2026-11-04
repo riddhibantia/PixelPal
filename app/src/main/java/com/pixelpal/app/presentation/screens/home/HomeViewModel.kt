@@ -18,7 +18,6 @@ import com.pixelpal.app.domain.usecase.companion.FeedCompanionUseCase
 import com.pixelpal.app.domain.usecase.companion.GetActiveCompanionUseCase
 import com.pixelpal.app.domain.usecase.companion.TapCompanionUseCase
 import com.pixelpal.app.overlay.OverlayService
-import com.pixelpal.app.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,35 +32,13 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
 
-data class HomeUiState(
-    val isLoading: Boolean = true,
-    val userName: String = "",
-    val companion: Companion? = null,
-    val bond: Bond? = null,
-    val pendingTasks: List<Task> = emptyList(),
-    val completedTodayTasks: Int = 0,
-    val nextReminder: Reminder? = null,
-    val agentConnection: AgentConnection? = null,
-    val unreadActivityCount: Int = 0,
-    val overlayEnabled: Boolean = true
-) {
-    val isMaxBond: Boolean get() = (bond?.level ?: 0) >= Constants.MAX_BOND_LEVEL
-
-    fun stateLabel(now: Long = System.currentTimeMillis()): String {
-        val last = bond?.lastInteractionTime ?: 0L
-        return if (now - last < RECENT_INTERACTION_WINDOW_MS) "Happy" else "Calm"
-    }
-}
-
-private const val RECENT_INTERACTION_WINDOW_MS = 2 * 60 * 1000L
-
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val preferencesManager: PreferencesManager,
     getActiveCompanionUseCase: GetActiveCompanionUseCase,
     getAgentConnectionUseCase: GetAgentConnectionUseCase,
-    private val activityEventRepository: ActivityEventRepository,
+    activityEventRepository: ActivityEventRepository,
     private val taskRepository: TaskRepository,    private val reminderRepository: ReminderRepository,
     bondRepository: BondRepository,
     private val tapCompanionUseCase: TapCompanionUseCase,
@@ -115,26 +92,6 @@ class HomeViewModel @Inject constructor(
         if (c == null) flowOf(null) else getAgentConnectionUseCase.getConnection(c.id)
     }
 
-
-    val uiState: StateFlow<HomeUiState> = combine(
-        companion, bondFlow, features, agentFlow,
-        combine(userName, unreadActivityCount, overlayEnabled) { user, unread, overlay ->
-            Triple(user, unread, overlay)
-        }
-    ) { c, bond, features, agent, meta ->
-        HomeUiState(
-            isLoading = false,
-            userName = meta.first,
-            companion = c,
-            bond = bond,
-            pendingTasks = features.pendingTasks,
-            completedTodayTasks = features.completedToday,
-            nextReminder = features.nextReminder,
-            agentConnection = agent,
-            unreadActivityCount = meta.second,
-            overlayEnabled = meta.third
-        )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
     // ---- Scoped slices (perf): HomeScreen collects one slice per section
     // so a change in one area (e.g. unread badge from a background worker
@@ -204,10 +161,6 @@ class HomeViewModel @Inject constructor(
     /** Cosmetic-only interaction (no bond inflation by design). */
     fun feedCompanion() {
         viewModelScope.launch { feedCompanionUseCase() }
-    }
-
-    fun markActivitiesSeen() {
-        viewModelScope.launch { activityEventRepository.markAllRead() }
     }
 
     fun toggleOverlay(context: Context) {

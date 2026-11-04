@@ -62,6 +62,7 @@ fun NewTaskScreen(
 ) {
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var dueAt by remember { mutableStateOf<Long?>(null) }
     val drafts = remember { mutableStateListOf<DraftSubtask>() }
     var nextKey by remember { mutableIntStateOf(1) }
 
@@ -103,6 +104,11 @@ fun NewTaskScreen(
                     singleLine = false,
                     modifier = Modifier.height(120.dp)
                 )
+
+                Spacer(modifier = Modifier.height(Spacing.lg))
+
+                SectionHeader(title = "Due date")
+                DueDateSection(dueAt = dueAt, onDueAtChange = { dueAt = it })
 
                 Spacer(modifier = Modifier.height(Spacing.lg))
 
@@ -171,7 +177,8 @@ fun NewTaskScreen(
                         viewModel.createTask(
                             title = title,
                             description = description.takeIf { it.isNotBlank() },
-                            subtaskTitles = drafts.map { it.title }
+                            subtaskTitles = drafts.map { it.title },
+                            dueAt = dueAt
                         )
                         navController.popBackStack()
                     }

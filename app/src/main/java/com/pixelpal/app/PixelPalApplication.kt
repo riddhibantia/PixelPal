@@ -15,7 +15,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import timber.log.Timber
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.Executors
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -53,6 +61,8 @@ class PixelPalApplication : Application(), Configuration.Provider {
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
+
+        installCrashLogger()
 
         // Foreground tracking for the overlay: the floating bubble parks
         // itself while the user is inside the app (it would otherwise run a
@@ -110,6 +120,139 @@ class PixelPalApplication : Application(), Configuration.Provider {
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Companion bootstrap failed")
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Crash visibility (release builds included)
+    // ---------------------------------------------------------------------
+    //
+    // The app ships no remote crash-reporting SDK (no Crashlytics/Analytics,
+    // see README "Privacy"), so release crashes used to be completely
+    // invisible: the process died and the stack trace was lost. This installs
+    // a process-wide UncaughtExceptionHandler that writes the throwable to a
+    // rotating log in filesDir before delegating to the platform handler (so
+    // the process still dies exactly as before — no swallowed crashes), and
+    // exposes it through CrashLog (readable from the UI).
+    //
+    // Kept in this file on purpose: it must be armed before anything else in
+    // the process can throw, i.e. in Application.onCreate().
+
+    /** One recorded fatal crash. Serialized to JSON by [CrashLog]. */
+    @Serializable
+    data class CrashRecord(
+        val timestamp: Long,
+        val versionName: String,
+        val versionCode: Int,
+        val thread: String,
+        val message: String,
+        val stackTrace: String
+    )
+
+    /**
+     * File-backed crash store: `filesDir/crashes/crash_log.jsonl` (append-only,
+     * one JSON object per line, capped at [MAX_ENTRIES] newest records).
+     * Reads/writes happen on a dedicated single thread so a write can never
+     * block the main thread from inside an uncaught-exception handler.
+     */
+    object CrashLog {
+        private const val DIR = "crashes"
+        private const val FILE = "crash_log.jsonl"
+        private const val MAX_ENTRIES = 20
+
+        private val io = Executors.newSingleThreadExecutor { r ->
+            Thread(r, "pixelpal-crash-log").apply { isDaemon = true }
+        }
+
+        private val json = kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
+
+        private fun logFile(dir: File): File = File(File(dir, DIR), FILE)
+
+        /** Appends one crash record. Synchronous — called from the dying process. */
+        fun record(dir: File, record: CrashRecord) {
+            runCatching {
+                val file = logFile(dir)
+                file.parentFile?.mkdirs()
+                val fresh = file.exists() && file.length() > MAX_FILE_BYTES
+                val lines = when {
+                    fresh -> emptyList()
+                    file.exists() -> file.readLines().filter { it.isNotBlank() }
+                    else -> emptyList()
+                }
+                val entry = json.encodeToString(CrashRecord.serializer(), record)
+                val kept = (lines + entry)
+                    .filter { it.isNotBlank() }
+                    .takeLast(MAX_ENTRIES)
+                file.writeText(kept.joinToString("\n", postfix = "\n"))
+            }
+        }
+
+        /** All recorded crashes, newest last. Never throws. */
+        fun read(dir: File): List<CrashRecord> {
+            val file = logFile(dir)
+            if (!file.exists()) return emptyList()
+            return runCatching {
+                file.readLines()
+                    .filter { it.isNotBlank() }
+                    .mapNotNull { line ->
+                        runCatching {
+                            json.decodeFromString(CrashRecord.serializer(), line)
+                        }.getOrNull()
+                    }
+            }.getOrDefault(emptyList())
+        }
+
+        /** Most recent crash, or null when the log is empty. Never throws. */
+        fun latest(dir: File): CrashRecord? = read(dir).lastOrNull()
+
+        /** Clears the log (called when the user dismisses the report). */
+        fun clear(dir: File) {
+            io.execute { runCatching { logFile(dir).delete() } }
+        }
+
+        /** Human-readable one-liner for a UI row. */
+        fun CrashRecord.summary(): String {
+            val whenText = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault()).format(Date(timestamp))
+            return "$whenText · $message"
+        }
+
+        private const val MAX_FILE_BYTES = 256 * 1024L
+    }
+
+    private fun installCrashLogger() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        if (previous is CrashLoggingHandler) return
+        Thread.setDefaultUncaughtExceptionHandler(CrashLoggingHandler(this, previous))
+    }
+
+    private class CrashLoggingHandler(
+        private val app: Application,
+        private val previous: Thread.UncaughtExceptionHandler?
+    ) : Thread.UncaughtExceptionHandler {
+
+        override fun uncaughtException(thread: Thread, throwable: Throwable) {
+            // Never let crash logging itself cause a second failure.
+            runCatching {
+                Timber.e(throwable, "FATAL: uncaught exception on ${thread.name}")
+                val sw = StringWriter()
+                PrintWriter(sw).use { throwable.printStackTrace(it) }
+                val record = CrashRecord(
+                    timestamp = System.currentTimeMillis(),
+                    versionName = BuildConfig.VERSION_NAME,
+                    versionCode = BuildConfig.VERSION_CODE,
+                    thread = thread.name,
+                    message = throwable.message ?: throwable::class.java.name,
+                    stackTrace = sw.toString()
+                )
+                CrashLog.record(app.filesDir, record)
+            }
+            // Delegate so the platform behaves exactly as it would have.
+            (previous ?: Thread.getDefaultUncaughtExceptionHandler())?.let {
+                if (it !== this) it.uncaughtException(thread, throwable)
             }
         }
     }

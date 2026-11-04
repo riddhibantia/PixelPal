@@ -476,4 +476,42 @@ object DatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_tasks_companionId_isDone_createdAt` ON `tasks` (`companionId`, `isDone`, `createdAt`)")
         }
     }
+
+    /**
+     * Version 15 adds `agent_sessions`: one row per agent session reported by
+     * the pixelpal-bridge (Claude Code, Codex, OMP, opencode, Hermes).
+     *
+     * This is OBSERVED state, not configuration — `agent_connection` stays as
+     * per-companion setup. A brand-new table means no data migration and no
+     * risk to existing rows; it starts empty and fills from the bridge.
+     */
+    val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `agent_sessions` (
+                    `id` TEXT NOT NULL,
+                    `source` TEXT NOT NULL,
+                    `sessionId` TEXT NOT NULL,
+                    `agentName` TEXT NOT NULL DEFAULT '',
+                    `project` TEXT NOT NULL DEFAULT '',
+                    `status` TEXT NOT NULL DEFAULT 'IDLE',
+                    `message` TEXT NOT NULL DEFAULT '',
+                    `currentTask` TEXT,
+                    `progress` INTEGER,
+                    `pendingApprovalId` TEXT,
+                    `pendingApprovalAction` TEXT,
+                    `lastEventAt` INTEGER NOT NULL DEFAULT 0,
+                    `toolsCompleted` INTEGER NOT NULL DEFAULT 0,
+                    `companionId` INTEGER NOT NULL DEFAULT 0,
+                    `bridgeId` TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY(`id`)
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_sessions_source` ON `agent_sessions` (`source`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_sessions_lastEventAt` ON `agent_sessions` (`lastEventAt`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_sessions_companionId` ON `agent_sessions` (`companionId`)")
+        }
+    }
 }

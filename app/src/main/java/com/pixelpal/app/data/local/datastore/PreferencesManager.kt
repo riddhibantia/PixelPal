@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.pixelpal.app.util.Constants
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -23,7 +22,6 @@ class PreferencesManager @Inject constructor(
         val OVERLAY_X = floatPreferencesKey(Constants.KEY_OVERLAY_X)
         val OVERLAY_Y = floatPreferencesKey(Constants.KEY_OVERLAY_Y)
         val OVERLAY_ENABLED = booleanPreferencesKey(Constants.KEY_OVERLAY_ENABLED)
-        val OVERLAY_COMPANION_IDS = stringSetPreferencesKey(Constants.KEY_OVERLAY_COMPANION_IDS)
         val PET_NAME = stringPreferencesKey(Constants.KEY_PET_NAME)
         val USER_NAME = stringPreferencesKey(Constants.KEY_USER_NAME)
         val USER_EMAIL = stringPreferencesKey(Constants.KEY_USER_EMAIL)
@@ -36,6 +34,10 @@ class PreferencesManager @Inject constructor(
         val SINGLE_COMPANION_FOLD_DONE = booleanPreferencesKey(Constants.KEY_SINGLE_COMPANION_FOLD_DONE)
         val TASKS_WIDGET_ENABLED = booleanPreferencesKey(Constants.KEY_TASKS_WIDGET_ENABLED)
         val GEMINI_API_KEY_OVERRIDE = stringPreferencesKey(Constants.KEY_GEMINI_API_KEY_OVERRIDE)
+        val AGENT_BRIDGE_URL = stringPreferencesKey(Constants.KEY_AGENT_BRIDGE_URL)
+        val AGENT_BRIDGE_KEY = stringPreferencesKey(Constants.KEY_AGENT_BRIDGE_KEY)
+        val AGENT_BRIDGE_ID = stringPreferencesKey(Constants.KEY_AGENT_BRIDGE_ID)
+        val AGENT_RELAY_ID = stringPreferencesKey(Constants.KEY_AGENT_RELAY_ID)
 
         /** Per-companion overlay positions: overlay_x_<id> / overlay_y_<id>. */
         fun overlayX(companionId: Long) = floatPreferencesKey("${Constants.KEY_OVERLAY_X}_$companionId")
@@ -53,11 +55,6 @@ class PreferencesManager @Inject constructor(
 
     val overlayEnabled: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[Keys.OVERLAY_ENABLED] ?: Constants.DEFAULT_OVERLAY_ENABLED
-    }
-
-    /** Companion ids (as strings) currently chosen for on-screen overlays. Empty = default to active companion. */
-    val overlayCompanionIds: Flow<Set<String>> = dataStore.data.map { preferences ->
-        preferences[Keys.OVERLAY_COMPANION_IDS] ?: emptySet()
     }
 
     /** Per-companion persisted overlay position; falls back to the legacy global position. */
@@ -133,12 +130,6 @@ class PreferencesManager @Inject constructor(
         }
     }
 
-    suspend fun setOverlayCompanionIds(ids: Set<Long>) {
-        dataStore.edit { preferences ->
-            preferences[Keys.OVERLAY_COMPANION_IDS] = ids.map { it.toString() }.toSet()
-        }
-    }
-
     suspend fun clearOverlayPositions() {
         dataStore.edit { preferences ->
             val toRemove = preferences.asMap().keys.filter { key ->
@@ -146,6 +137,44 @@ class PreferencesManager @Inject constructor(
                     key.name.startsWith("${Constants.KEY_OVERLAY_Y}_")
             }
             toRemove.forEach { preferences.remove(it) }
+        }
+    }
+
+    /** Base URL of the pixelpal-bridge, e.g. http://192.168.1.20:8787 */
+    val agentBridgeUrl: Flow<String> = dataStore.data.map { it[Keys.AGENT_BRIDGE_URL] ?: "" }
+
+    suspend fun getAgentBridgeUrl(): String =
+        dataStore.data.first()[Keys.AGENT_BRIDGE_URL] ?: ""
+
+    suspend fun getAgentBridgeKey(): String =
+        dataStore.data.first()[Keys.AGENT_BRIDGE_KEY] ?: ""
+
+    suspend fun getAgentBridgeId(): String =
+        dataStore.data.first()[Keys.AGENT_BRIDGE_ID] ?: ""
+
+    /** Relay doc id, set after pairing with a 9-character code. */
+    suspend fun getAgentRelayId(): String =
+        dataStore.data.first()[Keys.AGENT_RELAY_ID] ?: ""
+
+    suspend fun setAgentRelayId(relayId: String) {
+        dataStore.edit { it[Keys.AGENT_RELAY_ID] = relayId }
+    }
+
+    /** Stores pairing info after a QR scan / manual entry. */
+    suspend fun setAgentBridge(url: String, key: String, bridgeId: String) {
+        dataStore.edit { preferences ->
+            preferences[Keys.AGENT_BRIDGE_URL] = url.trim().trimEnd('/')
+            preferences[Keys.AGENT_BRIDGE_KEY] = key
+            preferences[Keys.AGENT_BRIDGE_ID] = bridgeId
+        }
+    }
+
+    suspend fun clearAgentBridge() {
+        dataStore.edit { preferences ->
+            preferences.remove(Keys.AGENT_BRIDGE_URL)
+            preferences.remove(Keys.AGENT_BRIDGE_KEY)
+            preferences.remove(Keys.AGENT_BRIDGE_ID)
+            preferences.remove(Keys.AGENT_RELAY_ID)
         }
     }
 

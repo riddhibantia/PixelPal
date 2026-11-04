@@ -35,7 +35,6 @@ class SpeechBubbleOverlayView(context: Context) : FrameLayout(context) {
     private val accentGreen = Color.parseColor("#6BCB77")   // PixelSuccess
     private val accentYellow = Color.parseColor("#FFD166")  // PixelWarning
     private val accentRed = Color.parseColor("#FF6B6B")     // Error
-    private val accentPurple = Color.parseColor("#8B6CF6")  // Secondary purple
 
     init {
         val density = resources.displayMetrics.density
@@ -168,24 +167,50 @@ class SpeechBubbleOverlayView(context: Context) : FrameLayout(context) {
         handler.post(typewriterRunnable!!)
     }
 
-    fun showActions(
-        onDone: () -> Unit,
-        onSnooze: () -> Unit,
-        onDismiss: () -> Unit
-    ) {
+    /**
+     * Renders tappable action buttons inside the bubble.
+     *
+     * [Action.emphasized] is drawn right-most (primary), the rest left-to-right,
+     * so callers only describe intent — not layout. Clicking a button hides the
+     * action row before invoking its callback so a double tap can't fire twice.
+     */
+    fun showActions(actions: List<Action>) {
         actionRow.removeAllViews()
+        if (actions.isEmpty()) {
+            actionRow.visibility = View.GONE
+            return
+        }
         actionRow.visibility = View.VISIBLE
 
-        val doneBtn = createStyledButton("Done", accentGreen) { onDone() }
-        val snoozeBtn = createStyledButton("Snooze", accentYellow) { onSnooze() }
-        val dismissBtn = createStyledButton("Dismiss", accentRed) { onDismiss() }
-
-        actionRow.addView(dismissBtn)
-        actionRow.addView(snoozeBtn)
-        actionRow.addView(doneBtn)
+        val ordered = actions.sortedBy { if (it.emphasized) 1 else 0 }
+        ordered.forEach { action ->
+            val tint = when (action.style) {
+                ActionStyle.PRIMARY -> accentGreen
+                ActionStyle.NEUTRAL -> accentYellow
+                ActionStyle.DESTRUCTIVE -> accentRed
+            }
+            actionRow.addView(
+                createStyledButton(action.label, tint) {
+                    hideActions()
+                    action.callback()
+                }
+            )
+        }
     }
 
+    /** One tappable action inside the bubble. */
+    data class Action(
+        val label: String,
+        val callback: () -> Unit,
+        val style: ActionStyle = ActionStyle.NEUTRAL,
+        /** Primary action — rendered right-most, like a dialog's confirm button. */
+        val emphasized: Boolean = false
+    )
+
+    enum class ActionStyle { PRIMARY, NEUTRAL, DESTRUCTIVE }
+
     fun hideActions() {
+        actionRow.removeAllViews()
         actionRow.visibility = View.GONE
     }
 
