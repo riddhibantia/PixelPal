@@ -23,14 +23,13 @@ import sqlite3
 import time
 from pathlib import Path
 
+from ..reducer import STALE_DROP_SECONDS
+
 STATE_DB = Path.home() / ".hermes" / "state.db"
 
 # A DB row is history, not a live signal: without this, a session that ended
 # hours ago would still read "WORKING" forever because its last message says so.
 STALE_AFTER_SECONDS = 180
-# Sessions older than this are dropped entirely rather than shown as stale:
-# they are history, and a pet listing week-old sessions is noise, not signal.
-MAX_SESSION_AGE_SECONDS = 60 * 60 * 24 * 3
 
 
 def is_available() -> bool:
@@ -141,7 +140,10 @@ def _age_of(message: dict) -> float | None:
 def _envelope_for(session_id: str, messages: list[dict]) -> dict | None:
     last = messages[-1]
     age = _age_of(last)
-    if age is None or age > MAX_SESSION_AGE_SECONDS:
+    # Same rule as the reducer: no activity for 15 minutes is a dead
+    # terminal, not a status. Re-announcing it every poll is exactly the
+    # "graveyard of stale shells" the phone should never show.
+    if age is None or age > STALE_DROP_SECONDS:
         return None
     role = str(last.get("role") or "")
     finish = (last.get("finish_reason") or "").lower()

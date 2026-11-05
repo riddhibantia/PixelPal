@@ -13,6 +13,7 @@ from pixelpal_bridge.model import AgentEvent, AgentSource, EventKind, normalize_
 from pixelpal_bridge.reducer import (
     COMPLETED_TTL_SECONDS,
     IDLE_AFTER_SECONDS,
+    STALE_DROP_SECONDS,
     AgentRegistry,
     AgentState,
     decay,
@@ -182,9 +183,25 @@ class TestMultiAgentRegistry:
             reg.apply(
                 AgentEvent(source=src, kind=EventKind.TOOL_START, session_id=sid, at=t0)
             )
-        payload = reg.to_list_payload()
+        payload = reg.to_list_payload(now=t0)
         assert payload["count"] == 2
         assert {a["source"] for a in payload["agents"]} == {"claude_code", "codex"}
+
+    def test_stale_idle_session_is_dropped_from_payload(self, t0):
+        # A session with no event for 15 minutes is a dead terminal: it must
+        # stop appearing in /agents even before tick() evicts it.
+        reg = AgentRegistry()
+        reg.apply(
+            AgentEvent(source=AgentSource.CLAUDE_CODE, kind=EventKind.PROMPT, session_id="old", at=t0)
+        )
+        reg.apply(
+            AgentEvent(source=AgentSource.CODEX, kind=EventKind.PROMPT, session_id="live", at=t0 + STALE_DROP_SECONDS)
+        )
+        payload = reg.to_list_payload(now=t0 + STALE_DROP_SECONDS + 1)
+        assert [a["sessionId"] for a in payload["agents"]] == ["live"]
+        # And tick() evicts it from the registry entirely.
+        reg.tick(now=t0 + STALE_DROP_SECONDS + 1)
+        assert reg.get(AgentSource.CLAUDE_CODE, "old") is None
 
     def test_waiting_agent_sorts_first(self, t0):
         reg = AgentRegistry()
@@ -201,7 +218,7 @@ class TestMultiAgentRegistry:
             )
         )
         # Attention outranks recency: the blocked agent is what you must see.
-        assert reg.primary().source is AgentSource.CODEX
+        assert reg.primary(now=t0 + 50).source is AgentSource.CODEX
 
     def test_duplicate_events_across_registry_are_deduped(self, t0):
         reg = AgentRegistry()

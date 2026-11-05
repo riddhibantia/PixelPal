@@ -23,6 +23,10 @@ from .model import AgentEvent, AgentSource, EventKind, normalize_tool
 COMPLETED_TTL_SECONDS = 90
 # No events for this long means the agent is idle (or gone).
 IDLE_AFTER_SECONDS = 300
+# A session with no event for this long is a DEAD terminal: closed tab,
+# killed process, asleep machine. It stops appearing in /agents entirely —
+# the phone wants running agents, not a graveyard of stale shells.
+STALE_DROP_SECONDS = 900
 # Detail strings are truncated to keep the wire payload small and redacted-ish.
 MAX_DETAIL = 80
 
@@ -287,12 +291,21 @@ class AgentRegistry:
         return state
 
     def tick(self, now: float | None = None) -> None:
-        """Decay every session; drop sessions idle for a long time."""
+        """Decay every session; drop dead ones.
+
+        DISCONNECTED lingers an hour (an explicit goodbye deserves a pause),
+        but an IDLE session past [STALE_DROP_SECONDS] is a terminal nobody
+        is using — gone.
+        """
         now = now or time.time()
         stale = []
         for key, state in self.sessions.items():
-            self.sessions[key] = decay(state, now)
-            if state.status == "DISCONNECTED" and now - state.last_event_at > 3600:
+            decayed = decay(state, now)
+            self.sessions[key] = decayed
+            age = now - decayed.last_event_at
+            if decayed.status == "DISCONNECTED" and age > 3600:
+                stale.append(key)
+            elif decayed.status == "IDLE" and age > STALE_DROP_SECONDS:
                 stale.append(key)
         for key in stale:
             del self.sessions[key]
@@ -300,8 +313,13 @@ class AgentRegistry:
     def get(self, source: AgentSource, session_id: str) -> AgentState | None:
         return self.sessions.get((source.value, session_id or "default"))
 
-    def active(self) -> list[AgentState]:
-        """Sessions worth showing, most attention-worthy first."""
+    def active(self, now: float | None = None) -> list[AgentState]:
+        """Sessions worth showing, most attention-worthy first.
+
+        Stale sessions (no event past [STALE_DROP_SECONDS]) are excluded even
+        between ticks, so /agents never advertises a dead terminal.
+        """
+        now = now or time.time()
         rank = {
             "WAITING_FOR_INPUT": 0,
             "ERROR": 1,
@@ -311,17 +329,20 @@ class AgentRegistry:
             "IDLE": 5,
             "DISCONNECTED": 6,
         }
-        states = [s for s in self.sessions.values() if s.status != "DISCONNECTED"]
+        states = [
+            s for s in self.sessions.values()
+            if s.status != "DISCONNECTED" and now - s.last_event_at < STALE_DROP_SECONDS
+        ]
         return sorted(states, key=lambda s: (rank.get(s.status, 9), -s.last_event_at))
 
-    def to_list_payload(self) -> dict:
+    def to_list_payload(self, now: float | None = None) -> dict:
         """Wire format for the multi-agent endpoint."""
         return {
-            "agents": [s.to_envelope() for s in self.active()],
+            "agents": [s.to_envelope() for s in self.active(now)],
             "count": len(self.sessions),
         }
 
-    def primary(self) -> AgentState | None:
+    def primary(self, now: float | None = None) -> AgentState | None:
         """The agent the pet should embody: most attention-worthy, else newest."""
-        active = self.active()
+        active = self.active(now)
         return active[0] if active else None
