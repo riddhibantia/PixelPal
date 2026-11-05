@@ -154,6 +154,9 @@ def _envelope_for(session_id: str, messages: list[dict]) -> dict | None:
         "sessionId": session_id,
         "project": "",
         "pendingApproval": None,
+        # Carry the real age so the reducer doesn't re-stamp "now" on every
+        # poll and keep a dead session looking live.
+        "lastEventAgeSeconds": int(age) if age is not None else None,
     }
 
     status, message, task = _derive(role, last, finish)

@@ -17,12 +17,18 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
+from ..reducer import STALE_DROP_SECONDS
+
 DEFAULT_PORT = 4096
 CONFIG_DIR = Path.home() / ".config" / "opencode"
+# One opencode server accumulates a session for every conversation ever held.
+# Only the newest few can possibly be live; the rest are history.
+MAX_SESSIONS = 5
 
 
 def is_available() -> bool:
@@ -53,36 +59,75 @@ def fetch_sessions(port: int = DEFAULT_PORT, timeout: float = 1.0) -> list[dict]
         return []
 
 
+def _session_updated_at(session: dict) -> float | None:
+    """Best-effort epoch-seconds of the session's last activity.
+
+    opencode nests timestamps under `time` ({created, updated}) and has
+    changed its schema across versions, so probe the known shapes. Values
+    above 1e12 are milliseconds.
+    """
+    candidates = []
+    t = session.get("time")
+    if isinstance(t, dict):
+        candidates += [t.get("updated"), t.get("created")]
+    candidates += [session.get("updated"), session.get("created"), session.get("lastActive")]
+    for value in candidates:
+        if isinstance(value, (int, float)) and value > 0:
+            return value / 1000.0 if value > 10**12 else float(value)
+    return None
+
+
 def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
     """
     Convert opencode sessions into PixelPal envelopes.
 
     opencode is polled (not pushed) because its server API is request/response;
     the polling interval is the bridge's responsibility.
+
+    Every envelope carries `lastEventAgeSeconds` derived from the session's
+    own timestamp — without it the reducer re-stamps "now" on each poll and
+    old sessions pose as live forever. A session with no timestamp that is
+    not busy cannot be proven live, so it is not announced at all.
     """
+    sessions = [s for s in fetch_sessions(port) if isinstance(s, dict)]
+    status_map = {
+        "busy": "WORKING",
+        "running": "WORKING",
+        "working": "WORKING",
+        "idle": "IDLE",
+        "ready": "IDLE",
+        "error": "ERROR",
+    }
+    now = time.time()
+    ranked = sorted(
+        ((_session_updated_at(s), s) for s in sessions),
+        key=lambda pair: pair[0] or 0.0,
+        reverse=True,
+    )
     envelopes = []
-    for session in fetch_sessions(port):
-        if not isinstance(session, dict):
-            continue
+    for updated_at, session in ranked[:MAX_SESSIONS]:
         status = str(session.get("status") or "").lower()
-        mapping = {
-            "busy": "WORKING",
-            "running": "WORKING",
-            "working": "WORKING",
-            "idle": "IDLE",
-            "ready": "IDLE",
-            "error": "ERROR",
-        }
+        mapped = status_map.get(status, "IDLE")
+        if updated_at is not None:
+            age = max(0, int(now - updated_at))
+        elif mapped == "WORKING":
+            age = 0
+        else:
+            # History with no clock: do not advertise a dead terminal.
+            continue
+        if age > STALE_DROP_SECONDS:
+            continue
         envelopes.append(
             {
                 "source": "opencode",
                 "agentName": "opencode",
                 "sessionId": str(session.get("id") or "default"),
                 "project": str(session.get("directory") or "").split("/")[-1],
-                "status": mapping.get(status, "IDLE"),
+                "status": mapped,
                 "message": str(session.get("title") or status or "idle")[:80],
                 "currentTask": (session.get("title") or None),
                 "pendingApproval": None,
+                "lastEventAgeSeconds": age,
             }
         )
     return envelopes
