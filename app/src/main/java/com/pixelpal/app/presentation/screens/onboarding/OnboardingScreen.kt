@@ -16,11 +16,15 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.overlay.OverlayService
 import com.pixelpal.app.presentation.components.AppTextField
+import com.pixelpal.app.presentation.components.GlassChip
 import com.pixelpal.app.presentation.components.PetRenderer
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SecondaryButton
@@ -45,7 +50,7 @@ fun OnboardingScreen(
     onOnboardingComplete: () -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel()
 ) {
-    val pagerState = rememberPagerState(pageCount = { 4 })
+    val pagerState = rememberPagerState(pageCount = { 5 })
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val activity = context as? Activity
@@ -72,6 +77,7 @@ fun OnboardingScreen(
                 )
                 2 -> PageNamePet(petName, onNameChange = { viewModel.updatePetName(it) })
                 3 -> PageEnableOverlay(petName = petName, activity = activity)
+                4 -> PageConnectAgent()
             }
         }
 
@@ -92,7 +98,7 @@ fun OnboardingScreen(
                 )
             }
 
-            if (pagerState.currentPage < 3) {
+            if (pagerState.currentPage < 4) {
                 PrimaryButton(
                     text = "Next",
                     onClick = {
@@ -175,10 +181,10 @@ private fun PageChoosePet(selectedType: String, onSelect: (String) -> Unit) {
             items(com.pixelpal.app.domain.model.PetType.entries.size) { index ->
                 val entry = com.pixelpal.app.domain.model.PetType.entries[index]
                 val selected = selectedType.equals(entry.id, ignoreCase = true)
-                androidx.compose.material3.FilterChip(
+                GlassChip(
+                    label = entry.displayName,
                     selected = selected,
-                    onClick = { onSelect(entry.id) },
-                    label = { Text(entry.displayName) }
+                    onClick = { onSelect(entry.id) }
                 )
             }
         }
@@ -217,6 +223,83 @@ private fun PageNamePet(petName: String, onNameChange: (String) -> Unit) {
         )
     }
 }
+
+/**
+ * Fifth page: the app's core feature is invisible until a bridge is running on
+ * the computer, so the install command is shown here instead of being buried in
+ * the README. Skippable — pairing can happen any time from the Agent tab.
+ */
+@Composable
+private fun PageConnectAgent() {
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Watch Your Agent Work",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(Spacing.md))
+        Text(
+            text = "PixelPal follows Claude Code, Codex, OMP, opencode and Hermes " +
+                "through one small bridge on your computer.",
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.fillMaxWidth(0.9f)
+        ) {
+            Text(
+                text = CONNECT_COMMANDS,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(Spacing.md)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+        SecondaryButton(
+            text = if (copied) "Copied" else "Copy commands",
+            modifier = Modifier.fillMaxWidth(0.9f),
+            onClick = {
+                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as? android.content.ClipboardManager
+                clipboard?.setPrimaryClip(
+                    android.content.ClipData.newPlainText("PixelPal bridge", CONNECT_COMMANDS)
+                )
+                copied = true
+            }
+        )
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+        Text(
+            text = "Then paste the address it prints into the Agent tab. " +
+                "You can skip this and pair later.",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+// Resolves the newest published release, so this keeps working as versions
+// ship and never points at a branch that may not carry the script yet.
+private const val CONNECT_COMMANDS =
+    "curl -fsSL https://github.com/riddhibantia/PixelPal/releases/latest/download/install.sh | bash\n" +
+        "pixelpal-bridge setup"
 
 @Composable
 private fun PageEnableOverlay(petName: String, activity: Activity?) {

@@ -16,7 +16,7 @@
 >
 > **2026-11-04 multi-agent pass (second):** universal bridge `tools/agent-bridge`
 > (Claude Code / agy / Codex / OMP / opencode / Hermes → one envelope), the
-> phone-side approval gate, Room v15 `agent_sessions`, the ConnectedAgents hub,
+> phone-side approval gate, Room `agent_sessions`, the ConnectedAgents hub,
 > WebSocket socket-ownership fix, and the Gemini health-ping de-billing. This
 > supersedes the earlier "Batch 2 out of scope" note.
 
@@ -41,7 +41,7 @@ two home-screen widgets. Kotlin 2.0 + Jetpack Compose, single Gradle module
 ## Tech stack (verified)
 
 Kotlin 2.0.0, JVM 17, AGP 8.5.0, **KSP** for Room+Hilt, Compose BOM + Material 3 +
-Navigation Compose, WorkManager + hilt-work, **Room v15**, DataStore (Preferences),
+Navigation Compose, WorkManager + hilt-work, **Room v16**, DataStore (Preferences),
 Firebase Auth + Firestore (Credential Manager for Google sign-in),
 Google Generative AI SDK (Gemini `gemini-1.5-flash`), OkHttp, Lottie Compose,
 CameraX + ML Kit barcode scanning (QR pairing), Coil (+gif), Timber.
@@ -64,7 +64,7 @@ reconciliation (both steps DataStore-flag-guarded, idempotent):
 2. fresh-install seeding (name from prefs, `rabbit`→**panda** swap),
    bond/personality row guarantees, pref re-point.
 
-## Database — Room **v15** (`PixelPalDatabase.kt`)
+## Database — Room **v16** (`PixelPalDatabase.kt`)
 
 Entities: CompanionEntity (species/color/pattern appearance, hat/outfit/accessory,
 isFavorite/isArchived), BondEntity (PK=companionId; level/tapsToday/streaks),
@@ -88,8 +88,9 @@ Conventions & facts:
   agent_config+agent_status → agent_connection → 7_8 cloudId/updatedAt on
   tasks/reminders/companions/bond → 8_9 **subtasks** → 9_10 task description →
   10_11 commandUrl → 11_12 perf indexes → 12_13 tasks.photoUri → 13_14
-  DAO-matching composite indexes → **14_15 `agent_sessions`**.
-- The Room version lives ONLY in `PixelPalDatabase.kt` (v15). The old
+  DAO-matching composite indexes → **14_15 `agent_sessions`** → **15_16
+  reminders.recurrenceDayOfMonth** (monthly series anchor).
+- The Room version lives ONLY in `PixelPalDatabase.kt` (v16). The old
   `Constants.DATABASE_VERSION` was removed in the 2026-11-04 pass.
 
 ## Domain engines
@@ -98,7 +99,9 @@ Conventions & facts:
   tap +1 but only first `BOND_GRANTING_TAPS_PER_DAY`(3)/day grant level (max
   10 taps/day recorded); feed/play cosmetic (streak/recency only). Level cap
   100; activity events at level%5==0 and streaks {3,7,14,30,60,100}. Decay:
-  −1 level per full day inactive, resets daily tap/feed counters.
+  −1 level per **calendar day** inactive (`ChronoUnit.DAYS` between local dates,
+  so a phone off for a month loses a month and a retried worker can't double
+  subtract), resets daily tap/feed counters.
   Streak: +1 when last interaction ≤1 day ago, reset to 1 after ≥2-day gap
   (`yyyyMMdd` keys). `bond` Flow follows the primary; `getBondDirect(id)` elsewhere.
 - **EmotionEngine** — maps Emotion→AnimationState with timed decay to CALM
@@ -190,42 +193,68 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
 - **Hermes has no lifecycle event API** (`--accept-hooks` only gates *shell*
   hooks) → its adapter polls `~/.hermes/state.db` read-only and downgrades
   `WORKING` to `IDLE` after 180 s of no rows. Documented limitation, not a bug.
-- App side: `AgentSessionRepository` polls `/agents` and mirrors it into
-  `agent_sessions` (Room v15); a **bridge that is unreachable returns -1 and
-  leaves existing rows alone** (an asleep laptop must not erase the pets).
-- CLI: **`setup`** (one command: hooks + daemon + relay + pairing code) plus
+- App side: **`AgentBridgeSync`** is the single "fetch → mirror into Room" path
+  (direct only — the Firebase relay was removed 2026-11-05, see below); a
+  **bridge that is unreachable returns `reachable = false` and leaves existing
+  rows alone** (an asleep laptop must not erase the pets). It also refreshes the
+  home widget when the session set actually changes.
+- **Polling has an owner outside the UI**: `AgentBridgePoller` runs for the life
+  of the app process (4 s while an approval is pending, 20 s idle) and
+  `AgentBridgeWorker` covers process death at WorkManager's 15-min floor
+  (`pixelpal_bridge_poll`, scheduled on app start and on pairing, cancelled on
+  unpair). `BridgeApprovalNotifier` diffs the pending-approval set and posts one
+  Approve/Deny notification per approval id — deduped through the
+  `notified_bridge_approvals` pref — and cancels asks that resolved elsewhere.
+  Notification verdicts come back through `AgentApprovalReceiver`'s
+  `SOURCE_BRIDGE` branch → `AgentBridgeTransport.respondToApproval`.
+- **Every agent surface reads `agent_sessions`**: Home's card and Today chip
+  (`HomeViewModel.AgentSlice`) and the home widget. The legacy
+  `agent_connection` row is configuration only, never shown as status.
+- **Pairing URIs validate the host**: `parsePairingUri` / `isAllowedHost` (in
+  `ConnectedAgentsViewModel`) accept loopback, RFC1918 LAN, **Tailscale's
+  `100.64.0.0/10` + `*.ts.net`, and `*.local`** — everything else is rejected.
+  The Agents screen consumes the scanner result (`scannedUrl` on its back-stack
+  entry) — it used to be dropped, so scanning from the Agent tab did nothing.
+- `setup` installs hooks, saves the LAN key/token, (re)installs the daemon and
+  prints the address to paste into the Agent tab (LAN URL, or the Tailscale
+  hostname when `tailscale status` reports Running). It also picks the first
+  free port when 8787 is taken. The systemd unit runs `sys.executable`, not
+  `/usr/bin/python3`.
+- CLI: **`setup`** (one command: hooks + daemon + address) plus
   `serve | install | uninstall | doctor | pair | status | simulate`.
   Config at `~/.config/pixelpal/bridge.json` (mode 0600).
 
-### Zero-config connect (2026-11-04, third pass)
+### Direct connect (2026-11-05 — the Firebase relay is GONE)
 
-- **`pixelpal-bridge setup`** is the whole onboarding: installs hooks, starts a
-  **daemon** (`service.py`: systemd `--user` / launchd / detached fallback, all
-  reversible), registers the relay, and prints a **9-character code**.
-- **`relay_crypto.py` / `RelayCrypto.kt` are byte-identical twins.** The pairing
-  code is never transmitted: both sides derive
-  `relayKey = PBKDF2-SHA256(code, "pixelpal-relay-v1", 260_000)` and Firestore
-  only stores `HMAC(relayKey, "pixelpal-handshake")`. 9 chars × 27 unambiguous
-  symbols = 42.8 bits (6 chars = 30 bits is crackable in ~39 GPU-hours — that is
-  why it is not 6). **Changing either file requires re-running both test suites**;
-  `RelayCryptoTest` pins vectors captured from the Python side.
-- **`relay.py`** (bridge) and **`BridgeRelayClient.kt`** (app) share one
-  Firestore layout: `relays/{sha256(code)[:32]}` + `state/current` (agents JSON
-  string) + `inbox/current` (verdict). Cadence is **2 s while an approval is
-  pending, 20 s idle** (`next_poll_delay`) to stay inside the 50k/day free tier;
-  a test asserts the idle budget.
-- **`AgentBridgeTransport.kt`** prefers direct LAN and falls back to the relay
-  silently — the UI only ever says "Connected".
-- **Rules** (`firestore.rules` `/relays` branch) are proven by 19 emulator tests
-  in `test/rules/`: a third party who knows the doc id is denied; the phone can
-  answer approvals but cannot forge agent state; **the bridge cannot approve its
-  own requests**; one phone per relay.
-  ⚠ Two Firestore rule traps that bit us and are now commented in the rules:
-  an **absent field is `undefined`, not `null`** (use `keys().hasAny`, not
-  `== null`), and a client `updateDoc` re-sends fields so
-  `diff().affectedKeys().hasOnly([...])` is too strict for claims.
-- **Deployment is manual by decision:** rules are written but NOT deployed.
-  `firebase deploy --only firestore:rules` is required before the relay works.
+- **Decision (do not re-litigate):** the relay was deleted on both sides. It
+  cost ~17,280 Firestore reads/user/day against a 50k/day free tier (broke at
+  ~2 users) and required a manual rules deploy before it worked at all.
+  **Off-Wi-Fi is Tailscale's job now**, not a Firestore mirror.
+- **Install is one line, no repo needed:** `curl -fsSL
+  https://github.com/riddhibantia/PixelPal/releases/latest/download/install.sh
+  | bash` — resolves the newest release, downloads its bridge tarball (pure
+  stdlib), verifies it against the release's `SHA256SUMS`, extracts to
+  `~/.local/share/pixelpal-bridge` and symlinks `pixelpal-bridge` +
+  `pixelpal-hook` into `~/.local/bin`. `install.sh` is committed at the repo
+  root AND staged into every release, so the URL resolves two ways. It can be
+  skipped entirely: the tarball's root holds `pyproject.toml`, so
+  `pipx install <tarball>` works too.
+  ⚠️ **Requires a published release.** If `install.sh` 404s or the release has
+  no `pixelpal-bridge-*.tar.gz` + `SHA256SUMS` asset, the workflow has never
+  run — add the four signing secrets and push a `v*` tag first.
+- **Python side deletions:** `relay.py`, `relay_crypto.py`, `test_relay*.py`;
+  `cli.py` lost `_start_relay()`, `_print_code()`, `--no-relay`,
+  `--google-services`; gained `_tailscale_hostname()` (parses
+  `tailscale status --json`). Pairing key is `secrets.token_hex(32)`.
+  103 tests pass.
+- **Kotlin side deletions:** `RelayCrypto.kt`, `BridgeRelayClient.kt`,
+  `CodePairingCard.kt` + their tests; `AgentBridgeTransport` is direct-only
+  with `Snapshot(agents)` (renamed from `Result` — it collided with
+  `kotlin.Result`); `ConnectedAgentsViewModel` lost `pairWithCode`/`usingRelay`;
+  `PreferencesManager`/`Constants` lost `AGENT_RELAY_ID`; `firestore.rules`
+  lost the `/relays` branch (and `test/rules/` + `DEPLOY-RULES.md` are gone).
+- `serve` still publishes `/agents` on change + 60 s heartbeat and long-polls
+  `/approvals/wait` — that machinery never depended on the relay.
 
 ## Cloud sync (Firebase)
 
@@ -257,9 +286,11 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   `pullAndApplyCloud` → epoch re-check → push all local. Conflict rule =
   last-write-wins on `updatedAt`, enforced **only cloud→local**
   (companion/bond additionally: fresh seeds always lose to cloud);
-  local→cloud pushes unconditional. `signOutSuspend`: epoch++ (aborts
-  in-flight sync), cancel listeners, wipe ALL local tables **before**
-  auth sign-out (cross-account leak guard).
+  local→cloud pushes unconditional. `signOutSuspend` returns Boolean and
+  **fails closed**: epoch++ (aborts in-flight sync), cancel listeners, wipe ALL
+  local tables **before** auth sign-out (cross-account leak guard); if the wipe
+  throws twice the sign-out is aborted and the error goes to `lastSyncError`
+  instead of handing the next account the previous user's rows.
 - `FirestoreSyncWorker`: hourly periodic + one-shot "immediate", CONNECTED;
   no-op when logged out, retry on failure. Profile → "Sync Now" = fullSync.
 
@@ -271,6 +302,12 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   **connected_agents** (the "Agent" bottom-tab — multi-agent hub backed by the
   bridge; `workspace` stays reachable for manual provider setup), tasks,
   new_task, task_detail/{taskId}, activity_center, qr_scan.
+- **Onboarding is 5 pages** (welcome, species, name, overlay permission, and a
+  "Watch Your Agent Work" page with the one-line `install.sh` curl +
+  `pixelpal-bridge setup` + a copy button; `CONNECT_COMMANDS` in
+  `OnboardingScreen.kt`). The one-liner resolves the newest **published
+  release**, so it only works once a `v*` tag has produced one — it is not a
+  raw-branch URL.
 - **Start destination** (MainActivity): first-launch → onboarding; else no
   Firebase user → auth; else home. Reactive sign-out watcher resets to auth
   (`popUpTo(0)`). Overlay service restarted at activity start when enabled.
@@ -279,6 +316,18 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   (`headerSlice/heroSlice/...`) — collect those, per-section, so background
   polls don't recompose the Lottie hero (the old aggregate `uiState` was removed).
   No Feed/Play row; feed is reachable via overlay long-press only.
+  **2026-11-05 de-slop pass (impeccable critique, 23/40 → fixes):** the
+  greeting/tagline stack is replaced by the two-tone wordmark + ONE live
+  pet-voice line (`{name}, N tasks left` / agents-attention first, driven by
+  `todaySlice`+`agentSlice`); the fabricated Focus-time module is DELETED
+  (`FocusTimerEngine`, `HomeFocusTimeCard`, `FocusCircularProgress`, its test —
+  all removed; `HomeViewModel` no longer injects the engine); card subtitles
+  are stripped (Chat/Workspace cards, streak, agent card shows `detail` only
+  when real); Today row lost its fake checkboxes; stats are numeric ("1"/"0",
+  never "None"); "Interact"→"Chat", "Task Manager"→"Tasks". Empty states are
+  pet-first: `EmptyState` pet is 180dp, tasks-empty = SLEEP, pairing state has
+  the pet + real `SecondaryButton`s (no bare TextLinks). Reminders FAB hides
+  while the list is empty (single create-affordance).
 - **ConnectedAgentsScreen** (`presentation/screens/agents/`) = the **Agent tab**
   now: one row per live agent (status dot, message, project, "12s ago"), with
   **inline Approve/Deny** when an agent is `WAITING_FOR_INPUT`; pairing is one
@@ -293,11 +342,15 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   note: no takePersistableUriPermission), **due dates** (picker + relative labels
   via `TaskDueDateSection`/`TaskDueFormat`, notification via `TaskDueWorker`),
   swipe-delete **with Undo** (`SnackbarEvent.TaskDeleted` → reinsert).
-- Reminders: global lists (not companion-filtered); 3 time modes; **category
+- Reminders: global lists (not companion-filtered); 3 time modes; **repeat
+  picker** (Once/Daily/Weekly/Monthly — until 2026-11-04 the UI always wrote
+  `ONCE`, so recurring reminders did not exist); **category
   picker** (`ReminderCategory` + icon + filter chips) and a message field;
   cancelling the exact-alarm flow now ABORTS the save; **Silent is a real mode**
   (`ReminderSound.NONE`, stored as a `soundUri` sentinel — `null` still means
-  default for backward compatibility).
+  default for backward compatibility). Monthly series store
+  `recurrenceDayOfMonth`, and all recurrence math lives in the pure
+  `domain/engine/RecurrenceMath.kt` (unit-tested: month-end clamp, DST, jump).
 - Customize: **species picker + app theme only** (color/pattern pickers do
   not exist); name field writes DB per keystroke.
 - ActivityCenter: bell target, live agent banner, markAllRead on open; DAO
@@ -311,7 +364,9 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   res-id cache, draw-phase progress), PetRenderer wrapper, PixelPalBottomBar
   (5 tabs), PixelPalSnackbarHost/SnackbarEvent (Undo flows), settings kit
   (SettingsRow/Group…), ThemePicker (dark/light/spring/system/autumn — "system"
-  uses dynamic color on API 31+ with a fallback below).
+  uses dynamic color on API 31+ with a fallback below), glass kit
+  (`GlassCard`, `GlassChip`, `GlassSegmentedRow` — the redesign's quiet-chrome
+  language; chips = pill, selected = violet gradient; EmptyState pet = 180dp).
 
 ## Overlay subsystem
 
@@ -322,6 +377,9 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   OnboardingScreen, SettingsViewModel, BootReceiver.
 - Cap: `MAX_SIMULTANEOUS_OVERLAYS = 1` (soft — desired set only ever contains
   the primary; slot-stagger system is vestigial/no-op).
+- **Show/hide race guarded by `showToken`**: `show()` suspends on the position
+  read before `addView`, so a `hide()` in that window bumps the token and the
+  pending `addView` aborts instead of leaking an unowned window.
 - Touch: 500ms long-press = feed, 300ms double-tap = excited + open app,
   short tap = speech bubble with live agent status. Drag persists per-companion
   (`overlay_x_<id>`/`overlay_y_<id>`; legacy global fallback; defaults 80,200).
@@ -366,7 +424,7 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
 ## DI modules (SingletonComponent)
 
 - `AppModule`: DataStore + OkHttpClient (10s timeouts, debug logging).
-- `DatabaseModule`: Room v15 + migration chain + DAO providers.
+- `DatabaseModule`: Room v16 + migration chain + DAO providers.
 - `FirebaseModule`: FirebaseAuth, FirebaseFirestore (100MB persistent cache).
 - `RepositoryModule`: binds 8 repos; `@AgentConnector` ← GenericHttpAgentConnector
   only (gemini/ws injected as concrete types, routed manually).
@@ -444,8 +502,9 @@ state on the Dynamic Island, FCM-based approvals (approvals currently require
 the app to be open or the WorkManager poll to fire), and Kafka-style secret
 storage for the Gemini key.
 
-**Bridge follow-ups (deliberate, not defects):** the relay requires a one-time
-`firebase deploy --only firestore:rules` (user chose not to let me deploy);
+**Bridge follow-ups (deliberate, not defects):** the Firebase relay is removed
+(2026-11-05) — off-Wi-Fi is Tailscale's job now, no rules deploy involved;
 OMP/opencode/Hermes are status-only (no approval channel, see the table in
-`tools/agent-bridge/README.md`); `pixelpal-bridge` is not yet published to PyPI,
-so install is from the repo (`pipx install .`).
+`tools/agent-bridge/README.md`); `pixelpal-bridge` is not published to PyPI —
+install is the GitHub-Release tarball via `install.sh` (or `pipx install
+<tarball>`).

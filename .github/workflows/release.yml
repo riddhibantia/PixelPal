@@ -127,12 +127,15 @@ jobs:
           mkdir -p dist
           cp "$(find app/build/outputs/apk/release -name '*.apk' | head -1)" \
              "dist/PixelPal-${{ steps.ver.outputs.name }}.apk"
-          # Exclude stale bytecode: committed .pyc can shadow source and it
-          # bloats the download for no benefit.
+          # Package contents at the archive ROOT (pixelpal_bridge/,
+          # pyproject.toml, README.md) so both `pipx install <tarball>` and
+          # install.sh work straight off the download.
           tar -czf "dist/pixelpal-bridge-${{ steps.ver.outputs.name }}.tar.gz" \
              --exclude='__pycache__' --exclude='*.pyc' \
-             -C tools agent-bridge/pixelpal_bridge agent-bridge/pyproject.toml \
-                agent-bridge/README.md
+             -C tools/agent-bridge pixelpal_bridge pyproject.toml README.md
+          # Ship the installer WITH the release so the documented one-liner
+          # always matches the assets next to it.
+          install -m 0755 install.sh dist/install.sh
           echo "Staged:"; ls -la dist
 
       - name: Generate SHA256SUMS
@@ -161,13 +164,14 @@ jobs:
             On your computer, install the bridge (Python 3.9+, no other deps):
 
             ```bash
-            pipx install ./pixelpal-bridge-${{ steps.ver.outputs.name }}.tar.gz
+            curl -fsSL https://github.com/riddhibantia/PixelPal/releases/latest/download/install.sh | bash
             pixelpal-bridge setup
             ```
 
             `setup` installs hooks for every coding agent it finds, starts the
             bridge in the background, and prints the address to enter in the
-            app's **Agent** tab.
+            app's **Agent** tab. Away from home? Install Tailscale on both
+            devices and re-run `setup` — it prints your tailnet address.
 
             ## Verify your download (optional)
 
@@ -180,7 +184,8 @@ jobs:
             | File | What it is |
             |---|---|
             | `PixelPal-*.apk` | The Android app. This is what you install. |
-            | `pixelpal-bridge-*.tar.gz` | The bridge source, if you prefer to run it yourself. |
+            | `pixelpal-bridge-*.tar.gz` | The bridge source — what `install.sh` fetches for you. |
+            | `install.sh` | The one-line laptop installer (the command above). |
             | `SHA256SUMS` | Checksums for every file above. |
 
       - name: Clean up keystore
