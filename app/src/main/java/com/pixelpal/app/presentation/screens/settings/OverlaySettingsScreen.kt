@@ -13,8 +13,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GroupDivider
 import com.pixelpal.app.presentation.components.PixelPalAtmosphere
@@ -42,38 +44,36 @@ fun OverlaySettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = Spacing.lg)
         ) {
-            AppTopBar(title = "Screen Companion Overlay", onBack = { navController.popBackStack() })
+            AppTopBar(title = stringResource(R.string.settings_overlay_title), onBack = { navController.popBackStack() })
 
         Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
-            SectionHeader(title = "Overlay")
+            SectionHeader(title = stringResource(R.string.settings_overlay_section_overlay))
             SettingsGroup {
                 ToggleSettingsRow(
-                    title = "Show Pixel on top of other apps",
-                    description = "Your companion appears as a small pet while you use other apps. " +
-                        "One overlay is shown at a time.",
+                    title = stringResource(R.string.settings_overlay_toggle_title),
+                    description = stringResource(R.string.settings_overlay_toggle_description),
                     icon = Icons.Default.Pets,
                     checked = overlayEnabled,
                     onCheckedChange = { viewModel.toggleOverlay() }
                 )
             }
 
-            SectionHeader(title = "Position")
+            SectionHeader(title = stringResource(R.string.settings_overlay_section_position))
             SettingsGroup {
                 SettingsRow(
-                    title = "Reset Overlay Position",
-                    description = "Move Pixel back to the default spot",
+                    title = stringResource(R.string.settings_overlay_reset_title),
+                    description = stringResource(R.string.settings_overlay_reset_description),
                     icon = Icons.Default.ScreenRotation,
                     onClick = { viewModel.resetOverlayPosition() }
                 )
             }
 
-            SectionHeader(title = "Background Activity")
+            SectionHeader(title = stringResource(R.string.settings_overlay_section_background))
             SettingsGroup {
                 SettingsRow(
-                    title = "Keep Pixel alive in background",
-                    description = "Allows Pixel to stay on screen longer by excluding the app " +
-                        "from battery optimization. Opens the system request.",
+                    title = stringResource(R.string.settings_overlay_battery_title),
+                    description = stringResource(R.string.settings_overlay_battery_description),
                     icon = Icons.Default.BatteryChargingFull,
                     onClick = {
                         (navController.context as? android.app.Activity)?.let {

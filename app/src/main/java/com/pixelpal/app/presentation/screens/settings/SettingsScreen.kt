@@ -43,11 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.BuildConfig
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.GroupDivider
@@ -107,7 +109,7 @@ fun SettingsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = Spacing.lg)
             ) {
-                AppTopBar(title = "Settings")
+                AppTopBar(title = stringResource(R.string.settings_title))
 
                 Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
@@ -142,13 +144,13 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(Spacing.md))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = userName.ifBlank { "Your Profile" },
+                                    text = userName.ifBlank { stringResource(R.string.settings_row_profile_title) },
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Personal account",
+                                    text = stringResource(R.string.settings_row_profile_subtitle),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -162,17 +164,17 @@ fun SettingsScreen(
                     }
 
                     // ── GENERAL ──
-                    SectionHeader(title = "General")
+                    SectionHeader(title = stringResource(R.string.settings_section_general))
                     SettingsGroup {
                         SettingsRow(
-                            title = "Notifications",
-                            description = "Manage reminder notifications",
+                            title = stringResource(R.string.settings_row_notifications_title),
+                            description = stringResource(R.string.settings_row_notifications_description),
                             icon = Icons.Default.NotificationsActive,
                             onClick = { openNotificationSettings() }
                         )
                         GroupDivider()
                         SettingsRow(
-                            title = "Appearance",
+                            title = stringResource(R.string.settings_row_appearance_title),
                             value = currentTheme.replaceFirstChar { it.uppercase() },
                             icon = Icons.Default.Palette,
                             onClick = { showThemeSheet = true }
@@ -180,46 +182,46 @@ fun SettingsScreen(
                     }
 
                     // ── COMPANION ──
-                    SectionHeader(title = "Companion")
+                    SectionHeader(title = stringResource(R.string.settings_section_companion))
                     SettingsGroup {
                         SettingsRow(
-                            title = "Screen Companion Overlay",
-                            description = "Show Pixel on top of other apps",
+                            title = stringResource(R.string.settings_row_overlay_title),
+                            description = stringResource(R.string.settings_row_overlay_description),
                             icon = Icons.Default.Pets,
                             onClick = { navController.navigate(Screen.OverlaySettings.route) }
                         )
                         GroupDivider()
                         SettingsRow(
-                            title = "Background Activity",
-                            description = "Keep Pixel alive in the background",
+                            title = stringResource(R.string.settings_row_background_title),
+                            description = stringResource(R.string.settings_row_background_description),
                             icon = Icons.Default.Bolt,
                             onClick = { navController.navigate(Screen.OverlaySettings.route) }
                         )
                     }
 
                     // ── PRIVACY & DATA ──
-                    SectionHeader(title = "Privacy & Data")
+                    SectionHeader(title = stringResource(R.string.settings_section_privacy))
                     SettingsGroup {
                         SettingsRow(
-                            title = "Permissions",
-                            description = "Overlay, notifications and alarms",
+                            title = stringResource(R.string.settings_row_permissions_title),
+                            description = stringResource(R.string.settings_row_permissions_description),
                             icon = Icons.Default.Shield,
                             onClick = { navController.navigate(Screen.Permissions.route) }
                         )
                     }
 
                     // ── SUPPORT ──
-                    SectionHeader(title = "Support")
+                    SectionHeader(title = stringResource(R.string.settings_section_support))
                     SettingsGroup {
                         SettingsRow(
-                            title = "Help & Feedback",
+                            title = stringResource(R.string.settings_row_help_title),
                             icon = Icons.AutoMirrored.Filled.HelpOutline,
                             onClick = { openFeedbackEmail() }
                         )
                         GroupDivider()
                         SettingsRow(
-                            title = "About PixelPal",
-                            value = "v${BuildConfig.VERSION_NAME}",
+                            title = stringResource(R.string.settings_row_about_title),
+                            value = stringResource(R.string.settings_version_suffix, BuildConfig.VERSION_NAME),
                             icon = Icons.Default.Info,
                             onClick = { navController.navigate(Screen.About.route) }
                         )

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Agent tab (agents screen + custom provider panel), QR scanner and
+    Activity Center strings. Naming follows values/strings.xml:
+    <area>_<feature>_<element> — areas: agent, qr, activity.
+-->
+<resources>
+    <!-- ── Agent tab: agents list & bridge status ───────────────────────── -->
+
+    <string name="agent_title">Agent</string>
+    <string name="agent_subtitle_working">%1$d working</string>
+    <string name="agent_subtitle_waiting">%1$d waiting on you</string>
+    <string name="agent_subtitle_idle">%1$d idle</string>
+
+    <string name="agent_bridge_reachable">Bridge reachable · %1$s</string>
+    <string name="agent_bridge_unreachable">Paired · computer unreachable</string>
+    <string name="agent_not_connected">Not connected</string>
+    <string name="agent_refresh_content_description">Refresh agents</string>
+    <string name="agent_action_retry">Retry</string>
+    <string name="agent_action_pair_other">Pair another bridge</string>
+    <string name="agent_action_unpair">Unpair</string>
+
+    <string name="agent_pair_title">Connect your coding agent</string>
+    <string name="agent_pair_step_install">1. On your computer, install and start PixelPal Bridge:</string>
+    <string name="agent_pair_step_scan">2. Scan the terminal QR, or paste the pairing code:</string>
+    <string name="agent_pair_connecting">Checking connection…</string>
+    <string name="agent_action_connect">Connect</string>
+    <string name="agent_pair_scan_qr">Scan pairing QR</string>
+
+    <string name="agent_empty_paired_title">Bridge connected</string>
+    <string name="agent_empty_paired_message">No agents are running yet. Start Claude Code (or any supported agent) in a terminal and it will appear here within a second.</string>
+
+    <string name="agent_row_progress">%1$d%%</string>
+    <string name="agent_row_tool_calls">%1$d tool calls this session</string>
+    <string name="agent_row_permission_requested">Permission requested</string>
+    <string name="agent_action_approve">Approve</string>
+    <string name="agent_action_deny">Deny</string>
+
+    <!-- ── Agent tab: custom provider panel ─────────────────────────────── -->
+
+    <string name="agent_provider_show_toggle">Custom provider · Gemini, HTTP, WebSocket</string>
+    <string name="agent_provider_hide_toggle">Hide custom provider</string>
+    <string name="agent_provider_collapsed_subtitle">For a direct API connection instead of the coding-agent bridge</string>
+    <string name="agent_provider_title">Custom provider</string>
+    <string name="agent_provider_description">For Claude Code, Codex, OMP, opencode, or Hermes, connect the PixelPal bridge from the Agent tab. This section is for Gemini or a custom HTTP/WebSocket API.</string>
+
+    <string name="agent_provider_disconnect_title">Disconnect Agent?</string>
+    <string name="agent_provider_disconnect_message">This will clear the endpoint and stop polling. Your provider choice is kept so you can reconnect later.</string>
+    <string name="agent_provider_action_disconnect">Disconnect</string>
+    <string name="agent_action_cancel">Cancel</string>
+
+    <string name="agent_provider_status_connected">● Connected — %1$s</string>
+    <string name="agent_provider_status_progress">%1$d%% • %2$s</string>
+    <string name="agent_provider_status_error">Connection error</string>
+    <string name="agent_provider_status_gemini">Gemini AI — %1$s</string>
+    <string name="agent_provider_status_gemini_error">Gemini error</string>
+    <string name="agent_provider_status_gemini_unconfigured">Gemini not configured — add an API key</string>
+    <string name="agent_provider_last_update">Last update: %1$s</string>
+
+    <string name="agent_provider_section_provider">Provider</string>
+    <string name="agent_provider_label_agent_name">Agent name</string>
+    <string name="agent_provider_hint_agent_name">e.g. OpenCode Development Agent</string>
+
+    <string name="agent_provider_label_gemini_key">Gemini API key</string>
+    <string name="agent_provider_hint_gemini_key">Paste from Google AI Studio</string>
+    <string name="agent_provider_key_missing_support">No key saved on this device — using the bundled key, if any. Stored only on this device.</string>
+    <string name="agent_provider_key_saved_support">Key saved on this device. Clear the field to fall back to the bundled key.</string>
+    <string name="agent_provider_gemini_hint">Gemini needs no endpoint — chat and status run directly against Google AI.</string>
+
+    <string name="agent_provider_label_ws_url">WebSocket URL</string>
+    <string name="agent_provider_label_http_url">Status endpoint URL</string>
+    <string name="agent_provider_ws_support">Must start with ws:// or wss://. Live messages stream while this screen is open.</string>
+    <string name="agent_provider_http_support">HTTPS required (cleartext only for localhost or private LAN like 192.168.x.x). Must return {status, message?, currentTask?, progress?}.</string>
+    <string name="agent_provider_action_scan_qr">Scan QR instead</string>
+
+    <string name="agent_provider_label_command_url">Command endpoint (optional)</string>
+    <string name="agent_provider_hint_command_url">Defaults to the status URL</string>
+
+    <string name="agent_provider_label_check_interval">Check interval</string>
+    <string name="agent_provider_interval_hours">%1$dh</string>
+    <string name="agent_provider_interval_minutes">%1$dm</string>
+    <string name="agent_provider_label_polling">Polling enabled</string>
+    <string name="agent_provider_polling_subtitle">Checks every %1$d min</string>
+    <string name="agent_provider_action_save">Save</string>
+    <string name="agent_provider_checking">Checking…</string>
+    <string name="agent_provider_action_check_now">Check Now</string>
+
+    <string name="agent_provider_command_section">Talk to your agent</string>
+    <string name="agent_provider_command_hint_label">Send a command…</string>
+    <string name="agent_provider_command_hint_example">e.g. run the test suite</string>
+    <string name="agent_provider_voice_prompt">Speak your command to the agent</string>
+    <string name="agent_provider_voice_content_description">Speak a command</string>
+    <string name="agent_provider_send_content_description">Send command</string>
+    <string name="agent_provider_command_cta_gemini">Send your first message after saving — chat runs directly against Google AI.</string>
+    <string name="agent_provider_command_cta_bridge">Enter the status endpoint above and tap Connect — then you can send commands here.</string>
+
+    <!-- ── QR scanner ────────────────────────────────────────────────────── -->
+
+    <string name="qr_scan_title">Scan agent QR</string>
+    <string name="qr_scan_hint">Point at the QR code on your agent dashboard</string>
+
+    <!-- ── Activity Center ───────────────────────────────────────────────── -->
+
+    <string name="activity_title">Activity</string>
+    <string name="activity_filter_all">All</string>
+    <string name="activity_empty_title">No activity yet</string>
+    <string name="activity_empty_message">Meaningful moments — bond milestones, completed tasks and reminders, agent updates — will appear here.</string>
+</resources>

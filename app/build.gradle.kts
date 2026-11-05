@@ -9,6 +9,61 @@ plugins {
     id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
 }
+
+// ---------------------------------------------------------------------------
+// Versions are never guessed.
+//
+// Android decides whether an update may install over an existing copy by
+// versionCode, and stores the versionName in crash records/support threads.
+// A silent default (the old `getOrElse(3)` / `"1.2.0"`) produces artifacts that
+// either cannot be installed or misreport themselves, so:
+//   * a real release build must be given both values (CI derives them from the
+//     v* tag — see RELEASING.md);
+//   * a local debug build derives a monotonic dev version from git.
+// `-PPIXELPAL_RELEASE_PRECHECK=true` is the CI-only escape hatch that builds an
+// unsigned, dev-versioned release to exercise R8.
+// ---------------------------------------------------------------------------
+fun git(vararg args: String): String? = try {
+    providers.exec {
+        commandLine(listOf("git") + args.toList())
+        workingDir = rootProject.projectDir
+        isIgnoreExitValue = true
+    }.standardOutput.asText.get().trim().ifEmpty { null }
+} catch (e: Exception) {
+    null
+}
+
+val releasePrecheck = providers.gradleProperty("PIXELPAL_RELEASE_PRECHECK")
+    .map { it.toBoolean() }
+    .getOrElse(false)
+val isReleaseTask = gradle.startParameter.taskNames.any { it.contains("elease") }
+val isStampedRelease = isReleaseTask && !releasePrecheck
+
+val versionCodeProp = providers.gradleProperty("PIXELPAL_VERSION_CODE")
+val versionNameProp = providers.gradleProperty("PIXELPAL_VERSION_NAME")
+
+if (isStampedRelease && (!versionCodeProp.isPresent || !versionNameProp.isPresent)) {
+    throw GradleException(
+        "A release build needs an explicit version. Pass " +
+            "-PPIXELPAL_VERSION_CODE=<n> -PPIXELPAL_VERSION_NAME=<x.y.z> " +
+            "(CI derives both from the v* tag). For an unsigned R8 pre-check run " +
+            "-PPIXELPAL_RELEASE_PRECHECK=true."
+    )
+}
+
+/** Monotonic, above the release range (MAJOR*10000+MINOR*100+PATCH ≈ 10300). */
+val devVersionCode = 900_000 + (git("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1)
+val devVersionName = "dev-" + (
+    git("describe", "--tags", "--always", "--dirty")
+        ?.removePrefix("v")
+        ?.replace(Regex("[^0-9A-Za-z._-]"), "-")
+        ?: "local"
+    )
+
+/** One source for the repo the in-app install instructions point at. */
+val repoSlug = providers.gradleProperty("PIXELPAL_REPO_SLUG")
+    .getOrElse("riddhibantia/PixelPal")
+
 android {
     namespace = "com.pixelpal.app"
     compileSdk = 35
@@ -23,22 +78,33 @@ android {
         ?: providers.gradleProperty("GEMINI_API_KEY").orNull
         ?: providers.environmentVariable("GEMINI_API_KEY").orNull
         ?: ""
+    // A key compiled into a shipped APK is a key anyone can extract and spend.
+    // Release builds therefore carry no key unless the maintainer opts in with
+    // -PPIXELPAL_EMBED_GEMINI_KEY=true; the app accepts a user-supplied key in
+    // the Agent tab and falls back to local dialogue when there is none.
 
     defaultConfig {
         applicationId = "com.pixelpal.app"
         minSdk = 26
         targetSdk = 35
-        // CI stamps these from the git tag (e.g. v1.3.0 -> code 10300, name 1.3.0).
-        // Locally they fall back to the values below.
-        versionCode = providers.gradleProperty("PIXELPAL_VERSION_CODE")
-            .map { it.toInt() }.getOrElse(3)
-        versionName = providers.gradleProperty("PIXELPAL_VERSION_NAME")
-            .getOrElse("1.2.0")
+        versionCode = versionCodeProp.map { it.toInt() }.getOrElse(devVersionCode)
+        versionName = versionNameProp.getOrElse(devVersionName)
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
         }
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "REPO_SLUG", "\"$repoSlug\"")
+        buildConfigField(
+            "String",
+            "BRIDGE_INSTALL_URL",
+            "\"https://github.com/$repoSlug/releases/latest/download/install.sh\""
+        )
+        buildConfigField(
+            "String",
+            "BRIDGE_RELEASES_URL",
+            "\"https://github.com/$repoSlug/releases\""
+        )
     }
 
     signingConfigs {
@@ -76,17 +142,25 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Ship no Gemini key unless explicitly asked to.
+            val embedKey = providers.gradleProperty("PIXELPAL_EMBED_GEMINI_KEY")
+                .map { it.toBoolean() }
+                .getOrElse(false)
+            buildConfigField("String", "GEMINI_API_KEY", "\"${if (embedKey) geminiApiKey else ""}\"")
+
             val hasReleaseStore = providers.gradleProperty("RELEASE_STORE_FILE")
                 .map { it.isNotBlank() }
                 .getOrElse(false)
             if (hasReleaseStore) {
                 signingConfig = signingConfigs.getByName("release")
-            } else if (gradle.startParameter.taskNames.any { it.contains("Release", true) }) {
-                // Silently producing an *unsigned* APK is a trap: it installs nowhere
-                // and users cannot update over it. Fail instead.
-                logger.warn(
-                    "WARNING: building a release without RELEASE_STORE_FILE — " +
-                        "the APK will be UNSIGNED and cannot be installed on a device."
+            } else if (isStampedRelease) {
+                // An unsigned release installs nowhere and can never be updated
+                // over, so refuse to produce one by accident.
+                throw GradleException(
+                    "A release build must be signed. Pass the four " +
+                        "-PRELEASE_STORE_FILE/-PRELEASE_STORE_PASSWORD/-PRELEASE_KEY_ALIAS/" +
+                        "-PRELEASE_KEY_PASSWORD values (see RELEASING.md), or run " +
+                        "-PPIXELPAL_RELEASE_PRECHECK=true for an unsigned R8 check."
                 )
             }
         }

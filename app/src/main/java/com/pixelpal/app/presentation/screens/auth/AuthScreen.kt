@@ -36,12 +36,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.pixelpal.app.R
 import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.data.remote.firebase.AuthState
 import com.pixelpal.app.presentation.components.AppTextField
@@ -51,6 +53,7 @@ import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SecondaryButton
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
+import com.pixelpal.app.util.Constants
 
 @Composable
 private fun GoogleG() {
@@ -107,7 +110,7 @@ fun AuthScreen(
             ) {
                 // Companion Mascot with Lottie
                 LottiePetView(
-                    petType = "cat",
+                    petType = Constants.DEFAULT_PET_TYPE,
                     animationState = if (uiState.isLoading) AnimationState.THINKING else AnimationState.HAPPY,
                     size = 120.dp
                 )
@@ -115,14 +118,15 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 Text(
-                    text = if (uiState.isSignUpMode) "Create Your Account" else "Welcome Back",
+                    text = if (uiState.isSignUpMode) stringResource(R.string.auth_signup_title)
+                    else stringResource(R.string.auth_login_title),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
                 Text(
-                    text = "Sync your companion, tasks, and bond across all your devices.",
+                    text = stringResource(R.string.auth_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -148,7 +152,7 @@ fun AuthScreen(
                         GoogleG()
                         Spacer(modifier = Modifier.width(Spacing.sm))
                         Text(
-                            text = "Continue with Google",
+                            text = stringResource(R.string.auth_action_google),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
@@ -159,7 +163,7 @@ fun AuthScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 Text(
-                    text = "or with email",
+                    text = stringResource(R.string.auth_or_email),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -170,8 +174,8 @@ fun AuthScreen(
                 AppTextField(
                     value = uiState.email,
                     onValueChange = viewModel::onEmailChanged,
-                    label = "Email Address",
-                    placeholder = "you@example.com",
+                    label = stringResource(R.string.auth_email_label),
+                    placeholder = stringResource(R.string.auth_email_placeholder),
                     keyboardType = KeyboardType.Email,
                     trailingIcon = {
                         Icon(
@@ -188,8 +192,8 @@ fun AuthScreen(
                 AppTextField(
                     value = uiState.password,
                     onValueChange = viewModel::onPasswordChanged,
-                    label = "Password",
-                    placeholder = "••••••••",
+                    label = stringResource(R.string.auth_password_label),
+                    placeholder = stringResource(R.string.auth_password_placeholder),
                     keyboardType = KeyboardType.Password,
                     trailingIcon = {
                         Icon(
@@ -240,10 +244,10 @@ fun AuthScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = viewModel::retrySync) {
-                            Text(text = "Retry sync")
+                            Text(text = stringResource(R.string.auth_action_retry_sync))
                         }
                         TextButton(onClick = onAuthSuccess) {
-                            Text(text = "Continue offline")
+                            Text(text = stringResource(R.string.auth_action_continue_offline))
                         }
                     }
                 }
@@ -258,7 +262,7 @@ fun AuthScreen(
                     if (isSyncing) {
                         Spacer(modifier = Modifier.height(Spacing.xs))
                         Text(
-                            text = "Syncing your companion...",
+                            text = stringResource(R.string.auth_status_syncing),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -267,7 +271,8 @@ fun AuthScreen(
                 } else {
                     // Primary Action Button
                     PrimaryButton(
-                        text = if (uiState.isSignUpMode) "Sign Up" else "Log In",
+                        text = if (uiState.isSignUpMode) stringResource(R.string.auth_action_sign_up)
+                        else stringResource(R.string.auth_action_log_in),
                         onClick = viewModel::submitEmailAuth
                     )
 
@@ -275,7 +280,7 @@ fun AuthScreen(
 
                     // Guest Mode Button
                     SecondaryButton(
-                        text = "Continue as Guest",
+                        text = stringResource(R.string.auth_action_guest),
                         onClick = viewModel::signInAsGuest
                     )
                 }
@@ -289,7 +294,8 @@ fun AuthScreen(
                 ) {
                     TextButton(onClick = viewModel::toggleAuthMode) {
                         Text(
-                            text = if (uiState.isSignUpMode) "Have an account? Log In" else "New here? Create Account",
+                            text = if (uiState.isSignUpMode) stringResource(R.string.auth_toggle_to_login)
+                            else stringResource(R.string.auth_toggle_to_signup),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -297,7 +303,7 @@ fun AuthScreen(
                     if (!uiState.isSignUpMode) {
                         TextButton(onClick = viewModel::sendPasswordReset) {
                             Text(
-                                text = "Forgot password?",
+                                text = stringResource(R.string.auth_action_forgot_password),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )

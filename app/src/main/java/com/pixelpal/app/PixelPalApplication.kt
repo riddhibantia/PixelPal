@@ -75,21 +75,26 @@ class PixelPalApplication : Application(), Configuration.Provider {
         // itself while the user is inside the app (it would otherwise run a
         // second infinite Lottie loop on top of the in-app hero).
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            private var resumed = 0
+            // Track visibility, not RESUMED. During an in-app activity
+            // transition Android pauses the outgoing Activity before the new
+            // one resumes; a resumed counter briefly reaches zero there and
+            // can let the overlay service re-add its touchable window over
+            // PixelPal's UI (including the bottom navigation).
+            private var started = 0
 
-            override fun onActivityResumed(activity: Activity) {
-                resumed++
-                overlayManager.setAppForeground(true)
+            override fun onActivityStarted(activity: Activity) {
+                started++
+                if (started == 1) overlayManager.setAppForeground(true)
             }
 
-            override fun onActivityPaused(activity: Activity) {
-                resumed = (resumed - 1).coerceAtLeast(0)
-                if (resumed == 0) overlayManager.setAppForeground(false)
+            override fun onActivityStopped(activity: Activity) {
+                started = (started - 1).coerceAtLeast(0)
+                if (started == 0) overlayManager.setAppForeground(false)
             }
 
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
-            override fun onActivityStarted(activity: Activity) = Unit
-            override fun onActivityStopped(activity: Activity) = Unit
+            override fun onActivityResumed(activity: Activity) = Unit
+            override fun onActivityPaused(activity: Activity) = Unit
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
             override fun onActivityDestroyed(activity: Activity) = Unit
         })

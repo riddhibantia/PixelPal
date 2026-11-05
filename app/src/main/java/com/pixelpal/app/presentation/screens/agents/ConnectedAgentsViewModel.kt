@@ -11,7 +11,10 @@ import com.pixelpal.app.data.remote.bridge.BridgeApprovalNotifier
 import com.pixelpal.app.data.remote.GenericHttpAgentConnector
 import com.pixelpal.app.data.repository.AgentSessionRepository
 import com.pixelpal.app.domain.engine.ActiveCompanionManager
+import com.pixelpal.app.domain.repository.ActivityEventRepository
+import com.pixelpal.app.domain.model.ActivityType
 import com.pixelpal.app.domain.model.AgentState
+import com.pixelpal.app.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -44,8 +48,11 @@ data class ConnectedAgentsUiState(
     val rows: List<AgentRow> = emptyList(),
     val bridgeUrl: String = "",
     val isPaired: Boolean = false,
+    val isBridgeReachable: Boolean = false,
     val isRefreshing: Boolean = false,
-    val lastError: String? = null
+    val isPairing: Boolean = false,
+    val lastError: String? = null,
+    val message: String? = null
 ) {
     val waitingCount: Int get() = rows.count { it.status == AgentState.WAITING_FOR_INPUT }
     val workingCount: Int get() = rows.count { it.status == AgentState.WORKING }
@@ -69,11 +76,26 @@ class ConnectedAgentsViewModel @Inject constructor(
     private val bridgeSync: AgentBridgeSync,
     private val poller: AgentBridgePoller,
     private val notifier: BridgeApprovalNotifier,
-    private val workerScheduler: com.pixelpal.app.worker.WorkerScheduler
+    private val workerScheduler: com.pixelpal.app.worker.WorkerScheduler,
+    private val activityEvents: ActivityEventRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ConnectedAgentsUiState(isRefreshing = true))
     val state: StateFlow<ConnectedAgentsUiState> = _state
+
+    /**
+     * Species the empty/pairing states draw. Reading it from the primary
+     * companion keeps the pet on this screen identical to the user's own pet;
+     * a literal here shipped the default cat to every user regardless of the
+     * species they picked during onboarding.
+     */
+    val companionPetType: StateFlow<String> = activeCompanion.activeCompanion
+        .map { it?.petType ?: Constants.DEFAULT_PET_TYPE }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            Constants.DEFAULT_PET_TYPE
+        )
 
     private var companionId: Long = 0L
 
@@ -104,7 +126,8 @@ class ConnectedAgentsViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     isRefreshing = false,
                     lastError = null,
-                    isPaired = false
+                    isPaired = false,
+                    isBridgeReachable = false
                 )
                 return@launch
             }
@@ -114,7 +137,10 @@ class ConnectedAgentsViewModel @Inject constructor(
                 _state.value = _state.value.copy(
                     isRefreshing = false,
                     isPaired = true,
-                    lastError = "Can't reach your computer. Is the bridge running?"
+                    isBridgeReachable = false,
+                    lastError = "Can't reach ${preferences.getAgentBridgeId().ifBlank { "your computer" }}. " +
+                        "Wake the computer and check that your phone is on the same Wi-Fi, " +
+                        "or that both devices are connected to Tailscale. Tap retry when ready."
                 )
                 return@launch
             }
@@ -125,6 +151,7 @@ class ConnectedAgentsViewModel @Inject constructor(
                 isRefreshing = false,
                 bridgeUrl = preferences.getAgentBridgeUrl(),
                 isPaired = true,
+                isBridgeReachable = true,
                 lastError = null
             )
         }
@@ -145,10 +172,20 @@ class ConnectedAgentsViewModel @Inject constructor(
             return false
         }
         viewModelScope.launch {
+            _state.value = _state.value.copy(isPairing = true, lastError = null)
+            if (!transport.verifyPairing(parsed.url, parsed.key)) {
+                _state.value = _state.value.copy(
+                    isPairing = false,
+                    lastError = "PixelPal couldn't reach that bridge. Keep setup running and check that your phone is on the same Wi-Fi or Tailscale network."
+                )
+                return@launch
+            }
             preferences.setAgentBridge(parsed.url, parsed.key, parsed.bridgeId)
             _state.value = _state.value.copy(
                 bridgeUrl = parsed.url,
                 isPaired = true,
+                isBridgeReachable = true,
+                isPairing = false,
                 lastError = null
             )
             onPaired()
@@ -177,24 +214,39 @@ class ConnectedAgentsViewModel @Inject constructor(
     fun approve(row: AgentRow) {
         val approvalId = row.pendingApprovalId ?: return
         viewModelScope.launch {
-            transport.respondToApproval(
+            val delivered = transport.respondToApproval(
                 preferences.getAgentBridgeUrl(),
                 approvalId,
                 approved = true
             )
-            refresh()
+            completeApproval(row, delivered, true)
         }
     }
 
     fun deny(row: AgentRow) {
         val approvalId = row.pendingApprovalId ?: return
         viewModelScope.launch {
-            transport.respondToApproval(
+            val delivered = transport.respondToApproval(
                 preferences.getAgentBridgeUrl(),
                 approvalId,
                 approved = false
             )
+            completeApproval(row, delivered, false)
+        }
+    }
+
+    private suspend fun completeApproval(row: AgentRow, delivered: Boolean, approved: Boolean) {
+        if (delivered) {
+            activityEvents.record(
+                companionId,
+                ActivityType.AGENT_APPROVAL_DECIDED,
+                "${if (approved) "Approved" else "Denied"} ${row.displayName}'s request",
+                row.pendingApprovalAction ?: row.task ?: row.project
+            )
+            _state.value = _state.value.copy(message = if (approved) "Approval sent" else "Request denied", lastError = null)
             refresh()
+        } else {
+            _state.value = _state.value.copy(lastError = "Couldn't send your decision. Check the bridge connection and retry.")
         }
     }
 

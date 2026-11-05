@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.domain.model.ActivityEvent
 import com.pixelpal.app.animation.AnimationState
+import com.pixelpal.app.R
 import com.pixelpal.app.domain.model.ActivityType
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.EmptyState
@@ -66,7 +68,7 @@ fun ActivityCenterScreen(
 
     PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "Activity", onBack = { navController.popBackStack() })
+            AppTopBar(title = stringResource(R.string.activity_title), onBack = { navController.popBackStack() })
 
             // WebSocket live typing banner — shows when agent is WORKING/ONLINE with a task
             if (liveAgent != null) {
@@ -106,7 +108,7 @@ fun ActivityCenterScreen(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 GlassChip(
-                    label = "All",
+                    label = stringResource(R.string.activity_filter_all),
                     selected = selectedFilter == null,
                     onClick = { viewModel.filterBy(null) }
                 )
@@ -123,9 +125,8 @@ fun ActivityCenterScreen(
 
             if (events.isEmpty()) {
                 EmptyState(
-                    title = "No activity yet",
-                    message = "Meaningful moments — bond milestones, completed tasks and " +
-                        "reminders, agent updates — will appear here.",
+                    title = stringResource(R.string.activity_empty_title),
+                    message = stringResource(R.string.activity_empty_message),
                     petState = AnimationState.SLEEP,
                     modifier = Modifier.weight(1f)
                 )

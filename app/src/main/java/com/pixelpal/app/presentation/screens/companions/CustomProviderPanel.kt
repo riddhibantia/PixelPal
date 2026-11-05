@@ -37,6 +37,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,11 +50,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.domain.model.AgentConnection
 import com.pixelpal.app.domain.model.Task
 import com.pixelpal.app.presentation.components.AppTextField
@@ -81,204 +84,89 @@ import java.util.Locale
 
 private val timeFormat = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
 
+/** Collapsed manual provider setup embedded in the Agent tab. */
 @Composable
-fun CompanionWorkspaceScreen(
-    navController: NavController,
+fun CustomProviderPanel(
+    scannedUrl: String? = null,
+    onScannedConsumed: () -> Unit = {},
+    onScanQr: () -> Unit = {},
+    snackbarHostState: SnackbarHostState? = null,
     viewModel: CompanionWorkspaceViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val checkingAgent by viewModel.checkingAgent.collectAsState()
-    val commandFeedback by viewModel.commandFeedback.collectAsState()
-    val geminiKeyOverride by viewModel.geminiKeyOverride.collectAsState()
-
-    val voiceLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val spoken = result.data
-            ?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        if (!spoken.isNullOrBlank()) {
-            viewModel.sendAgentCommand(spoken)
-        }
-    }
-    val voiceCommand: () -> Unit = {
-        val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(
-                android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-            )
-            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Speak your command to the agent")
-        }
-        try {
-            voiceLauncher.launch(intent)
-        } catch (_: android.content.ActivityNotFoundException) {
-            viewModel.reportVoiceUnavailable()
-        }
-    }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-
-    val state = uiState
-
-    // QR pairing result lands on THIS entry's handle (QrScanScreen writes to
-    // previousBackStackEntry before popping). Consumed once below.
-    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-    val scannedUrl by (savedStateHandle?.getStateFlow(
-        com.pixelpal.app.presentation.screens.agent.SCANNED_URL_KEY, ""
-    )?.collectAsState() ?: remember { mutableStateOf("") })
-
-    // Collect snackbar events from ViewModel
-    LaunchedEffect(Unit) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val state by viewModel.uiState.collectAsState()
+    val checking by viewModel.checkingAgent.collectAsState()
+    val feedback by viewModel.commandFeedback.collectAsState()
+    val geminiKey by viewModel.geminiKeyOverride.collectAsState()
+    LaunchedEffect(viewModel, snackbarHostState) {
         viewModel.snackbarEvents.collect { event ->
-            val result = snackbarHostState.showSnackbar(
+            val host = snackbarHostState ?: return@collect
+            val result = host.showSnackbar(
                 message = event.message,
                 actionLabel = "Undo",
                 duration = SnackbarDuration.Short
             )
-            if (result == SnackbarResult.ActionPerformed) {
-                when (event) {
-                    is SnackbarEvent.AgentDisconnected -> viewModel.undoDisconnect(event.connection)
-                    else -> {}
-                }
+            if (result == SnackbarResult.ActionPerformed && event is SnackbarEvent.AgentDisconnected) {
+                viewModel.undoDisconnect(event.connection)
             }
         }
     }
 
-    if (state.loading || state.companion == null) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "AI Agent", onBack = { navController.popBackStack() })
-            LoadingState()
-        }
-        return
-    }
-
-    val companion = state.companion
-
-    Scaffold(
-        bottomBar = {
-            com.pixelpal.app.presentation.components.PixelPalBottomBar(
-                navController = navController,
-                selected = Screen.CompanionWorkspace
+    TextButton(onClick = { expanded = !expanded }) {
+        Column {
+            Text(
+                text = if (expanded) stringResource(R.string.agent_provider_hide_toggle) else stringResource(R.string.agent_provider_show_toggle),
+                fontWeight = FontWeight.SemiBold
             )
-        },
-        snackbarHost = { PixelPalSnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
-        PixelPalAtmosphere(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                AppTopBar(title = "AI Agent", onBack = { navController.popBackStack() })
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(bottom = Spacing.lg)
-            ) {
-                // ── Profile ──
-                ProfileHeader(companion = companion, bond = state.bond, viewModel = viewModel)
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                SecondaryButton(
-                    text = "Customize Companion",
-                    onClick = { navController.navigate(Screen.Customize.route) }
-                )
-
-                Spacer(modifier = Modifier.height(Spacing.md))
-
-                // ── AI Agent Connection — the workspace's sole purpose ──
-                AgentConnectionSection(
-                    connection = state.agentConnection,
-                    checking = checkingAgent,
-                    feedbackMessage = commandFeedback,
-                    geminiKeyOverride = geminiKeyOverride,
-                    scannedUrl = scannedUrl.takeIf { it.isNotBlank() },
-                    onScannedConsumed = {
-                        savedStateHandle?.remove<String>(
-                            com.pixelpal.app.presentation.screens.agent.SCANNED_URL_KEY
-                        )
-                    },
-                    onScanQr = { navController.navigate(Screen.QrScan.route) },
-                    onSave = viewModel::saveAgentConnection,
-                    onCheckNow = viewModel::refreshAgentStatus,
-                    onDisconnect = viewModel::disconnectAgent,
-                    onSendCommand = viewModel::sendAgentCommand,
-                    onVoiceCommand = voiceCommand,
-                    onSaveGeminiKey = viewModel::saveGeminiKey
-                )
-            }
-        }
-    }
-}
-}
-
-@Composable
-private fun ProfileHeader(
-    companion: com.pixelpal.app.domain.model.Companion,
-    bond: com.pixelpal.app.domain.model.Bond?,
-    viewModel: CompanionWorkspaceViewModel
-) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(Radius.large))
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        RoundedCornerShape(Radius.large)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                BaseCompanionAvatar(
-                    companion = companion,
-                    size = 64.dp
-                )
-            }
-
-            Spacer(modifier = Modifier.width(Spacing.md))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = companion.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    IconButton(onClick = viewModel::toggleFavorite) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = "Toggle favorite",
-                            tint = if (companion.isFavorite) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-                }
+            if (!expanded) {
                 Text(
-                    text = "${speciesLabel(companion.effectiveSpecies)} Companion • ${bond?.streakDays ?: 0}d streak",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = stringResource(R.string.agent_provider_collapsed_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     }
+    if (expanded) {
+        val voicePrompt = stringResource(R.string.agent_provider_voice_prompt)
+        val voiceLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            result.data
+                ?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.takeIf(String::isNotBlank)
+                ?.let(viewModel::sendAgentCommand)
+        }
+        val voiceCommand = {
+            val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, voicePrompt)
+            }
+            try {
+                voiceLauncher.launch(intent)
+            } catch (_: android.content.ActivityNotFoundException) {
+                viewModel.reportVoiceUnavailable()
+            }
+        }
+        AgentConnectionSection(
+            connection = state.agentConnection,
+            checking = checking,
+            feedbackMessage = feedback,
+            geminiKeyOverride = geminiKey,
+            scannedUrl = scannedUrl,
+            onScannedConsumed = onScannedConsumed,
+            onScanQr = onScanQr,
+            onSave = viewModel::saveAgentConnection,
+            onCheckNow = viewModel::refreshAgentStatus,
+            onDisconnect = viewModel::disconnectAgent,
+            onSendCommand = viewModel::sendAgentCommand,
+            onVoiceCommand = voiceCommand,
+            onSaveGeminiKey = viewModel::saveGeminiKey
+        )
+    }
 }
-
-private fun speciesLabel(species: String): String =
-    species.replaceFirstChar { it.uppercase() }
 
 @Composable
 private fun AgentConnectionSection(
@@ -296,7 +184,7 @@ private fun AgentConnectionSection(
     onVoiceCommand: () -> Unit,
     onSaveGeminiKey: (String) -> Unit
 ) {
-    SectionHeader(title = "AI Agent Connection")
+    SectionHeader(title = stringResource(R.string.agent_provider_title))
 
     val currentProvider = com.pixelpal.app.domain.model.AgentProviders.normalize(connection?.provider ?: "")
     var endpoint by rememberSaveable(connection?.companionId) {
@@ -330,6 +218,13 @@ private fun AgentConnectionSection(
     // Check Now acts on the SAVED connection, not the draft form.
     val canCheck = !checking && (connection?.isGemini == true || connection?.endpointUrl?.isNotBlank() == true)
 
+    Text(
+        text = stringResource(R.string.agent_provider_description),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(modifier = Modifier.height(Spacing.sm))
+
     // QR pairing fills the endpoint draft (once) when returning from the scanner.
     androidx.compose.runtime.LaunchedEffect(scannedUrl) {
         if (!scannedUrl.isNullOrBlank()) {
@@ -340,10 +235,10 @@ private fun AgentConnectionSection(
 
     if (showDisconnectConfirm) {
         ConfirmationDialog(
-            title = "Disconnect Agent?",
-            message = "This will clear the endpoint and stop polling. Your provider choice is kept so you can reconnect later.",
-            confirmLabel = "Disconnect",
-            dismissLabel = "Cancel",
+            title = stringResource(R.string.agent_provider_disconnect_title),
+            message = stringResource(R.string.agent_provider_disconnect_message),
+            confirmLabel = stringResource(R.string.agent_provider_action_disconnect),
+            dismissLabel = stringResource(R.string.agent_action_cancel),
             destructive = true,
             onConfirm = {
                 showDisconnectConfirm = false
@@ -389,7 +284,11 @@ private fun AgentConnectionSection(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    text = "$progress% • ${connection.currentStatus.displayName}",
+                    text = stringResource(
+                        R.string.agent_provider_status_progress,
+                        progress,
+                        connection.currentStatus.displayName
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -398,7 +297,7 @@ private fun AgentConnectionSection(
             connection?.lastCheckedAt?.let {
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(
-                    text = "Last update: ${timeFormat.format(Date(it))}",
+                    text = stringResource(R.string.agent_provider_last_update, timeFormat.format(Date(it))),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -407,7 +306,7 @@ private fun AgentConnectionSection(
             Spacer(modifier = Modifier.height(Spacing.md))
 
             Text(
-                text = "Provider",
+                text = stringResource(R.string.agent_provider_section_provider),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -429,8 +328,8 @@ private fun AgentConnectionSection(
             AppTextField(
                 value = agentName,
                 onValueChange = { agentName = it },
-                label = "Agent name",
-                placeholder = "e.g. OpenCode Development Agent"
+                label = stringResource(R.string.agent_provider_label_agent_name),
+                placeholder = stringResource(R.string.agent_provider_hint_agent_name)
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
             if (isGemini) {
@@ -440,17 +339,17 @@ private fun AgentConnectionSection(
                         geminiKeyInput = it
                         onSaveGeminiKey(it)
                     },
-                    label = "Gemini API key",
-                    placeholder = "Paste from Google AI Studio",
+                    label = stringResource(R.string.agent_provider_label_gemini_key),
+                    placeholder = stringResource(R.string.agent_provider_hint_gemini_key),
                     supportingText = if (geminiKeyOverride.isBlank()) {
-                        "No key saved on this device — using the bundled key, if any. Stored only on this device."
+                        stringResource(R.string.agent_provider_key_missing_support)
                     } else {
-                        "Key saved on this device. Clear the field to fall back to the bundled key."
+                        stringResource(R.string.agent_provider_key_saved_support)
                     }
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(
-                    text = "Gemini needs no endpoint — chat and status run directly against Google AI.",
+                    text = stringResource(R.string.agent_provider_gemini_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -458,17 +357,17 @@ private fun AgentConnectionSection(
                 AppTextField(
                     value = endpoint,
                     onValueChange = { endpoint = it },
-                    label = if (isWebSocket) "WebSocket URL" else "Status endpoint URL",
+                    label = if (isWebSocket) stringResource(R.string.agent_provider_label_ws_url) else stringResource(R.string.agent_provider_label_http_url),
                     placeholder = if (isWebSocket) "wss://example.com/agent" else "https://example.com/status",
                     supportingText = if (isWebSocket) {
-                        "Must start with ws:// or wss://. Live messages stream while this screen is open."
+                        stringResource(R.string.agent_provider_ws_support)
                     } else {
-                        "HTTPS required (cleartext only for localhost or private LAN like 192.168.x.x). Must return {status, message?, currentTask?, progress?}."
+                        stringResource(R.string.agent_provider_http_support)
                     }
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 SecondaryButton(
-                    text = "Scan QR instead",
+                    text = stringResource(R.string.agent_provider_action_scan_qr),
                     onClick = onScanQr
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -476,14 +375,14 @@ private fun AgentConnectionSection(
                 AppTextField(
                     value = commandEndpoint,
                     onValueChange = { commandEndpoint = it },
-                    label = "Command endpoint (optional)",
-                    placeholder = "Defaults to the status URL"
+                    label = stringResource(R.string.agent_provider_label_command_url),
+                    placeholder = stringResource(R.string.agent_provider_hint_command_url)
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
 
             Text(
-                text = "Check interval",
+                text = stringResource(R.string.agent_provider_label_check_interval),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -494,7 +393,7 @@ private fun AgentConnectionSection(
             ) {
                 com.pixelpal.app.util.Constants.AGENT_POLL_INTERVAL_OPTIONS_MIN.forEach { option ->
                     GlassChip(
-                        label = if (option >= 60) "${option / 60}h" else "${option}m",
+                        label = if (option >= 60) stringResource(R.string.agent_provider_interval_hours, option / 60) else stringResource(R.string.agent_provider_interval_minutes, option),
                         selected = intervalMinutes == option,
                         onClick = { intervalMinutes = option }
                     )
@@ -507,9 +406,9 @@ private fun AgentConnectionSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Polling enabled", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.agent_provider_label_polling), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        text = "Checks every ${intervalMinutes} min",
+                        text = stringResource(R.string.agent_provider_polling_subtitle, intervalMinutes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -523,7 +422,7 @@ private fun AgentConnectionSection(
             Spacer(modifier = Modifier.height(Spacing.md))
 
             PrimaryButton(
-                text = if (connection?.endpointUrl.isNullOrBlank() && !isGemini) "Connect" else "Save",
+                text = if (connection?.endpointUrl.isNullOrBlank() && !isGemini) stringResource(R.string.agent_action_connect) else stringResource(R.string.agent_provider_action_save),
                 onClick = {
                     val companionId = connection?.companionId ?: return@PrimaryButton
                     onSave(
@@ -541,7 +440,7 @@ private fun AgentConnectionSection(
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
             SecondaryButton(
-                text = if (checking) "Checking…" else "Check Now",
+                text = if (checking) stringResource(R.string.agent_provider_checking) else stringResource(R.string.agent_provider_action_check_now),
                 onClick = onCheckNow,
                 enabled = canCheck
             )
@@ -552,7 +451,7 @@ private fun AgentConnectionSection(
             GroupDivider()
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Talk to your agent",
+                text = stringResource(R.string.agent_provider_command_section),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -565,14 +464,14 @@ private fun AgentConnectionSection(
                     AppTextField(
                         value = commandText,
                         onValueChange = { commandText = it },
-                        label = "Send a command…",
-                        placeholder = "e.g. run the test suite",
+                        label = stringResource(R.string.agent_provider_command_hint_label),
+                        placeholder = stringResource(R.string.agent_provider_command_hint_example),
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = onVoiceCommand) {
                         Icon(
                             imageVector = Icons.Default.Mic,
-                            contentDescription = "Speak a command",
+                            contentDescription = stringResource(R.string.agent_provider_voice_content_description),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -585,7 +484,7 @@ private fun AgentConnectionSection(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send command",
+                            contentDescription = stringResource(R.string.agent_provider_send_content_description),
                             tint = if (commandText.isNotBlank()) {
                                 MaterialTheme.colorScheme.primary
                             } else {
@@ -608,9 +507,9 @@ private fun AgentConnectionSection(
             } else {
                 Text(
                     text = if (isGemini) {
-                        "Send your first message after saving — chat runs directly against Google AI."
+                        stringResource(R.string.agent_provider_command_cta_gemini)
                     } else {
-                        "Enter the status endpoint above and tap Connect — then you can send commands here."
+                        stringResource(R.string.agent_provider_command_cta_bridge)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -619,7 +518,7 @@ private fun AgentConnectionSection(
             if (isConfigured) {
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 DestructiveButton(
-                    text = "Disconnect",
+                    text = stringResource(R.string.agent_provider_action_disconnect),
                     onClick = { showDisconnectConfirm = true }
                 )
             }
@@ -654,14 +553,14 @@ private fun statusColor(connection: AgentConnection?): androidx.compose.ui.graph
 @Composable
 private fun connectionStatusText(connection: AgentConnection?): String =
     when {
-        connection == null -> "Not connected"
+        connection == null -> stringResource(R.string.agent_not_connected)
         connection.isGemini && connection.connectionStatus == com.pixelpal.app.domain.model.ConnectionStatus.ERROR ->
-            "Gemini error"
+            stringResource(R.string.agent_provider_status_gemini_error)
         connection.isGemini && connection.currentStatus == com.pixelpal.app.domain.model.AgentState.DISCONNECTED ->
-            "Gemini not configured — add an API key"
-        connection.isGemini -> "Gemini AI — ${connection.currentStatus.displayName}"
-        connection.endpointUrl.isBlank() -> "Not connected"
+            stringResource(R.string.agent_provider_status_gemini_unconfigured)
+        connection.isGemini -> stringResource(R.string.agent_provider_status_gemini, connection.currentStatus.displayName)
+        connection.endpointUrl.isBlank() -> stringResource(R.string.agent_not_connected)
         connection.connectionStatus == com.pixelpal.app.domain.model.ConnectionStatus.ERROR ->
-            "Connection error"
-        else -> "● Connected — ${connection.currentStatus.displayName}"
+            stringResource(R.string.agent_provider_status_error)
+        else -> stringResource(R.string.agent_provider_status_connected, connection.currentStatus.displayName)
     }

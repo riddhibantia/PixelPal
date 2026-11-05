@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Settings / Profile / Permissions / Overlay / Customize screen strings.
+    NAMING CONVENTION: <area>_<feature>_<element>  (see values/strings.xml header).
+-->
+<resources>
+
+    <!-- ── SettingsScreen ───────────────────────────────────────────────── -->
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_row_profile_title">Your Profile</string>
+    <string name="settings_row_profile_subtitle">Personal account</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_row_notifications_title">Notifications</string>
+    <string name="settings_row_notifications_description">Manage reminder notifications</string>
+    <string name="settings_row_appearance_title">Appearance</string>
+    <string name="settings_section_companion">Companion</string>
+    <string name="settings_row_overlay_title">Screen Companion Overlay</string>
+    <string name="settings_row_overlay_description">Show Pixel on top of other apps</string>
+    <string name="settings_row_background_title">Background Activity</string>
+    <string name="settings_row_background_description">Keep Pixel alive in the background</string>
+    <string name="settings_section_privacy">Privacy &amp; Data</string>
+    <string name="settings_row_permissions_title">Permissions</string>
+    <string name="settings_row_permissions_description">Overlay, notifications and alarms</string>
+    <string name="settings_section_support">Support</string>
+    <string name="settings_row_help_title">Help &amp; Feedback</string>
+    <string name="settings_row_about_title">About PixelPal</string>
+    <string name="settings_version_suffix">v%1$s</string>
+
+    <!-- ── ProfileScreen ────────────────────────────────────────────────── -->
+
+    <string name="settings_profile_title">Profile</string>
+    <string name="settings_profile_name_placeholder">Your name</string>
+    <string name="settings_profile_subtitle">This is your personal space in PixelPal</string>
+    <string name="settings_profile_avatar_content_description">Change avatar style</string>
+    <string name="settings_profile_section_personal">Personal Information</string>
+    <string name="settings_profile_name_label">Name</string>
+    <string name="settings_profile_name_error">Name is required</string>
+    <string name="settings_profile_email_label">Email (optional)</string>
+    <string name="settings_profile_email_placeholder">you@example.com</string>
+    <string name="settings_profile_email_error">That email doesn\'t look right</string>
+    <string name="settings_profile_section_sync">Cloud Sync &amp; Firestore</string>
+    <string name="settings_profile_sync_not_connected">Not Connected to Cloud</string>
+    <string name="settings_profile_sync_guest">Guest Mode (Local &amp; Cloud Sync Active)</string>
+    <string name="settings_profile_sync_connected">Connected: %1$s</string>
+    <string name="settings_profile_sync_authenticated">Authenticated</string>
+    <string name="settings_profile_sync_description">Firestore automatically backs up your pet, tasks, reminders, and streaks in real-time.</string>
+    <string name="settings_profile_action_syncing">Syncing...</string>
+    <string name="settings_profile_action_sync_now">Sync Now</string>
+    <string name="settings_profile_action_account">Account</string>
+    <string name="settings_profile_action_log_in">Log In</string>
+    <string name="settings_profile_action_sign_out">Sign Out</string>
+    <string name="settings_profile_action_save">Save Changes</string>
+    <string name="settings_profile_discard_title">Discard changes?</string>
+    <string name="settings_profile_discard_message">You have unsaved changes to your profile.</string>
+    <string name="settings_profile_discard_confirm">Discard</string>
+
+    <!-- SyncStatusRow (last full-sync status line) -->
+    <string name="settings_sync_status_off">Sync is off — sign in to back up to the cloud.</string>
+    <string name="settings_sync_status_syncing">Syncing…</string>
+    <string name="settings_sync_status_failed">Last sync failed: %1$s</string>
+    <string name="settings_sync_status_ok">Up to date with the cloud.</string>
+
+    <!-- ── PermissionsScreen ────────────────────────────────────────────── -->
+
+    <string name="settings_permissions_title">Permissions</string>
+    <string name="settings_permissions_section_status">Current Status</string>
+    <string name="settings_permissions_intro">Agent approvals and reminders use notifications. Camera access is only used when you choose to scan a pairing QR. Overlay access is only for the floating pet.</string>
+    <string name="settings_permissions_overlay_title">Screen Overlay</string>
+    <string name="settings_permissions_overlay_description">Needed for Pixel to appear over other apps</string>
+    <string name="settings_permissions_camera_title">Camera for QR pairing</string>
+    <string name="settings_permissions_camera_description">Only used when you scan a pairing code</string>
+    <string name="settings_permissions_notifications_title">Notifications</string>
+    <string name="settings_permissions_notifications_description">Needed for reminders to alert you</string>
+    <string name="settings_permissions_alarms_title">Exact Alarms</string>
+    <string name="settings_permissions_alarms_description">Needed for reminders to fire at the exact time</string>
+    <string name="settings_permissions_status_allowed_content_description">Allowed</string>
+    <string name="settings_permissions_status_denied">Not allowed</string>
+    <string name="settings_permissions_status_managed">Managed by system</string>
+
+    <!-- ── OverlaySettingsScreen ────────────────────────────────────────── -->
+
+    <string name="settings_overlay_title">Screen Companion Overlay</string>
+    <string name="settings_overlay_section_overlay">Overlay</string>
+    <string name="settings_overlay_toggle_title">Show Pixel on top of other apps</string>
+    <string name="settings_overlay_toggle_description">Your companion appears as a small pet while you use other apps. One overlay is shown at a time.</string>
+    <string name="settings_overlay_section_position">Position</string>
+    <string name="settings_overlay_reset_title">Reset Overlay Position</string>
+    <string name="settings_overlay_reset_description">Move Pixel back to the default spot</string>
+    <string name="settings_overlay_section_background">Background Activity</string>
+    <string name="settings_overlay_battery_title">Keep Pixel alive in background</string>
+    <string name="settings_overlay_battery_description">Allows Pixel to stay on screen longer by excluding the app from battery optimization. Opens the system request.</string>
+
+    <!-- ── CustomizeScreen ──────────────────────────────────────────────── -->
+
+    <string name="customize_title">Customize Companion</string>
+    <string name="customize_section_companion">Your Companion</string>
+    <string name="customize_name_label">Companion Name</string>
+    <string name="customize_name_placeholder">Name your companion</string>
+    <string name="customize_transform_note">Transforming your companion never affects your bond, tasks, reminders, or agent connection.</string>
+    <string name="customize_section_species">Species</string>
+    <string name="customize_section_theme">App Appearance</string>
+
+</resources>

@@ -37,10 +37,12 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GlassCard
@@ -84,7 +86,10 @@ fun NewTaskScreen(
                     .fillMaxSize()
                     .imePadding()
             ) {
-                AppTopBar(title = "New Task", onBack = { navController.popBackStack() })
+                AppTopBar(
+                    title = stringResource(R.string.tasks_new_task_title),
+                    onBack = { navController.popBackStack() }
+                )
 
                 Column(
                     modifier = Modifier
@@ -96,8 +101,8 @@ fun NewTaskScreen(
                 AppTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = "Task title",
-                    placeholder = "Enter task title…"
+                    label = stringResource(R.string.tasks_field_task_title),
+                    placeholder = stringResource(R.string.tasks_field_task_title_placeholder)
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -105,26 +110,26 @@ fun NewTaskScreen(
                 AppTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = "Description (optional)",
-                    placeholder = "Add a description…",
+                    label = stringResource(R.string.tasks_field_description),
+                    placeholder = stringResource(R.string.tasks_field_description_placeholder),
                     singleLine = false,
                     modifier = Modifier.height(120.dp)
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.lg))
 
-                SectionHeader(title = "Due date")
+                SectionHeader(title = stringResource(R.string.tasks_due_date_title))
                 DueDateSection(dueAt = dueAt, onDueAtChange = { dueAt = it })
 
                 Spacer(modifier = Modifier.height(Spacing.lg))
 
-                SectionHeader(title = "Subtasks")
+                SectionHeader(title = stringResource(R.string.tasks_subtasks_title))
 
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
                         if (drafts.isEmpty()) {
                             Text(
-                                text = "Optional — break the task into smaller tickable points.",
+                                text = stringResource(R.string.tasks_new_subtasks_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
@@ -145,13 +150,13 @@ fun NewTaskScreen(
                                 AppTextField(
                                     value = draft,
                                     onValueChange = { drafts[index] = it },
-                                    label = "Subtask ${index + 1}",
+                                    label = stringResource(R.string.tasks_subtask_number_label, index + 1),
                                     modifier = Modifier.weight(1f)
                                 )
                                 IconButton(onClick = { drafts.removeAt(index) }) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
-                                        contentDescription = "Remove subtask",
+                                        contentDescription = stringResource(R.string.tasks_subtask_content_description_remove),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -172,7 +177,7 @@ fun NewTaskScreen(
                     .navigationBarsPadding()
             ) {
                 PrimaryButton(
-                    text = "Create Task",
+                    text = stringResource(R.string.tasks_action_create),
                     enabled = title.isNotBlank(),
                     onClick = {
                         viewModel.createTask(
@@ -213,7 +218,7 @@ private fun AddSubtaskButton(
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "Add subtask",
+                text = stringResource(R.string.tasks_action_add_subtask),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary

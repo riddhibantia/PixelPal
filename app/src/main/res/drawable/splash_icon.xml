@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Splash screen icon: frame 0 of the companion's idle animation.
+
+  The cat is the default species (Constants.DEFAULT_PET_TYPE), so this is the
+  pet a fresh install meets. The paths are the shapes from
+  res/raw/pet_cat_idle.json evaluated at frame 0 (ears, body, eyes, pupils,
+  highlights, cheeks, mouth) with their layer/group transforms baked into
+  absolute coordinates — no masked or gradient layers in that art, so the
+  bake is exact. Sparkles are zero-scale at frame 0 and are dropped.
+
+  Art occupies the middle 200dp of a 288dp canvas because Android 12 draws
+  splash icons inside a 240dp area with a 192dp guaranteed-visible centre.
+  Regenerate for another species with the bake script's fit/size/art-height
+  options (canvas 288, art height 200, frame 0).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <path
+        android:fillColor="#DF6B50"
+        android:fillAlpha="1.000"
+        android:pathData="M 76.174,89.963 H 211.826 A 0.745,0.745 0 0,1 212.571,90.708 V 242.012 A 0.745,0.745 0 0,1 211.826,242.758 H 76.174 A 0.745,0.745 0 0,1 75.429,242.012 V 90.708 A 0.745,0.745 0 0,1 76.174,89.963 Z" />
+    <path
+        android:fillColor="#D93434"
+        android:fillAlpha="1.000"
+        android:pathData="M 170.087,44.870 H 211.826 A 0.745,0.745 0 0,1 212.571,45.615 V 97.789 A 0.745,0.745 0 0,1 211.826,98.534 H 170.087 A 0.745,0.745 0 0,1 169.342,97.789 V 45.615 A 0.745,0.745 0 0,1 170.087,44.870 Z" />
+    <path
+        android:fillColor="#D93434"
+        android:fillAlpha="1.000"
+        android:pathData="M 76.174,44.870 H 117.913 A 0.745,0.745 0 0,1 118.658,45.615 V 97.789 A 0.745,0.745 0 0,1 117.913,98.534 H 76.174 A 0.745,0.745 0 0,1 75.429,97.789 V 45.615 A 0.745,0.745 0 0,1 76.174,44.870 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 158.907,148.472 a 14.161,20.870 0 1,0 28.323,0 a 14.161,20.870 0 1,0 -28.323,0 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 100.770,148.472 a 14.161,20.870 0 1,0 28.323,0 a 14.161,20.870 0 1,0 -28.323,0 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 169.901,144.745 a 5.404,8.199 0 1,0 10.807,0 a 5.404,8.199 0 1,0 -10.807,0 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 111.764,144.745 a 5.404,8.199 0 1,0 10.807,0 a 5.404,8.199 0 1,0 -10.807,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="1.000"
+        android:pathData="M 174.037,141.764 a 2.758,3.727 0 1,0 5.516,0 a 2.758,3.727 0 1,0 -5.516,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="1.000"
+        android:pathData="M 115.901,141.764 a 2.758,3.727 0 1,0 5.516,0 a 2.758,3.727 0 1,0 -5.516,0 Z" />
+    <path
+        android:fillColor="#EF9A8C"
+        android:fillAlpha="1.000"
+        android:pathData="M 187.230,173.068 H 205.863 A 0.745,0.745 0 0,1 206.609,173.814 V 182.012 A 0.745,0.745 0 0,1 205.863,182.758 H 187.230 A 0.745,0.745 0 0,1 186.484,182.012 V 173.814 A 0.745,0.745 0 0,1 187.230,173.068 Z" />
+    <path
+        android:fillColor="#EF9A8C"
+        android:fillAlpha="1.000"
+        android:pathData="M 82.137,173.068 H 100.770 A 0.745,0.745 0 0,1 101.516,173.814 V 182.012 A 0.745,0.745 0 0,1 100.770,182.758 H 82.137 A 0.745,0.745 0 0,1 81.391,182.012 V 173.814 A 0.745,0.745 0 0,1 82.137,173.068 Z" />
+    <path
+        android:fillColor="#EF9A8C"
+        android:fillAlpha="1.000"
+        android:pathData="M 140.273,174.932 H 147.727 A 0.745,0.745 0 0,1 148.472,175.677 V 180.894 A 0.745,0.745 0 0,1 147.727,181.640 H 140.273 A 0.745,0.745 0 0,1 139.528,180.894 V 175.677 A 0.745,0.745 0 0,1 140.273,174.932 Z" />
+</vector>

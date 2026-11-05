@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy (pre-API 31) splash window background.
+  Shows the companion's idle frame on the brand obsidian canvas using a
+  layer-list so the pet is visually placed at screen centre at any density.
+  The drawable carries 44dp of transparent padding around a 200dp pet on a
+  288dp canvas, so it is drawn at 168dp to put ~117dp of pet on screen.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Obsidian background -->
+    <item android:drawable="@color/splash_bg" />
+    <!-- Companion idle frame, centred -->
+    <item
+        android:gravity="center"
+        android:width="168dp"
+        android:height="168dp"
+        android:drawable="@drawable/splash_icon" />
+</layer-list>

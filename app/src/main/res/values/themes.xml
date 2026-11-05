@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Base theme for pre-Android-12. Splash = plain obsidian canvas. -->
     <style name="Theme.PixelPal" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#FF0F0F13</item>
-        <item name="android:navigationBarColor">#FF0F0F13</item>
-        <item name="android:windowBackground">#FF0F0F13</item>
+        <item name="android:statusBarColor">#FF131124</item>
+        <item name="android:navigationBarColor">#FF131124</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
     </style>
-
 </resources>

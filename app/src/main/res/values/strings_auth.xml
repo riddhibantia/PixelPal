@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Auth + Onboarding screen strings.
+    NAMING CONVENTION: <area>_<feature>_<element>  (see values/strings.xml header).
+-->
+<resources>
+
+    <!-- ── AuthScreen ───────────────────────────────────────────────────── -->
+
+    <string name="auth_signup_title">Create Your Account</string>
+    <string name="auth_login_title">Welcome Back</string>
+    <string name="auth_subtitle">Sync your companion, tasks, and bond across all your devices.</string>
+    <string name="auth_action_google">Continue with Google</string>
+    <string name="auth_or_email">or with email</string>
+    <string name="auth_email_label">Email Address</string>
+    <string name="auth_email_placeholder">you@example.com</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_password_placeholder">••••••••</string>
+    <string name="auth_action_retry_sync">Retry sync</string>
+    <string name="auth_action_continue_offline">Continue offline</string>
+    <string name="auth_status_syncing">Syncing your companion...</string>
+    <string name="auth_action_sign_up">Sign Up</string>
+    <string name="auth_action_log_in">Log In</string>
+    <string name="auth_action_guest">Continue as Guest</string>
+    <string name="auth_toggle_to_login">Have an account? Log In</string>
+    <string name="auth_toggle_to_signup">New here? Create Account</string>
+    <string name="auth_action_forgot_password">Forgot password?</string>
+
+    <!-- ── OnboardingScreen ─────────────────────────────────────────────── -->
+
+    <string name="onboarding_step_counter">%1$d / %2$d</string>
+    <string name="onboarding_step_action_label">Go to step %1$d</string>
+    <string name="onboarding_action_skip">Skip</string>
+    <string name="onboarding_action_back">Back</string>
+    <string name="onboarding_action_continue">Continue</string>
+    <string name="onboarding_action_get_started">Get Started</string>
+
+    <!-- Page 0 — Welcome -->
+    <string name="onboarding_welcome_title">Meet Your PixelPal</string>
+    <string name="onboarding_welcome_body">A tiny pixel companion that lives on your phone and watches your AI agents work.</string>
+    <string name="onboarding_welcome_pill_agents">Tracks Claude Code, Codex, opencode &amp; more</string>
+    <string name="onboarding_welcome_pill_growth">Grows with you — bond, name, customise</string>
+    <string name="onboarding_welcome_pill_alerts">Alerts when agents need approval</string>
+
+    <!-- Page 1 — Choose species -->
+    <string name="onboarding_species_title">Choose Your Companion</string>
+    <string name="onboarding_species_body">Pick the creature that speaks to you. You can change later.</string>
+
+    <!-- Page 2 — Name the companion -->
+    <string name="onboarding_name_title">What\'s their name?</string>
+    <string name="onboarding_name_body">Give your companion a name. Up to 20 characters.</string>
+    <string name="onboarding_name_label">Companion name</string>
+    <string name="onboarding_name_counter">%1$d / 20</string>
+    <string name="onboarding_name_ready">\"%1$s\" is ready to join you!</string>
+
+    <!-- Page 3 — Enable overlay -->
+    <string name="onboarding_default_companion_name">your companion</string>
+    <string name="onboarding_overlay_all_set">All set!</string>
+    <string name="onboarding_overlay_step_title">Let %1$s Follow You</string>
+    <string name="onboarding_overlay_body_granted">%1$s can now live as a tiny overlay on any screen.</string>
+    <string name="onboarding_overlay_body_denied">%1$s needs overlay permission to appear over other apps as a live pixel pet.</string>
+    <string name="onboarding_overlay_action_grant">Grant Overlay Permission</string>
+    <string name="onboarding_overlay_skip_hint">You can skip this and enable it from Settings later.</string>
+    <string name="onboarding_overlay_granted_status">Permission granted — %1$s is free to roam!</string>
+
+    <!-- Page 4 — Connect the agent bridge -->
+    <string name="onboarding_bridge_title">Watch Your Agent Work</string>
+    <string name="onboarding_bridge_body">Run one command on your computer to connect PixelPal to Claude Code, Codex, opencode, OMP and Hermes.</string>
+    <string name="onboarding_bridge_copy">Copy</string>
+    <string name="onboarding_bridge_copied">Copied ✓</string>
+    <string name="onboarding_bridge_hint">Then open the Agent tab and scan the pairing QR code — or skip this for now.</string>
+
+</resources>

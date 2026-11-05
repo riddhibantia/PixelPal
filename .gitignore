@@ -36,3 +36,6 @@ firestore-debug.log
 
 # Session capture dumps (large, not source)
 dsh-session-*.zip
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -133,8 +134,8 @@ fun HomeScreen(
                     isLoading -> LoadingState(modifier = Modifier.padding(top = Spacing.xl))
 
                 !hasCompanion -> EmptyState(
-                    title = "No companion yet",
-                    message = "Your digital companion will appear here once created.",
+                    title = stringResource(R.string.home_empty_no_companion_title),
+                    message = stringResource(R.string.home_empty_no_companion_message),
                     petState = AnimationState.WAVE
                 )
 
@@ -148,10 +149,20 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    // 2. Action Cards: Interact (Chat) + Workspace (Dev Space)
+                    // The core promise is noticing and acting when an agent
+                    // needs you, so place the live agent state immediately
+                    // after the greeting rather than below routine stats.
+                    HomeAgentCard(
+                        viewModel = viewModel,
+                        onOpen = { navController.navigate(Screen.ConnectedAgents.route) }
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.md))
+
+                    // 2. Action Cards: Interact (Chat) + Agent hub
                     HomeActionCardsRow(
                         onInteractClick = { viewModel.interactWithCompanion() },
-                        onWorkspaceClick = { navController.navigate(Screen.CompanionWorkspace.route) }
+                        onWorkspaceClick = { navController.navigate(Screen.ConnectedAgents.route) }
                     )
 
                     Spacer(modifier = Modifier.height(Spacing.md))
@@ -170,14 +181,6 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    // 5. AI Agent Card with Inline Approvals
-                    HomeAgentCard(
-                        viewModel = viewModel,
-                        onOpen = { navController.navigate(Screen.ConnectedAgents.route) }
-                    )
-
-                    Spacer(modifier = Modifier.height(Spacing.md))
-
                     // 6. Today Task Checklist Preview
                     HomeTodayTasksSection(
                         viewModel = viewModel,
@@ -186,8 +189,6 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    // 7. Focus Time Progress Card matching inspiration
-                    HomeFocusTimeCard()
                 }
             }
         }
@@ -219,15 +220,16 @@ private fun HomeHeaderSlot(
     val scaleAnim = remember { Animatable(1f) }
     val rotationAnim = remember { Animatable(0f) }
 
-    val reactionMessages = remember(companion?.name) {
-        listOf(
-            "${companion?.name ?: "Pixel"} is happy!",
-            "Coding mode on!",
-            "Bond strengthened!",
-            "Let's get things done!",
-            "Always here for you!"
-        )
-    }
+    val reactionMessages = listOf(
+        stringResource(
+            R.string.home_reaction_happy,
+            companion?.name ?: stringResource(R.string.home_default_pet_name)
+        ),
+        stringResource(R.string.home_reaction_coding_mode),
+        stringResource(R.string.home_reaction_bond_strengthened),
+        stringResource(R.string.home_reaction_lets_get_things_done),
+        stringResource(R.string.home_reaction_always_here)
+    )
 
     LaunchedEffect(interactionTick) {
         if (interactionTick == 0) return@LaunchedEffect
@@ -271,7 +273,7 @@ private fun HomeHeaderSlot(
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Icon(
                         imageVector = Icons.Default.GridView,
-                        contentDescription = "Customize Companion",
+                        contentDescription = stringResource(R.string.home_cd_customize_companion),
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(20.dp)
                     )
@@ -291,7 +293,7 @@ private fun HomeHeaderSlot(
                     }) {
                         Icon(
                             imageVector = Icons.Outlined.Notifications,
-                            contentDescription = "Activity Center",
+                            contentDescription = stringResource(R.string.home_cd_activity_center),
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(20.dp)
                         )
@@ -309,9 +311,9 @@ private fun HomeHeaderSlot(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                val who = header.userName.ifBlank { "Akram" }
+                val who = header.userName.ifBlank { stringResource(R.string.home_default_user_name) }
                 Text(
-                    text = "Hello, $who 👋",
+                    text = stringResource(R.string.home_greeting_hello, who),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -337,7 +339,7 @@ private fun HomeHeaderSlot(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "Your AI companion for a calmer,\nmore productive day.",
+                    text = stringResource(R.string.home_tagline),
                     style = MaterialTheme.typography.bodySmall.copy(
                         lineHeight = 18.sp
                     ),
@@ -405,7 +407,7 @@ private fun HomeHeaderSlot(
 }
 
 // -------------------------------------------------------------------------
-// 2. ACTION CARDS ROW (Interact & Workspace)
+// 2. ACTION CARDS ROW (Interact & Agent hub)
 // -------------------------------------------------------------------------
 
 @Composable
@@ -469,14 +471,14 @@ private fun HomeActionCardsRow(
 
                 Column {
                     Text(
-                        text = "Interact",
+                        text = stringResource(R.string.home_card_interact_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Chat with PixelPal",
+                        text = stringResource(R.string.home_card_interact_subtitle),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = Color.White.copy(alpha = 0.85f)
                     )
@@ -484,7 +486,7 @@ private fun HomeActionCardsRow(
             }
         }
 
-        // Right: Workspace Card (Frosted Glass Surface)
+        // Right: Agent card
         GlassCard(
             modifier = Modifier
                 .weight(1f)
@@ -534,14 +536,14 @@ private fun HomeActionCardsRow(
 
                 Column {
                     Text(
-                        text = "Workspace",
+                        text = stringResource(R.string.home_card_agent_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Open your dev space",
+                        text = stringResource(R.string.home_card_agent_subtitle),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -582,7 +584,7 @@ private fun HomeStreakCard(viewModel: HomeViewModel) {
                 ) {
                     Icon(
                         imageVector = Icons.Default.Whatshot,
-                        contentDescription = "Streak",
+                        contentDescription = stringResource(R.string.home_cd_streak),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
@@ -592,14 +594,14 @@ private fun HomeStreakCard(viewModel: HomeViewModel) {
 
                 Column {
                     Text(
-                        text = "${streakDays}d streak",
+                        text = stringResource(R.string.home_streak_days, streakDays),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Keep going!",
+                        text = stringResource(R.string.home_streak_keep_going),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -699,7 +701,7 @@ private fun HomeQuickStatsRow(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Tasks left",
+                        text = stringResource(R.string.home_stats_tasks_left),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -736,13 +738,13 @@ private fun HomeQuickStatsRow(
 
                 Column {
                     Text(
-                        text = if (today.hasUpcomingReminder) "1" else "None",
+                        text = if (today.hasUpcomingReminder) "1" else stringResource(R.string.home_stats_none),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Reminders",
+                        text = stringResource(R.string.home_stats_reminders),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -810,7 +812,7 @@ private fun HomeAgentCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.ViewInAr,
-                                contentDescription = "AI Agent",
+                                contentDescription = stringResource(R.string.home_agent_card_label),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -820,12 +822,12 @@ private fun HomeAgentCard(
 
                         Column {
                             Text(
-                                text = "AI Agent",
+                                text = stringResource(R.string.home_agent_card_label),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             val title = if (agent.headline.isBlank() || agent.headline == "No agents connected") {
-                                "No agent connected"
+                                stringResource(R.string.home_agent_card_empty_title)
                             } else {
                                 agent.headline
                             }
@@ -848,7 +850,7 @@ private fun HomeAgentCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
-                                contentDescription = "Add or Pair Agent",
+                                contentDescription = stringResource(R.string.home_cd_add_or_pair_agent),
                                 tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -859,7 +861,7 @@ private fun HomeAgentCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 val subtitle = if (agent.detail.isNullOrBlank()) {
-                    "Pair your terminal and let\nPixelPal work for you."
+                    stringResource(R.string.home_agent_card_pair_subtitle)
                 } else {
                     agent.detail!!
                 }
@@ -897,7 +899,7 @@ private fun HomeAgentCard(
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             shape = RoundedCornerShape(Radius.medium)
                         ) {
-                            Text("Approve", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(stringResource(R.string.home_agent_action_approve), fontWeight = FontWeight.Bold, color = Color.White)
                         }
 
                         androidx.compose.material3.OutlinedButton(
@@ -905,7 +907,7 @@ private fun HomeAgentCard(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(Radius.medium)
                         ) {
-                            Text("Deny", color = MaterialTheme.colorScheme.error)
+                            Text(stringResource(R.string.home_agent_action_deny), color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -932,7 +934,7 @@ private fun HomeTodayTasksSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Today",
+                text = stringResource(R.string.home_today_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -943,7 +945,7 @@ private fun HomeTodayTasksSection(
                 modifier = Modifier.clickable { onViewAllClick() }
             ) {
                 Text(
-                    text = "View all",
+                    text = stringResource(R.string.home_today_view_all),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -984,7 +986,7 @@ private fun HomeTodayTasksSection(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "No tasks for today",
+                                text = stringResource(R.string.home_today_no_tasks),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -999,7 +1001,7 @@ private fun HomeTodayTasksSection(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Add a task to get started",
+                                text = stringResource(R.string.home_today_add_task_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1013,7 +1015,8 @@ private fun HomeTodayTasksSection(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = today.firstTaskTitle ?: "${today.pendingCount} pending tasks",
+                                text = today.firstTaskTitle
+                                    ?: stringResource(R.string.home_today_pending_tasks, today.pendingCount),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1072,7 +1075,7 @@ private fun HomeFocusTimeCard() {
         ) {
             Column {
                 Text(
-                    text = "Focus time",
+                    text = stringResource(R.string.home_focus_time_label),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1087,7 +1090,7 @@ private fun HomeFocusTimeCard() {
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "of 4h goal",
+                    text = stringResource(R.string.home_focus_time_goal),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

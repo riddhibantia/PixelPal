@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="splash_bg">#FF131124</color>
     <color name="pixel_dark_background">#FF0F0F13</color>
     <color name="pixel_dark_surface">#FF17171C</color>
     <color name="pixel_primary">#FF00D4AA</color>

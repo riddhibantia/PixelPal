@@ -1,53 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fully matching pet_cat_idle first frame (200,220).
-     Coordinates computed: launcher = 54 + (lottie-200)*0.2052, size*0.2052
-     inside safeZone 0.76. Matches hero + corner pill pixel-for-pixel. -->
+<!--
+  Adaptive launcher icon foreground: frame 0 of the companion's idle
+  animation (res/raw/pet_cat_idle.json), the same art as the splash icon so
+  the launcher entry and the splash read as one character.
+
+  Canvas: 108dp x 108dp (adaptive icon spec). The pet is 54dp tall and
+  centred, which keeps its half-diagonal (32.9dp) inside the 33dp safe-zone
+  radius, so launchers that mask the icon to a circle only clip background.
+  Regenerate from the Lottie file with the bake script's fit/size/art-height
+  options (canvas 108, art height 54, frame 0).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group
-        android:name="safeZone"
-        android:pivotX="54"
-        android:pivotY="54"
-        android:scaleX="0.76"
-        android:scaleY="0.76">
-        <!-- Pixel Body #DF6C50 184x205 at 200,220 -->
-        <path
-            android:fillColor="#FFDF6C50"
-            android:pathData="M35.12,37.07 L72.88,37.07 L72.88,79.14 L35.12,79.14 Z" />
-        <!-- Ears #D93434 58x72 -->
-        <path
-            android:fillColor="#FFD93434"
-            android:pathData="M35.12,24.66 L47.02,24.66 L47.02,39.43 L35.12,39.43 Z" />
-        <path
-            android:fillColor="#FFD93434"
-            android:pathData="M60.98,24.66 L72.88,24.66 L72.88,39.43 L60.98,39.43 Z" />
-        <!-- Cheeks #EF9A8C 27x13 -->
-        <path
-            android:fillColor="#FFEF9A8C"
-            android:pathData="M36.76,59.95 L42.30,59.95 L42.30,62.62 L36.76,62.62 Z" />
-        <path
-            android:fillColor="#FFEF9A8C"
-            android:pathData="M65.70,59.95 L71.24,59.95 L71.24,62.62 L65.70,62.62 Z" />
-        <!-- Mouth #EF9A8C 12x9 -->
-        <path
-            android:fillColor="#FFEF9A8C"
-            android:pathData="M52.77,60.46 L55.23,60.46 L55.23,62.31 L52.77,62.31 Z" />
-        <!-- Eyes #171A21 38x56 ellipses at 161,196 and 239,196 -->
-        <path
-            android:fillColor="#FF171A21"
-            android:pathData="M42.10,53.18 a3.90,5.75 0 1,0 7.80,0 a3.90,5.75 0 1,0 -7.80,0 Z" />
-        <path
-            android:fillColor="#FF171A21"
-            android:pathData="M58.10,53.18 a3.90,5.75 0 1,0 7.80,0 a3.90,5.75 0 1,0 -7.80,0 Z" />
-        <!-- Highlights white 7.4x10 -->
-        <path
-            android:fillColor="#FFFFFFFF"
-            android:pathData="M46.26,51.33 a0.76,1.03 0 1,0 1.52,0 a0.76,1.03 0 1,0 -1.52,0 Z" />
-        <path
-            android:fillColor="#FFFFFFFF"
-            android:pathData="M62.27,51.33 a0.76,1.03 0 1,0 1.52,0 a0.76,1.03 0 1,0 -1.52,0 Z" />
-    </group>
+    <path
+        android:fillColor="#DF6B50"
+        android:fillAlpha="1.000"
+        android:pathData="M 35.687,39.410 H 72.313 A 0.201,0.201 0 0,1 72.514,39.611 V 80.463 A 0.201,0.201 0 0,1 72.313,80.665 H 35.687 A 0.201,0.201 0 0,1 35.486,80.463 V 39.611 A 0.201,0.201 0 0,1 35.687,39.410 Z" />
+    <path
+        android:fillColor="#D93434"
+        android:fillAlpha="1.000"
+        android:pathData="M 61.043,27.235 H 72.313 A 0.201,0.201 0 0,1 72.514,27.436 V 41.523 A 0.201,0.201 0 0,1 72.313,41.724 H 61.043 A 0.201,0.201 0 0,1 60.842,41.523 V 27.436 A 0.201,0.201 0 0,1 61.043,27.235 Z" />
+    <path
+        android:fillColor="#D93434"
+        android:fillAlpha="1.000"
+        android:pathData="M 35.687,27.235 H 46.957 A 0.201,0.201 0 0,1 47.158,27.436 V 41.523 A 0.201,0.201 0 0,1 46.957,41.724 H 35.687 A 0.201,0.201 0 0,1 35.486,41.523 V 27.436 A 0.201,0.201 0 0,1 35.687,27.235 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 58.025,55.207 a 3.824,5.635 0 1,0 7.647,0 a 3.824,5.635 0 1,0 -7.647,0 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 42.328,55.207 a 3.824,5.635 0 1,0 7.647,0 a 3.824,5.635 0 1,0 -7.647,0 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 60.993,54.201 a 1.459,2.214 0 1,0 2.918,0 a 1.459,2.214 0 1,0 -2.918,0 Z" />
+    <path
+        android:fillColor="#171A21"
+        android:fillAlpha="1.000"
+        android:pathData="M 45.296,54.201 a 1.459,2.214 0 1,0 2.918,0 a 1.459,2.214 0 1,0 -2.918,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="1.000"
+        android:pathData="M 62.110,53.396 a 0.745,1.006 0 1,0 1.489,0 a 0.745,1.006 0 1,0 -1.489,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="1.000"
+        android:pathData="M 46.413,53.396 a 0.745,1.006 0 1,0 1.489,0 a 0.745,1.006 0 1,0 -1.489,0 Z" />
+    <path
+        android:fillColor="#EF9A8C"
+        android:fillAlpha="1.000"
+        android:pathData="M 65.672,61.848 H 70.703 A 0.201,0.201 0 0,1 70.904,62.050 V 64.263 A 0.201,0.201 0 0,1 70.703,64.465 H 65.672 A 0.201,0.201 0 0,1 65.471,64.263 V 62.050 A 0.201,0.201 0 0,1 65.672,61.848 Z" />
+    <path
+        android:fillColor="#EF9A8C"
+        android:fillAlpha="1.000"
+        android:pathData="M 37.297,61.848 H 42.328 A 0.201,0.201 0 0,1 42.529,62.050 V 64.263 A 0.201,0.201 0 0,1 42.328,64.465 H 37.297 A 0.201,0.201 0 0,1 37.096,64.263 V 62.050 A 0.201,0.201 0 0,1 37.297,61.848 Z" />
+    <path
+        android:fillColor="#EF9A8C"
+        android:fillAlpha="1.000"
+        android:pathData="M 52.994,62.352 H 55.006 A 0.201,0.201 0 0,1 55.207,62.553 V 63.961 A 0.201,0.201 0 0,1 55.006,64.163 H 52.994 A 0.201,0.201 0 0,1 52.793,63.961 V 62.553 A 0.201,0.201 0 0,1 52.994,62.352 Z" />
 </vector>

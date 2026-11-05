@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    PixelPal string resources — Home screen, bottom dock, reminder cards and
+    shared dialog copy. Naming follows the convention documented in
+    values/strings.xml: <area>_<feature>_<element>, with these areas:
+      home       HomeScreen (+ its cards)
+      dock       PixelPalBottomBar
+      reminders  ReminderCard
+      common     shared parts (ConfirmationDialog)
+-->
+<resources>
+
+    <!-- ── HomeScreen ───────────────────────────────────────────────────── -->
+
+    <!-- Empty state (shared EmptyState component, Home wording) -->
+    <string name="home_empty_no_companion_title">No companion yet</string>
+    <string name="home_empty_no_companion_message">Your digital companion will appear here once created.</string>
+
+    <!-- Greeting / header -->
+    <string name="home_default_pet_name">Pixel</string>
+    <string name="home_default_user_name">Akram</string>
+    <string name="home_greeting_hello">Hello, %1$s 👋</string>
+    <string name="home_tagline">Your AI companion for a calmer,&#10;more productive day.</string>
+    <string name="home_cd_customize_companion">Customize Companion</string>
+    <string name="home_cd_activity_center">Activity Center</string>
+
+    <!-- Mascot tap reactions -->
+    <string name="home_reaction_happy">%1$s is happy!</string>
+    <string name="home_reaction_coding_mode">Coding mode on!</string>
+    <string name="home_reaction_bond_strengthened">Bond strengthened!</string>
+    <string name="home_reaction_lets_get_things_done">Let\'s get things done!</string>
+    <string name="home_reaction_always_here">Always here for you!</string>
+
+    <!-- Action cards row -->
+    <string name="home_card_interact_title">Interact</string>
+    <string name="home_card_interact_subtitle">Chat with PixelPal</string>
+    <string name="home_card_agent_title">Agent</string>
+    <string name="home_card_agent_subtitle">See connected agents</string>
+
+    <!-- Streak card -->
+    <string name="home_cd_streak">Streak</string>
+    <string name="home_streak_days">%1$dd streak</string>
+    <string name="home_streak_keep_going">Keep going!</string>
+
+    <!-- Quick stats row -->
+    <string name="home_stats_tasks_left">Tasks left</string>
+    <string name="home_stats_reminders">Reminders</string>
+    <string name="home_stats_none">None</string>
+
+    <!-- Agent status card -->
+    <string name="home_agent_card_label">AI Agent</string>
+    <string name="home_agent_card_empty_title">No agent connected</string>
+    <string name="home_agent_card_pair_subtitle">Pair your terminal and let&#10;PixelPal work for you.</string>
+    <string name="home_cd_add_or_pair_agent">Add or Pair Agent</string>
+    <string name="home_agent_action_approve">Approve</string>
+    <string name="home_agent_action_deny">Deny</string>
+
+    <!-- Today tasks section -->
+    <string name="home_today_title">Today</string>
+    <string name="home_today_view_all">View all</string>
+    <string name="home_today_no_tasks">No tasks for today</string>
+    <string name="home_today_add_task_hint">Add a task to get started</string>
+    <string name="home_today_pending_tasks">%1$d pending tasks</string>
+
+    <!-- Focus time card (currently unused) -->
+    <string name="home_focus_time_label">Focus time</string>
+    <string name="home_focus_time_goal">of 4h goal</string>
+
+    <!-- ── PixelPalBottomBar ─────────────────────────────────────────────── -->
+    <string name="dock_tab_home">Home</string>
+    <string name="dock_tab_tasks">Tasks</string>
+    <string name="dock_tab_agent">Agent</string>
+    <string name="dock_tab_reminders">Reminders</string>
+    <string name="dock_tab_settings">Settings</string>
+
+    <!-- ── ReminderCard ──────────────────────────────────────────────────── -->
+    <string name="reminders_card_dot_prefix">· %1$s</string>
+    <string name="reminders_card_cd_complete">Complete</string>
+    <string name="reminders_card_cd_delete">Delete</string>
+
+    <!-- ── ConfirmationDialog ────────────────────────────────────────────── -->
+    <string name="common_dialog_cancel">Cancel</string>
+
+</resources>

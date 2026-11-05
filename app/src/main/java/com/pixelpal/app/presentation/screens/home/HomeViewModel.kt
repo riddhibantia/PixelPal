@@ -37,7 +37,7 @@ class HomeViewModel @Inject constructor(
     private val preferencesManager: PreferencesManager,
     getActiveCompanionUseCase: GetActiveCompanionUseCase,
     private val agentSessionRepository: com.pixelpal.app.data.repository.AgentSessionRepository,
-    activityEventRepository: ActivityEventRepository,
+    private val activityEventRepository: ActivityEventRepository,
     private val taskRepository: TaskRepository,
     private val reminderRepository: ReminderRepository,
     bondRepository: BondRepository,
@@ -251,20 +251,32 @@ class HomeViewModel @Inject constructor(
 
     fun approveAgentApproval(approvalId: String) {
         viewModelScope.launch {
-            agentBridgeTransport.respondToApproval(
+            val delivered = agentBridgeTransport.respondToApproval(
                 preferencesManager.getAgentBridgeUrl(),
-approvalId,
+                approvalId,
                 approved = true
+            )
+            if (delivered) activityEventRepository.record(
+                companion.value?.id ?: return@launch,
+                com.pixelpal.app.domain.model.ActivityType.AGENT_APPROVAL_DECIDED,
+                "Approved agent request",
+                approvalId.take(80)
             )
         }
     }
 
     fun denyAgentApproval(approvalId: String) {
         viewModelScope.launch {
-            agentBridgeTransport.respondToApproval(
+            val delivered = agentBridgeTransport.respondToApproval(
                 preferencesManager.getAgentBridgeUrl(),
-approvalId,
+                approvalId,
                 approved = false
+            )
+            if (delivered) activityEventRepository.record(
+                companion.value?.id ?: return@launch,
+                com.pixelpal.app.domain.model.ActivityType.AGENT_APPROVAL_DECIDED,
+                "Denied agent request",
+                approvalId.take(80)
             )
         }
     }

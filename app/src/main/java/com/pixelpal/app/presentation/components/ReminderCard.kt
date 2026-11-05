@@ -25,8 +25,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pixelpal.app.R
 import com.pixelpal.app.domain.model.Reminder
 import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.presentation.theme.Radius
@@ -130,13 +132,13 @@ fun ReminderCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "· ${category.displayName}",
+                        text = stringResource(R.string.reminders_card_dot_prefix, category.displayName),
                         style = MaterialTheme.typography.labelSmall,
                         color = categoryTint
                     )
                     recurrenceLabel(reminder)?.let { label ->
                         Text(
-                            text = "· $label",
+                            text = stringResource(R.string.reminders_card_dot_prefix, label),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -154,7 +156,7 @@ fun ReminderCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Complete",
+                            contentDescription = stringResource(R.string.reminders_card_cd_complete),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -168,7 +170,7 @@ fun ReminderCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
+                        contentDescription = stringResource(R.string.reminders_card_cd_delete),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(Sizing.icon)
                     )

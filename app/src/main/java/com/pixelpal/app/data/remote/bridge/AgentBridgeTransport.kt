@@ -48,6 +48,10 @@ class AgentBridgeTransport @Inject constructor(
         return Snapshot(agents)
     }
 
+    /** Validate a scanned pairing before the app stores its address and key. */
+    suspend fun verifyPairing(bridgeUrl: String, pairingKey: String): Boolean =
+        repository.fetchAgents(bridgeUrl, pairingKey) != null
+
     /** Send an approve/deny decision back to the bridge. */
     suspend fun respondToApproval(
         bridgeUrl: String,

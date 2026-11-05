@@ -17,12 +17,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -31,8 +33,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import androidx.core.content.ContextCompat
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GroupDivider
 import com.pixelpal.app.presentation.components.PixelPalAtmosphere
@@ -67,6 +71,9 @@ fun PermissionsScreen(
     var overlayGranted by remember { mutableStateOf(PermissionHelper.canDrawOverlays(context)) }
     var notificationGrantedState by remember { mutableStateOf(notificationGranted(context)) }
     var alarmGranted by remember { mutableStateOf(PermissionHelper.canScheduleExactAlarms(context)) }
+    var cameraGranted by remember { mutableStateOf(
+        ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+    ) }
 
     // Re-check statuses whenever the screen resumes to the foreground.
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -76,6 +83,8 @@ fun PermissionsScreen(
                 overlayGranted = PermissionHelper.canDrawOverlays(context)
                 notificationGrantedState = notificationGranted(context)
                 alarmGranted = PermissionHelper.canScheduleExactAlarms(context)
+                cameraGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -87,6 +96,9 @@ fun PermissionsScreen(
     ) { granted ->
         notificationGrantedState = granted
     }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> cameraGranted = granted }
 
     PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -95,16 +107,22 @@ fun PermissionsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(bottom = Spacing.lg)
         ) {
-            AppTopBar(title = "Permissions", onBack = { navController.popBackStack() })
+            AppTopBar(title = stringResource(R.string.settings_permissions_title), onBack = { navController.popBackStack() })
 
             Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
-                SectionHeader(title = "Current Status")
+                SectionHeader(title = stringResource(R.string.settings_permissions_section_status))
+                Text(
+                    text = stringResource(R.string.settings_permissions_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = Spacing.sm)
+                )
                 SettingsGroup {
                     PermissionStatusRow(
-                        title = "Screen Overlay",
-                        description = "Needed for Pixel to appear over other apps",
-                        icon = Icons.Default.Pets,
+                        title = stringResource(R.string.settings_permissions_overlay_title),
+                        description = stringResource(R.string.settings_permissions_overlay_description),
+                        icon = Icons.Default.CameraAlt,
                         granted = overlayGranted,
                         onRequest = {
                             (context as? Activity)?.let { PermissionHelper.requestOverlayPermission(it) }
@@ -112,8 +130,16 @@ fun PermissionsScreen(
                     )
                     GroupDivider()
                     PermissionStatusRow(
-                        title = "Notifications",
-                        description = "Needed for reminders to alert you",
+                        title = stringResource(R.string.settings_permissions_camera_title),
+                        description = stringResource(R.string.settings_permissions_camera_description),
+                        icon = Icons.Default.Pets,
+                        granted = cameraGranted,
+                        onRequest = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }
+                    )
+                    GroupDivider()
+                    PermissionStatusRow(
+                        title = stringResource(R.string.settings_permissions_notifications_title),
+                        description = stringResource(R.string.settings_permissions_notifications_description),
                         icon = Icons.Default.Notifications,
                         granted = notificationGrantedState,
                         onRequest = {
@@ -125,8 +151,8 @@ fun PermissionsScreen(
                     )
                     GroupDivider()
                     PermissionStatusRow(
-                        title = "Exact Alarms",
-                        description = "Needed for reminders to fire at the exact time",
+                        title = stringResource(R.string.settings_permissions_alarms_title),
+                        description = stringResource(R.string.settings_permissions_alarms_description),
                         icon = Icons.Default.Alarm,
                         granted = alarmGranted,
                         onRequest = {
@@ -159,7 +185,7 @@ private fun PermissionStatusRow(
             trailing = {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Allowed",
+                    contentDescription = stringResource(R.string.settings_permissions_status_allowed_content_description),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(Sizing.icon)
                 )
@@ -170,13 +196,14 @@ private fun PermissionStatusRow(
             title = title,
             description = description,
             icon = icon,
-            value = if (showAction) "Not allowed" else "Managed by system",
+            value = if (showAction) stringResource(R.string.settings_permissions_status_denied)
+            else stringResource(R.string.settings_permissions_status_managed),
             onClick = if (showAction) onRequest else null,
             trailing = if (!showAction) {
                 {
                     Icon(
                         imageVector = Icons.Default.ErrorOutline,
-                        contentDescription = "Managed by system",
+                        contentDescription = stringResource(R.string.settings_permissions_status_managed),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(Sizing.icon)
                     )

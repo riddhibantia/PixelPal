@@ -90,7 +90,7 @@ class CompanionReactionProvider @Inject constructor(
             AgentState.CONNECTING -> listOf("Connecting to your agent…", "Reaching out to your coding agent.")
             AgentState.ONLINE -> listOf("Your agent is online.", "Connected to your coding agent.")
             AgentState.IDLE -> listOf("Your agent is idle and standing by.", "All quiet on the agent front.")
-            AgentState.DISCONNECTED -> listOf("No agent connected yet. Set one up in the workspace!")
+            AgentState.DISCONNECTED -> listOf("No agent connected yet. Set one up in the Agent tab!")
         }
         return fill(lines, vars) ?: "${companion.name}: ${state.displayName}"
     }

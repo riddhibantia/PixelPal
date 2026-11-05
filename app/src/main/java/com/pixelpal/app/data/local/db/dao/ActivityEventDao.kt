@@ -44,6 +44,18 @@ interface ActivityEventDao {
     @Query("SELECT COUNT(*) FROM activity_events WHERE companionId = :companionId")
     suspend fun countForCompanion(companionId: Long): Int
 
+    /**
+     * Everything a companion did since [since] (epoch millis), oldest first.
+     * PersonalityWorker derives its daily interaction stats from this instead of
+     * inventing them: reminder outcomes and activity hours are real rows.
+     */
+    @Query(
+        "SELECT * FROM activity_events " +
+            "WHERE companionId = :companionId AND createdAt >= :since " +
+            "ORDER BY createdAt ASC, id ASC"
+    )
+    suspend fun getSince(companionId: Long, since: Long): List<ActivityEventEntity>
+
     @Insert
     suspend fun insert(event: ActivityEventEntity)
 }

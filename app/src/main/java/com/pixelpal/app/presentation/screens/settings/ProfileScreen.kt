@@ -29,12 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.ConfirmationDialog
@@ -100,7 +102,7 @@ fun ProfileScreen(
 
     PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            AppTopBar(title = "Profile", onBack = { attemptBack() })
+            AppTopBar(title = stringResource(R.string.settings_profile_title), onBack = { attemptBack() })
 
             Column(
                 modifier = Modifier
@@ -114,13 +116,13 @@ fun ProfileScreen(
                 PixelAvatar(seed = currentSeed, size = 96.dp)
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 Text(
-                    text = currentName.ifBlank { "Your name" },
+                    text = currentName.ifBlank { stringResource(R.string.settings_profile_name_placeholder) },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "This is your personal space in PixelPal",
+                    text = stringResource(R.string.settings_profile_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -130,12 +132,12 @@ fun ProfileScreen(
                 }) {
                     Icon(
                         imageVector = Icons.Default.Refresh,
-                        contentDescription = "Change avatar style",
+                        contentDescription = stringResource(R.string.settings_profile_avatar_content_description),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                SectionHeader(title = "Personal Information")
+                SectionHeader(title = stringResource(R.string.settings_profile_section_personal))
 
                 GlassCard(
                     shape = RoundedCornerShape(Radius.large),
@@ -150,20 +152,20 @@ fun ProfileScreen(
                         AppTextField(
                             value = currentName,
                             onValueChange = { name = it },
-                            label = "Name",
-                            placeholder = "Your name",
+                            label = stringResource(R.string.settings_profile_name_label),
+                            placeholder = stringResource(R.string.settings_profile_name_placeholder),
                             isError = nameError,
-                            supportingText = if (nameError) "Name is required" else null
+                            supportingText = if (nameError) stringResource(R.string.settings_profile_name_error) else null
                         )
                         AppTextField(
                             value = currentEmail,
                             onValueChange = { email = it },
-                            label = "Email (optional)",
-                            placeholder = "you@example.com",
+                            label = stringResource(R.string.settings_profile_email_label),
+                            placeholder = stringResource(R.string.settings_profile_email_placeholder),
                             keyboardType = KeyboardType.Email,
                             isError = emailError,
                             supportingText = when {
-                                emailError -> "That email doesn't look right"
+                                emailError -> stringResource(R.string.settings_profile_email_error)
                                 else -> null
                             }
                         )
@@ -172,7 +174,7 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.lg))
 
-                SectionHeader(title = "Cloud Sync & Firestore")
+                SectionHeader(title = stringResource(R.string.settings_profile_section_sync))
 
                 GlassCard(
                     shape = RoundedCornerShape(Radius.large),
@@ -187,9 +189,13 @@ fun ProfileScreen(
                     val isSyncing by viewModel.isSyncing.collectAsState()
                     val syncError by viewModel.lastSyncError.collectAsState()
                     val accountText = when {
-                        !viewModel.isUserLoggedIn -> "Not Connected to Cloud"
-                        viewModel.isAnonymousUser -> "Guest Mode (Local & Cloud Sync Active)"
-                        else -> "Connected: ${viewModel.currentUserEmail ?: "Authenticated"}"
+                        !viewModel.isUserLoggedIn -> stringResource(R.string.settings_profile_sync_not_connected)
+                        viewModel.isAnonymousUser -> stringResource(R.string.settings_profile_sync_guest)
+                        else -> stringResource(
+                            R.string.settings_profile_sync_connected,
+                            viewModel.currentUserEmail
+                                ?: stringResource(R.string.settings_profile_sync_authenticated)
+                        )
                     }
 
                     Text(
@@ -200,7 +206,7 @@ fun ProfileScreen(
                     )
 
                     Text(
-                        text = "Firestore automatically backs up your pet, tasks, reminders, and streaks in real-time.",
+                        text = stringResource(R.string.settings_profile_sync_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -220,14 +226,17 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
                         com.pixelpal.app.presentation.components.SecondaryButton(
-                            text = if (isSyncing) "Syncing..." else "Sync Now",
+                            text = if (isSyncing) stringResource(R.string.settings_profile_action_syncing)
+                            else stringResource(R.string.settings_profile_action_sync_now),
                             enabled = !isSyncing && viewModel.isUserLoggedIn,
                             modifier = Modifier.weight(1f),
                             onClick = { viewModel.triggerCloudSync() }
                         )
 
                         com.pixelpal.app.presentation.components.SecondaryButton(
-                            text = if (viewModel.isUserLoggedIn && !viewModel.isAnonymousUser) "Account" else "Log In",
+                            text = if (viewModel.isUserLoggedIn && !viewModel.isAnonymousUser)
+                                stringResource(R.string.settings_profile_action_account)
+                            else stringResource(R.string.settings_profile_action_log_in),
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 navController.navigate(com.pixelpal.app.presentation.navigation.Screen.Auth.route)
@@ -238,7 +247,7 @@ fun ProfileScreen(
                     if (viewModel.isUserLoggedIn) {
                         Spacer(modifier = Modifier.height(Spacing.xs))
                         com.pixelpal.app.presentation.components.DestructiveButton(
-                            text = "Sign Out",
+                            text = stringResource(R.string.settings_profile_action_sign_out),
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
                                 viewModel.signOut()
@@ -254,7 +263,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(Spacing.lg))
 
             PrimaryButton(
-                text = "Save Changes",
+                text = stringResource(R.string.settings_profile_action_save),
                 enabled = !nameError && !emailError,
                 onClick = {
                     attemptedSave = true
@@ -273,9 +282,9 @@ fun ProfileScreen(
 
     if (showDiscardDialog) {
         ConfirmationDialog(
-            title = "Discard changes?",
-            message = "You have unsaved changes to your profile.",
-            confirmLabel = "Discard",
+            title = stringResource(R.string.settings_profile_discard_title),
+            message = stringResource(R.string.settings_profile_discard_message),
+            confirmLabel = stringResource(R.string.settings_profile_discard_confirm),
             destructive = true,
             onConfirm = {
                 showDiscardDialog = false
@@ -298,11 +307,14 @@ private fun SyncStatusRow(
     syncError: String?
 ) {
     val (text, color) = when {
-        !loggedIn -> "Sync is off — sign in to back up to the cloud." to
+        !loggedIn -> stringResource(R.string.settings_sync_status_off) to
             MaterialTheme.colorScheme.onSurfaceVariant
-        isSyncing -> "Syncing…" to MaterialTheme.colorScheme.onSurfaceVariant
-        syncError != null -> "Last sync failed: $syncError" to MaterialTheme.colorScheme.error
-        else -> "Up to date with the cloud." to MaterialTheme.colorScheme.onSurfaceVariant
+        isSyncing -> stringResource(R.string.settings_sync_status_syncing) to
+            MaterialTheme.colorScheme.onSurfaceVariant
+        syncError != null -> stringResource(R.string.settings_sync_status_failed, syncError) to
+            MaterialTheme.colorScheme.error
+        else -> stringResource(R.string.settings_sync_status_ok) to
+            MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Row(

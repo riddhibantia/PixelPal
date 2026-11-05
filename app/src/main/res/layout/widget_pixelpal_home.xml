@@ -12,7 +12,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Pixel"
-        android:textColor="#1A1A2E"
+        android:textColor="#342653"
         android:textSize="16sp"
         android:textStyle="bold" />
 
@@ -21,8 +21,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:text="Happy - Bond Lv 3"
-        android:textColor="#00D4AA"
+        android:text="A little companion for your day"
+        android:textColor="#7653C8"
         android:textSize="11sp" />
 
     <ImageView
@@ -30,14 +30,14 @@
         android:layout_height="2dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
-        android:background="#4D00D4AA" />
+        android:background="#337653C8" />
 
     <TextView
         android:id="@+id/widget_home_tasks"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="3 tasks remaining"
-        android:textColor="#1A1A2E"
+        android:textColor="#342653"
         android:textSize="12sp" />
 
     <TextView
@@ -46,7 +46,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Meeting at 6:00 PM"
-        android:textColor="#B31A1A2E"
+        android:textColor="#806B5B87"
         android:textSize="11sp"
         android:visibility="gone" />
 
@@ -56,7 +56,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:text="Connected"
-        android:textColor="#00D4AA"
+        android:textColor="#7653C8"
         android:textSize="11sp"
         android:visibility="gone" />
 
@@ -65,10 +65,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:background="#00D4AA"
+        android:background="@drawable/widget_action_background"
         android:padding="8dp"
         android:gravity="center"
-        android:text="Open PixelPal"
+        android:text="Open PixelPal  →"
         android:textColor="#FFFFFF"
         android:textSize="12sp"
         android:textStyle="bold" />

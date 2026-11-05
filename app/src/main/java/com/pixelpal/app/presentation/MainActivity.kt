@@ -2,10 +2,8 @@ package com.pixelpal.app.presentation
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -16,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.pixelpal.app.data.local.datastore.PreferencesManager
@@ -37,6 +36,14 @@ class MainActivity : ComponentActivity() {
     lateinit var authManager: FirebaseAuthManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Install splash screen BEFORE super.onCreate so the system uses
+        // our SplashScreen theme (values-v31/themes.xml). keepOnScreenCondition
+        // holds the splash until `start` is resolved and navigation is ready,
+        // which eliminates the black flash on cold start.
+        var startRoute: String? = null
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { startRoute == null }
+
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
@@ -67,27 +74,21 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    // Android 13+ runtime notification permission — without it
-                    // reminder alarms play sound but show no notification.
-                    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-                        ActivityResultContracts.RequestPermission()
-                    ) { }
-                    LaunchedEffect(Unit) {
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                    }
-
                     // Auth gate: onboarding on first launch, then every user
                     // must sign in (own profile) before reaching the app.
                     var start by remember { mutableStateOf<String?>(null) }
                     LaunchedEffect(Unit) {
                         val isFirstLaunch = preferencesManager.isFirstLaunch.first()
-                        start = when {
+                        val destination = when {
                             isFirstLaunch -> Screen.Onboarding.route
                             authManager.currentUser == null -> Screen.Auth.route
                             else -> Screen.Home.route
                         }
+                        // Release the SplashScreen keepOnScreenCondition now that
+                        // the destination is known. The splash exits with its built-in
+                        // scale+fade exit animation, then the NavHost enters.
+                        startRoute = destination
+                        start = destination
                         // Heal the overlay after process death / reinstall /
                         // battery-manager kills: enabled means running, and a
                         // foreground-activity start is always allowed. Without
@@ -102,12 +103,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    val startRoute = start
-                    if (startRoute != null) {
+                    val navStart = start
+                    if (navStart != null) {
                         val navController = rememberNavController()
                         PixelPalNavGraph(
                             navController = navController,
-                            startDestination = startRoute
+                            startDestination = navStart
                         )
                         // Reactive auth gate: a sign-out from ANY screen
                         // (Profile, settings, session expiry) returns to Auth

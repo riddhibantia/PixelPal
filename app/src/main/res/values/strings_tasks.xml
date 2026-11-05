@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tasks + Reminders string resources (<area>_<feature>_<element> per strings.xml).
+-->
+<resources>
+    <!-- ── TasksScreen ───────────────────────────────────────────────────── -->
+    <string name="tasks_title">Tasks</string>
+    <string name="tasks_subtitle_caught_up">All caught up! Great job 🎉</string>
+    <string name="tasks_subtitle_counts">%1$d pending · %2$d completed</string>
+    <string name="tasks_empty_title">No tasks yet</string>
+    <string name="tasks_empty_message">Pixel is napping until your first task.</string>
+    <string name="tasks_action_undo">Undo</string>
+    <string name="tasks_fab_content_description">New Task</string>
+    <string name="tasks_widget_title">Home Screen Widget</string>
+    <string name="tasks_widget_enabled_description">Enabled — add it from your launcher\'s widget picker</string>
+    <string name="tasks_widget_disabled_description">Show your tasks on your home screen</string>
+    <string name="tasks_row_completed_content_description">Completed</string>
+    <string name="tasks_row_delete_content_description">Delete task</string>
+    <string name="tasks_row_open_content_description">Open task</string>
+    <string name="tasks_subtask_count">%1$d/%2$d subtasks</string>
+
+    <!-- ── NewTaskScreen (shared field labels) ───────────────────────────── -->
+    <string name="tasks_new_task_title">New Task</string>
+    <string name="tasks_field_task_title">Task title</string>
+    <string name="tasks_field_task_title_placeholder">Enter task title…</string>
+    <string name="tasks_field_description">Description (optional)</string>
+    <string name="tasks_field_description_placeholder">Add a description…</string>
+    <string name="tasks_due_date_title">Due date</string>
+    <string name="tasks_subtasks_title">Subtasks</string>
+    <string name="tasks_new_subtasks_hint">Optional — break the task into smaller tickable points.</string>
+    <string name="tasks_subtask_number_label">Subtask %1$d</string>
+    <string name="tasks_subtask_content_description_remove">Remove subtask</string>
+    <string name="tasks_action_add_subtask">Add subtask</string>
+    <string name="tasks_action_create">Create Task</string>
+
+    <!-- ── TaskDueDateSection ────────────────────────────────────────────── -->
+    <string name="tasks_due_date_none">No due date</string>
+    <string name="tasks_due_date_none_hint">Tap to add one — you\'ll get a reminder when it\'s due.</string>
+    <string name="tasks_due_date_clear_content_description">Clear due date</string>
+    <string name="tasks_action_ok">OK</string>
+    <string name="tasks_action_cancel">Cancel</string>
+    <string name="tasks_due_time_title">Due time</string>
+    <string name="tasks_due_date_action_pick">Pick date</string>
+    <string name="tasks_due_time_action_set">Set</string>
+    <string name="tasks_due_time_action_done">Done</string>
+
+    <!-- ── TaskDetailScreen ──────────────────────────────────────────────── -->
+    <string name="tasks_detail_title">Task</string>
+    <string name="tasks_content_description_done">Done</string>
+    <string name="tasks_action_completed">Completed</string>
+    <string name="tasks_action_mark_complete">Mark task complete</string>
+    <string name="tasks_detail_subtasks_empty">No subtasks yet — add the smaller steps below.</string>
+    <string name="tasks_subtask_content_description_add">Add subtask</string>
+    <string name="tasks_subtask_add_placeholder">Add a subtask…</string>
+    <string name="tasks_subtask_content_description_delete">Delete subtask</string>
+    <string name="tasks_action_save">Save Changes</string>
+    <string name="tasks_action_delete">Delete Task</string>
+    <string name="tasks_dialog_delete_title">Delete task?</string>
+    <string name="tasks_dialog_delete_message">\"%1$s\" and its subtasks will be removed from this device and the cloud.</string>
+    <string name="tasks_dialog_delete_confirm">Delete</string>
+    <string name="tasks_dialog_cancel">Cancel</string>
+    <string name="tasks_photo_title">Photo proof</string>
+    <string name="tasks_photo_content_description">Task photo proof</string>
+    <string name="tasks_photo_description">Attach a photo as proof you did it — visible in the detail screen and local-first (Coil).</string>
+    <string name="tasks_photo_action_attach">Attach photo</string>
+    <string name="tasks_photo_action_change">Change photo</string>
+    <string name="tasks_photo_action_remove">Remove</string>
+
+    <!-- ── ReminderListScreen ────────────────────────────────────────────── -->
+    <string name="reminders_title">Reminders</string>
+    <string name="reminders_subtitle_caught_up">All caught up</string>
+    <string name="reminders_subtitle_counts">%1$d scheduled · %2$d completed</string>
+    <string name="reminders_filter_upcoming">Upcoming (%1$d)</string>
+    <string name="reminders_filter_completed">Completed (%1$d)</string>
+    <string name="reminders_filter_all">All</string>
+    <string name="reminders_empty_title">Nothing planned yet</string>
+    <string name="reminders_empty_message">Create a reminder and Pixel will keep you on schedule.</string>
+    <string name="reminders_empty_completed_title">No completed reminders</string>
+    <string name="reminders_empty_completed_message">Reminders you complete will show up here.</string>
+    <string name="reminders_action_undo">Undo</string>
+    <string name="reminders_action_create">Create Reminder</string>
+    <string name="reminders_add_content_description">Add Reminder</string>
+
+    <!-- ── CreateReminderScreen ──────────────────────────────────────────── -->
+    <string name="reminders_create_title">New Reminder</string>
+    <string name="reminders_create_section_what">What</string>
+    <string name="reminders_create_field_title">Reminder</string>
+    <string name="reminders_create_field_title_hint">What do you want to be reminded of?</string>
+    <string name="reminders_create_field_details">Details (optional)</string>
+    <string name="reminders_create_field_details_hint">Extra context Pixel can show when it fires</string>
+    <string name="reminders_create_field_details_counter">%1$d/%2$d</string>
+    <string name="reminders_create_section_category">Category</string>
+    <string name="reminders_create_sound_hint">Sound: %1$s by default. %2$s</string>
+    <string name="reminders_create_section_when">When</string>
+    <string name="reminders_create_mode_quick">Quick</string>
+    <string name="reminders_create_mode_clock">Clock</string>
+    <string name="reminders_create_mode_date_time">Date &amp; Time</string>
+    <string name="reminders_create_quick_prompt">Remind me in:</string>
+    <string name="reminders_create_quick_15_min">15 min</string>
+    <string name="reminders_create_quick_30_min">30 min</string>
+    <string name="reminders_create_quick_1_hour">1 hour</string>
+    <string name="reminders_create_quick_3_hours">3 hours</string>
+    <string name="reminders_create_quick_6_hours">6 hours</string>
+    <string name="reminders_create_quick_12_hours">12 hours</string>
+    <string name="reminders_create_quick_1_day">1 day</string>
+    <string name="reminders_create_clock_content_description">Analog clock</string>
+    <string name="reminders_create_digital_content_description">Digital input</string>
+    <string name="reminders_create_date_placeholder">Select date</string>
+    <string name="reminders_action_ok">OK</string>
+    <string name="reminders_action_cancel">Cancel</string>
+    <string name="reminders_create_section_repeat">Repeat</string>
+    <string name="reminders_create_repeat_daily">Fires every day at this time.</string>
+    <string name="reminders_create_repeat_weekly">Fires every week on this weekday.</string>
+    <string name="reminders_create_repeat_monthly">Fires every month on this day. Short months use their last day.</string>
+    <string name="reminders_create_section_notification">Notification</string>
+    <string name="reminders_create_sound_title">Notification Sound</string>
+    <string name="reminders_create_sound_description">The sound Pixel plays when the reminder fires</string>
+    <string name="reminders_sound_silent">Silent</string>
+    <string name="reminders_create_sound_custom">Custom sound</string>
+    <string name="reminders_create_sound_default">%1$s default (%2$s)</string>
+    <string name="reminders_create_silent_chip">Silent — no sound at all</string>
+    <string name="reminders_create_exact_alarm_error">Exact alarms aren\'t allowed yet, so this reminder was NOT saved. Allow PixelPal to schedule exact alarms (Settings → Alarms &amp; reminders) and press Save again.</string>
+    <string name="reminders_create_action_save">Save Reminder</string>
+</resources>

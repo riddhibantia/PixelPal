@@ -95,7 +95,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 if (cursor.moveToFirst()) nextTask = cursor.getString(0)
                 cursor.close()
             }
-            views.setTextViewText(R.id.widget_home_tasks, if (pendingCount == 0) "All caught up!" else "☐ $pendingCount tasks remaining")
+            views.setTextViewText(R.id.widget_home_tasks, if (pendingCount == 0) "All caught up for today" else "$pendingCount little wins left")
 
             // Reminder
             var reminderText: String? = null
@@ -110,7 +110,7 @@ class HomeWidgetProvider : AppWidgetProvider() {
             }
             if (reminderText != null) {
                 views.setViewVisibility(R.id.widget_home_reminder, android.view.View.VISIBLE)
-                views.setTextViewText(R.id.widget_home_reminder, "🔔 $reminderText")
+                views.setTextViewText(R.id.widget_home_reminder, "Next reminder · $reminderText")
             } else {
                 views.setViewVisibility(R.id.widget_home_reminder, android.view.View.GONE)
             }

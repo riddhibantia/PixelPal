@@ -6,7 +6,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.DialogProperties
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.theme.Radius
 
 /**
@@ -20,7 +22,7 @@ fun ConfirmationDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    dismissLabel: String = "Cancel",
+    dismissLabel: String = stringResource(R.string.common_dialog_cancel),
     destructive: Boolean = false
 ) {
     AlertDialog(

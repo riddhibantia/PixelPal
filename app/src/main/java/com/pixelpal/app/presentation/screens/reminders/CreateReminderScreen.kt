@@ -59,9 +59,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.domain.model.ReminderSound
 import com.pixelpal.app.presentation.components.AppTextField
@@ -132,9 +134,13 @@ fun CreateReminderScreen(
     var explicitSound by rememberSaveable { mutableStateOf<ReminderSound?>(null) }
 
     val soundSummary = when {
-        explicitSound == ReminderSound.NONE -> "Silent"
-        pickedSoundUri != null -> pickedSoundName ?: "Custom sound"
-        else -> "${category.displayName} default (${category.soundHint.displayName})"
+        explicitSound == ReminderSound.NONE -> stringResource(R.string.reminders_sound_silent)
+        pickedSoundUri != null -> pickedSoundName ?: stringResource(R.string.reminders_create_sound_custom)
+        else -> stringResource(
+            R.string.reminders_create_sound_default,
+            category.displayName,
+            category.soundHint.displayName
+        )
     }
 
     val dateFormatter = remember { SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault()) }
@@ -274,7 +280,10 @@ fun CreateReminderScreen(
                 .fillMaxSize()
                 .imePadding()
         ) {
-            AppTopBar(title = "New Reminder", onBack = { navController.popBackStack() })
+            AppTopBar(
+                title = stringResource(R.string.reminders_create_title),
+                onBack = { navController.popBackStack() }
+            )
 
             Column(
                 modifier = Modifier
@@ -285,29 +294,29 @@ fun CreateReminderScreen(
                     .navigationBarsPadding()
             ) {
             // ── WHAT ──
-            SectionHeader(title = "What")
+            SectionHeader(title = stringResource(R.string.reminders_create_section_what))
             AppTextField(
                 value = title,
                 onValueChange = {
                     title = it
                     if (it.isNotBlank()) saveBlocked = false
                 },
-                label = "Reminder",
-                placeholder = "What do you want to be reminded of?"
+                label = stringResource(R.string.reminders_create_field_title),
+                placeholder = stringResource(R.string.reminders_create_field_title_hint)
             )
 
             Spacer(modifier = Modifier.height(Spacing.md))
             AppTextField(
                 value = message,
                 onValueChange = { message = it.take(MAX_MESSAGE_LENGTH) },
-                label = "Details (optional)",
-                placeholder = "Extra context Pixel can show when it fires",
+                label = stringResource(R.string.reminders_create_field_details),
+                placeholder = stringResource(R.string.reminders_create_field_details_hint),
                 singleLine = false,
-                supportingText = "${message.length}/$MAX_MESSAGE_LENGTH"
+                supportingText = stringResource(R.string.reminders_create_field_details_counter, message.length, MAX_MESSAGE_LENGTH)
             )
 
             // ── CATEGORY ──
-            SectionHeader(title = "Category")
+            SectionHeader(title = stringResource(R.string.reminders_create_section_category))
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -324,15 +333,19 @@ fun CreateReminderScreen(
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Sound: ${category.soundHint.displayName} by default. $CATEGORY_HINT",
+                text = stringResource(R.string.reminders_create_sound_hint, category.soundHint.displayName, CATEGORY_HINT),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // ── WHEN ──
-            SectionHeader(title = "When")
+            SectionHeader(title = stringResource(R.string.reminders_create_section_when))
             GlassSegmentedRow(
-                options = listOf("Quick", "Clock", "Date & Time"),
+                options = listOf(
+                    stringResource(R.string.reminders_create_mode_quick),
+                    stringResource(R.string.reminders_create_mode_clock),
+                    stringResource(R.string.reminders_create_mode_date_time)
+                ),
                 selectedIndex = when (selectedMode) {
                     TimeMode.QUICK -> 0
                     TimeMode.CLOCK -> 1
@@ -353,19 +366,19 @@ fun CreateReminderScreen(
             when (selectedMode) {
                 TimeMode.QUICK -> {
                     Text(
-                        text = "Remind me in:",
+                        text = stringResource(R.string.reminders_create_quick_prompt),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(Spacing.sm))
                     val quickOptions = listOf(
-                        15L to "15 min",
-                        30L to "30 min",
-                        60L to "1 hour",
-                        180L to "3 hours",
-                        360L to "6 hours",
-                        720L to "12 hours",
-                        1440L to "1 day"
+                        15L to stringResource(R.string.reminders_create_quick_15_min),
+                        30L to stringResource(R.string.reminders_create_quick_30_min),
+                        60L to stringResource(R.string.reminders_create_quick_1_hour),
+                        180L to stringResource(R.string.reminders_create_quick_3_hours),
+                        360L to stringResource(R.string.reminders_create_quick_6_hours),
+                        720L to stringResource(R.string.reminders_create_quick_12_hours),
+                        1440L to stringResource(R.string.reminders_create_quick_1_day)
                     )
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -388,7 +401,7 @@ fun CreateReminderScreen(
                         IconButton(onClick = { useClockPicker = true }) {
                             Icon(
                                 imageVector = Icons.Default.Schedule,
-                                contentDescription = "Analog clock",
+                                contentDescription = stringResource(R.string.reminders_create_clock_content_description),
                                 tint = if (useClockPicker) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -396,7 +409,7 @@ fun CreateReminderScreen(
                         IconButton(onClick = { useClockPicker = false }) {
                             Icon(
                                 imageVector = Icons.Default.Keyboard,
-                                contentDescription = "Digital input",
+                                contentDescription = stringResource(R.string.reminders_create_digital_content_description),
                                 tint = if (!useClockPicker) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -429,7 +442,7 @@ fun CreateReminderScreen(
                             Text(
                                 text = datePickerState.selectedDateMillis?.let {
                                     dateFormatter.format(Date(it + TimeZone.getDefault().getOffset(it)))
-                                } ?: "Select date",
+                                } ?: stringResource(R.string.reminders_create_date_placeholder),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -441,12 +454,12 @@ fun CreateReminderScreen(
                             onDismissRequest = { showDatePicker = false },
                             confirmButton = {
                                 TextButton(onClick = { showDatePicker = false }) {
-                                    Text("OK")
+                                    Text(stringResource(R.string.reminders_action_ok))
                                 }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showDatePicker = false }) {
-                                    Text("Cancel")
+                                    Text(stringResource(R.string.reminders_action_cancel))
                                 }
                             }
                         ) {
@@ -460,7 +473,7 @@ fun CreateReminderScreen(
             }
 
             // ── REPEAT ──
-            SectionHeader(title = "Repeat")
+            SectionHeader(title = stringResource(R.string.reminders_create_section_repeat))
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -478,9 +491,9 @@ fun CreateReminderScreen(
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 Text(
                     text = when (repeat) {
-                        RepeatOption.DAILY -> "Fires every day at this time."
-                        RepeatOption.WEEKLY -> "Fires every week on this weekday."
-                        else -> "Fires every month on this day. Short months use their last day."
+                        RepeatOption.DAILY -> stringResource(R.string.reminders_create_repeat_daily)
+                        RepeatOption.WEEKLY -> stringResource(R.string.reminders_create_repeat_weekly)
+                        else -> stringResource(R.string.reminders_create_repeat_monthly)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -488,11 +501,11 @@ fun CreateReminderScreen(
             }
 
             // ── NOTIFICATION ──
-            SectionHeader(title = "Notification")
+            SectionHeader(title = stringResource(R.string.reminders_create_section_notification))
             SettingsGroup {
                 SettingsRow(
-                    title = "Notification Sound",
-                    description = "The sound Pixel plays when the reminder fires",
+                    title = stringResource(R.string.reminders_create_sound_title),
+                    description = stringResource(R.string.reminders_create_sound_description),
                     value = soundSummary,
                     icon = Icons.Default.MusicNote,
                     onClick = {
@@ -511,7 +524,7 @@ fun CreateReminderScreen(
             // notification through a silent channel (see ReminderNotificationHelper).
             Spacer(modifier = Modifier.height(Spacing.sm))
             GlassChip(
-                label = "Silent — no sound at all",
+                label = stringResource(R.string.reminders_create_silent_chip),
                 selected = explicitSound == ReminderSound.NONE,
                 leadingIcon = Icons.Default.NotificationsOff,
                 onClick = {
@@ -531,9 +544,7 @@ fun CreateReminderScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Exact alarms aren't allowed yet, so this reminder was NOT saved. " +
-                            "Allow PixelPal to schedule exact alarms (Settings → Alarms & reminders) " +
-                            "and press Save again.",
+                        text = stringResource(R.string.reminders_create_exact_alarm_error),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(Spacing.md)
@@ -544,7 +555,7 @@ fun CreateReminderScreen(
             Spacer(modifier = Modifier.height(Spacing.lg))
 
             PrimaryButton(
-                text = "Save Reminder",
+                text = stringResource(R.string.reminders_create_action_save),
                 enabled = title.isNotBlank(),
                 onClick = { onSavePressed() }
             )

@@ -33,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.presentation.components.AppTopBar
@@ -77,6 +79,7 @@ fun ReminderListScreen(
     val categoryFilter by viewModel.categoryFilter.collectAsState()
     var filter by remember { mutableStateOf(ReminderFilter.UPCOMING) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val undoLabel = stringResource(R.string.reminders_action_undo)
 
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -93,7 +96,7 @@ fun ReminderListScreen(
         viewModel.snackbarEvents.collect { event ->
             val result = snackbarHostState.showSnackbar(
                 message = event.message,
-                actionLabel = "Undo",
+                actionLabel = undoLabel,
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -121,7 +124,7 @@ fun ReminderListScreen(
                     shape = RoundedCornerShape(18.dp),
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Reminder")
+                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.reminders_add_content_description))
                 }
             }
         },
@@ -148,16 +151,16 @@ fun ReminderListScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Reminders",
+                            text = stringResource(R.string.reminders_title),
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontWeight = FontWeight.Bold
                             ),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         val subtitle = if (pendingReminders.isEmpty()) {
-                            "All caught up"
+                            stringResource(R.string.reminders_subtitle_caught_up)
                         } else {
-                            "${pendingReminders.size} scheduled · ${completedReminders.size} completed"
+                            stringResource(R.string.reminders_subtitle_counts, pendingReminders.size, completedReminders.size)
                         }
                         Text(
                             text = subtitle,
@@ -175,7 +178,7 @@ fun ReminderListScreen(
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Icon(
                                 imageVector = Icons.Default.Add,
-                                contentDescription = "Add Reminder",
+                                contentDescription = stringResource(R.string.reminders_add_content_description),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -186,8 +189,8 @@ fun ReminderListScreen(
                 // Segmented Control with Live Tab Badges
                 GlassSegmentedRow(
                     options = listOf(
-                        "Upcoming (${pendingReminders.size})",
-                        "Completed (${completedReminders.size})"
+                        stringResource(R.string.reminders_filter_upcoming, pendingReminders.size),
+                        stringResource(R.string.reminders_filter_completed, completedReminders.size)
                     ),
                     selectedIndex = if (filter == ReminderFilter.UPCOMING) 0 else 1,
                     onSelected = { index ->
@@ -206,7 +209,7 @@ fun ReminderListScreen(
                 ) {
                     item {
                         GlassChip(
-                            label = "All",
+                            label = stringResource(R.string.reminders_filter_all),
                             selected = categoryFilter == null,
                             onClick = { viewModel.setCategoryFilter(null) }
                         )
@@ -236,8 +239,8 @@ fun ReminderListScreen(
                     ) {
                         if (filter == ReminderFilter.UPCOMING) {
                             EmptyState(
-                                title = "Nothing planned yet",
-                                message = "Create a reminder and Pixel will keep you on schedule.",
+                                title = stringResource(R.string.reminders_empty_title),
+                                message = stringResource(R.string.reminders_empty_message),
                                 petType = companion?.effectiveSpecies ?: "rabbit",
                                 petState = AnimationState.WAVE,
                                 content = {
@@ -257,7 +260,7 @@ fun ReminderListScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "Create Reminder",
+                                            text = stringResource(R.string.reminders_action_create),
                                             fontWeight = FontWeight.Bold,
                                             color = Color.White
                                         )
@@ -266,8 +269,8 @@ fun ReminderListScreen(
                             )
                         } else {
                             EmptyState(
-                                title = "No completed reminders",
-                                message = "Reminders you complete will show up here.",
+                                title = stringResource(R.string.reminders_empty_completed_title),
+                                message = stringResource(R.string.reminders_empty_completed_message),
                                 petType = companion?.effectiveSpecies ?: "rabbit",
                                 petState = AnimationState.SLEEP
                             )

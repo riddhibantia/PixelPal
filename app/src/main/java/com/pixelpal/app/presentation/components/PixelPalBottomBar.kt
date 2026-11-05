@@ -44,8 +44,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.navigation.Screen
 import com.pixelpal.app.presentation.theme.PixelPalGradients
 
@@ -53,15 +55,15 @@ private data class NavDestination(
     val screen: Screen,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
-    val label: String
+    val labelRes: Int
 )
 
 private val destinations = listOf(
-    NavDestination(Screen.Home, Icons.Filled.Home, Icons.Outlined.Home, "Home"),
-    NavDestination(Screen.Tasks, Icons.AutoMirrored.Filled.FormatListBulleted, Icons.AutoMirrored.Outlined.FormatListBulleted, "Tasks"),
-    NavDestination(Screen.ConnectedAgents, Icons.Filled.Token, Icons.Outlined.Token, "Agent"),
-    NavDestination(Screen.Reminders, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarToday, "Reminders"),
-    NavDestination(Screen.Settings, Icons.Filled.Person, Icons.Outlined.Person, "Settings")
+    NavDestination(Screen.Home, Icons.Filled.Home, Icons.Outlined.Home, R.string.dock_tab_home),
+    NavDestination(Screen.Tasks, Icons.AutoMirrored.Filled.FormatListBulleted, Icons.AutoMirrored.Outlined.FormatListBulleted, R.string.dock_tab_tasks),
+    NavDestination(Screen.ConnectedAgents, Icons.Filled.Token, Icons.Outlined.Token, R.string.dock_tab_agent),
+    NavDestination(Screen.Reminders, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarToday, R.string.dock_tab_reminders),
+    NavDestination(Screen.Settings, Icons.Filled.Person, Icons.Outlined.Person, R.string.dock_tab_settings)
 )
 
 /**
@@ -120,6 +122,7 @@ fun PixelPalBottomBar(
             ) {
                 destinations.forEach { dest ->
                     val isSelected = selected == dest.screen
+                    val label = stringResource(dest.labelRes)
                     val scale by animateFloatAsState(
                         targetValue = if (isSelected) 1.05f else 1.0f,
                         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -133,7 +136,24 @@ fun PixelPalBottomBar(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxSize(),
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClickLabel = label
+                            ) {
+                                if (!isSelected) {
+                                    // Whole-cell tap target (the icon pill alone is
+                                    // 44dp; taps on the rest of the cell used to be
+                                    // silently swallowed). Navigation semantics stay
+                                    // the original canonical tab-switch pattern.
+                                    navController.navigate(dest.screen.route) {
+                                        popUpTo(Screen.Home.route) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         val pillModifier = if (isSelected) {
@@ -159,25 +179,12 @@ fun PixelPalBottomBar(
                                 .graphicsLayer {
                                     scaleX = scale
                                     scaleY = scale
-                                }
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClickLabel = dest.label
-                                ) {
-                                    if (!isSelected) {
-                                        navController.navigate(dest.screen.route) {
-                                            popUpTo(Screen.Home.route) { saveState = true }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
                                 },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = if (isSelected) dest.selectedIcon else dest.unselectedIcon,
-                                contentDescription = dest.label,
+                                contentDescription = label,
                                 tint = iconTint,
                                 modifier = Modifier.size(22.dp)
                             )

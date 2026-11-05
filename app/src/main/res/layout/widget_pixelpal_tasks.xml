@@ -17,8 +17,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="PIXELPAL TASKS"
-            android:textColor="#1A1A2E"
+            android:text="Today’s little wins"
+            android:textColor="#342653"
             android:textSize="12sp"
             android:textStyle="bold" />
 
@@ -28,7 +28,7 @@
             android:layout_height="32dp"
             android:gravity="center"
             android:text="+"
-            android:textColor="#00D4AA"
+            android:textColor="#7653C8"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -39,7 +39,7 @@
         android:layout_height="1dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="8dp"
-        android:background="#331A1A2E" />
+        android:background="#26A58ACF" />
 
     <!-- Task rows container -->
     <LinearLayout
@@ -54,18 +54,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:background="@drawable/widget_task_row_background"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <TextView
                 android:id="@+id/widget_task_checkbox_0"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/widget_checkbox_background"
                 android:gravity="center"
                 android:text=" "
-                android:textColor="#00D4AA"
+                android:textColor="#7653C8"
                 android:textSize="14sp" />
 
             <TextView
@@ -77,8 +81,9 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Task title"
-                android:textColor="#1A1A2E"
-                android:textSize="13sp" />
+                android:textColor="#342653"
+                android:textSize="13sp"
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- Row 1 -->
@@ -88,18 +93,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:background="@drawable/widget_task_row_background"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <TextView
                 android:id="@+id/widget_task_checkbox_1"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/widget_checkbox_background"
                 android:gravity="center"
                 android:text=" "
-                android:textColor="#00D4AA"
+                android:textColor="#7653C8"
                 android:textSize="14sp" />
 
             <TextView
@@ -111,8 +120,9 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Task title"
-                android:textColor="#1A1A2E"
-                android:textSize="13sp" />
+                android:textColor="#342653"
+                android:textSize="13sp"
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- Row 2 -->
@@ -122,18 +132,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:background="@drawable/widget_task_row_background"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <TextView
                 android:id="@+id/widget_task_checkbox_2"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/widget_checkbox_background"
                 android:gravity="center"
                 android:text=" "
-                android:textColor="#00D4AA"
+                android:textColor="#7653C8"
                 android:textSize="14sp" />
 
             <TextView
@@ -145,8 +159,9 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Task title"
-                android:textColor="#1A1A2E"
-                android:textSize="13sp" />
+                android:textColor="#342653"
+                android:textSize="13sp"
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- Row 3 -->
@@ -156,18 +171,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:background="@drawable/widget_task_row_background"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <TextView
                 android:id="@+id/widget_task_checkbox_3"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/widget_checkbox_background"
                 android:gravity="center"
                 android:text=" "
-                android:textColor="#00D4AA"
+                android:textColor="#7653C8"
                 android:textSize="14sp" />
 
             <TextView
@@ -179,8 +198,9 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Task title"
-                android:textColor="#1A1A2E"
-                android:textSize="13sp" />
+                android:textColor="#342653"
+                android:textSize="13sp"
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- Row 4 -->
@@ -190,18 +210,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:background="@drawable/widget_task_row_background"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <TextView
                 android:id="@+id/widget_task_checkbox_4"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/widget_checkbox_background"
                 android:gravity="center"
                 android:text=" "
-                android:textColor="#00D4AA"
+                android:textColor="#7653C8"
                 android:textSize="14sp" />
 
             <TextView
@@ -213,8 +237,9 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Task title"
-                android:textColor="#1A1A2E"
-                android:textSize="13sp" />
+                android:textColor="#342653"
+                android:textSize="13sp"
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- Row 5 -->
@@ -224,18 +249,22 @@
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:background="@drawable/widget_task_row_background"
+            android:layout_marginBottom="6dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
             android:visibility="gone">
 
             <TextView
                 android:id="@+id/widget_task_checkbox_5"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:background="@drawable/widget_checkbox_background"
                 android:gravity="center"
                 android:text=" "
-                android:textColor="#00D4AA"
+                android:textColor="#7653C8"
                 android:textSize="14sp" />
 
             <TextView
@@ -247,8 +276,9 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:text="Task title"
-                android:textColor="#1A1A2E"
-                android:textSize="13sp" />
+                android:textColor="#342653"
+                android:textSize="13sp"
+                android:textStyle="normal" />
         </LinearLayout>
 
         <!-- Empty state -->
@@ -259,7 +289,7 @@
             android:gravity="center"
             android:padding="16dp"
             android:text="No tasks yet.\nTap + to add one!"
-            android:textColor="#991A1A2E"
+            android:textColor="#806B5B87"
             android:textSize="12sp"
             android:visibility="gone" />
 
@@ -271,7 +301,7 @@
             android:gravity="center"
             android:paddingTop="6dp"
             android:text="3 tasks remaining"
-            android:textColor="#801A1A2E"
+            android:textColor="#806B5B87"
             android:textSize="11sp"
             android:visibility="gone" />
 

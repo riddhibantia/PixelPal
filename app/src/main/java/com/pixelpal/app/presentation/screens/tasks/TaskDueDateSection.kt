@@ -34,8 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pixelpal.app.R
 import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.SecondaryButton
 import com.pixelpal.app.presentation.theme.Radius
@@ -102,7 +104,7 @@ fun DueDateSection(
                         .padding(vertical = Spacing.sm)
                 ) {
                     Text(
-                        text = if (dueAt != null) "Due date" else "No due date",
+                        text = if (dueAt != null) stringResource(R.string.tasks_due_date_title) else stringResource(R.string.tasks_due_date_none),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -110,7 +112,7 @@ fun DueDateSection(
                         text = if (dueAt != null) {
                             formatDueDateTime(dueAt)
                         } else {
-                            "Tap to add one — you'll get a reminder when it's due."
+                            stringResource(R.string.tasks_due_date_none_hint)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (dueAt != null) FontWeight.Medium else FontWeight.Normal,
@@ -121,7 +123,7 @@ fun DueDateSection(
                     IconButton(onClick = { onDueAtChange(null) }) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Clear due date",
+                            contentDescription = stringResource(R.string.tasks_due_date_clear_content_description),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -144,10 +146,10 @@ fun DueDateSection(
                             combineDueDateAndTime(base, timePickerState.hour, timePickerState.minute)
                         )
                     }
-                ) { Text("OK") }
+                ) { Text(stringResource(R.string.tasks_action_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.tasks_action_cancel)) }
             }
         ) {
             DatePicker(state = datePickerState)
@@ -165,7 +167,7 @@ fun DueDateSection(
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
                 Text(
-                    text = "Due time",
+                    text = stringResource(R.string.tasks_due_time_title),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -175,12 +177,12 @@ fun DueDateSection(
             Spacer(modifier = Modifier.height(Spacing.sm))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 SecondaryButton(
-                    text = "Pick date",
+                    text = stringResource(R.string.tasks_due_date_action_pick),
                     onClick = { showDatePicker = true },
                     modifier = Modifier.weight(1f)
                 )
                 SecondaryButton(
-                    text = if (dueAt == null) "Set" else "Done",
+                    text = if (dueAt == null) stringResource(R.string.tasks_due_time_action_set) else stringResource(R.string.tasks_due_time_action_done),
                     onClick = {
                         val base = dueAt ?: (datePickerState.selectedDateMillis ?: System.currentTimeMillis())
                         onDueAtChange(combineDueDateAndTime(base, timePickerState.hour, timePickerState.minute))

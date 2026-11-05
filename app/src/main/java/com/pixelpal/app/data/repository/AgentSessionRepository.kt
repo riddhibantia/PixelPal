@@ -107,11 +107,11 @@ class AgentSessionRepository @Inject constructor(
     }
 
     /** One-shot fetch; null means "unreachable", an empty list means "no agents". */
-    suspend fun fetchAgents(bridgeUrl: String): List<WireAgent>? = withContext(Dispatchers.IO) {
+    suspend fun fetchAgents(bridgeUrl: String, pairingKey: String? = null): List<WireAgent>? = withContext(Dispatchers.IO) {
         val url = bridgeUrl.trimEnd('/') + "/agents"
         val request = Request.Builder()
             .url(url)
-            .header("X-PixelPal-Key", preferences.getAgentBridgeKey())
+            .header("X-PixelPal-Key", pairingKey ?: preferences.getAgentBridgeKey())
             .get()
             .build()
         try {

@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -40,6 +41,7 @@ import androidx.navigation.NavController
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import androidx.camera.core.ExperimentalGetImage
+import com.pixelpal.app.R
 import com.pixelpal.app.data.remote.GenericHttpAgentConnector
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.LoadingState
@@ -75,7 +77,7 @@ fun QrScanScreen(navController: NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Scan agent QR", onBack = { navController.popBackStack() })
+        AppTopBar(title = stringResource(R.string.qr_scan_title), onBack = { navController.popBackStack() })
         if (!hasPermission) {
             LoadingState()
             return@Column
@@ -138,7 +140,7 @@ fun QrScanScreen(navController: NavController) {
                 modifier = Modifier.fillMaxSize()
             )
             Text(
-                text = "Point at the QR code on your agent dashboard",
+                text = stringResource(R.string.qr_scan_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(bottom = Spacing.lg)

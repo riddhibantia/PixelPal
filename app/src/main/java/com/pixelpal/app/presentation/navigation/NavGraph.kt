@@ -15,7 +15,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.pixelpal.app.presentation.screens.activity.ActivityCenterScreen
 import com.pixelpal.app.presentation.screens.agent.SCANNED_URL_KEY
-import com.pixelpal.app.presentation.screens.companions.CompanionWorkspaceScreen
 import com.pixelpal.app.presentation.screens.customize.CustomizeScreen
 import com.pixelpal.app.presentation.screens.home.HomeScreen
 import com.pixelpal.app.presentation.screens.onboarding.OnboardingScreen
@@ -42,8 +41,6 @@ sealed class Screen(val route: String) {
     object OverlaySettings : Screen("overlay_settings")
     object About : Screen("about")
     object Permissions : Screen("permissions")
-    object CompanionWorkspace : Screen("workspace")
-
     /** Multi-agent hub backed by the pixelpal-bridge (the "Agent" tab). */
     object ConnectedAgents : Screen("connected_agents")
     object Tasks : Screen("tasks")
@@ -56,8 +53,6 @@ sealed class Screen(val route: String) {
     object QrScan : Screen("qr_scan")
 
     companion object {
-        /** THE companion's workspace — no id, there is only one. */
-        fun companionWorkspace(companionId: Long): String = CompanionWorkspace.route
     }
 }
 
@@ -161,12 +156,8 @@ fun PixelPalNavGraph(
         composable(Screen.ActivityCenter.route) {
             ActivityCenterScreen(navController = navController)
         }
-        composable(Screen.CompanionWorkspace.route) {
-            CompanionWorkspaceScreen(navController = navController)
-        }
         composable(Screen.ConnectedAgents.route) {
-            // QrScanScreen writes its result onto the previous entry's handle,
-            // which for this tab is the Agents screen — not the workspace.
+            // QrScanScreen writes its result onto this tab's entry handle.
             val handle = navController.currentBackStackEntry?.savedStateHandle
             val scannedUrl by (handle?.getStateFlow(SCANNED_URL_KEY, "")
                 ?.collectAsState() ?: kotlinx.coroutines.flow.flowOf("").collectAsState(""))
@@ -174,7 +165,6 @@ fun PixelPalNavGraph(
                 navController = navController,
                 onBack = { navController.popBackStack() },
                 onScanQr = { navController.navigate(Screen.QrScan.route) },
-                onOpenManualSetup = { navController.navigate(Screen.CompanionWorkspace.route) },
                 scannedUri = scannedUrl.takeIf { it.isNotBlank() },
                 onScannedConsumed = { handle?.remove<String>(SCANNED_URL_KEY) }
             )

@@ -113,7 +113,7 @@ class PreferencesManager @Inject constructor(
         preferences[Keys.TASKS_WIDGET_ENABLED] ?: false
     }
 
-    /** User-supplied Gemini key override (workspace settings). Blank = use BuildConfig. */
+    /** User-supplied Gemini key override (Agent tab settings). Blank = use BuildConfig. */
     val geminiApiKeyOverride: Flow<String> = dataStore.data.map { preferences ->
         preferences[Keys.GEMINI_API_KEY_OVERRIDE] ?: ""
     }

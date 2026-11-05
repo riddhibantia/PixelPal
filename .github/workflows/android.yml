@@ -119,11 +119,15 @@ jobs:
       #     echo "RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}" >> "$GITHUB_ENV"
       # ------------------------------------------------------------------
 
-      - name: Assemble release APK (unsigned)
-        # build.gradle.kts applies the release signing config only when
-        # RELEASE_STORE_FILE is present, so this is a clean unsigned build
-        # that still exercises R8 minification + resource shrinking.
-        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+      - name: Assemble release APK (unsigned R8 pre-check)
+        # `build.gradle.kts` refuses to build a release without an explicit
+        # version and signing config, so CI opts into the pre-check mode: this
+        # still exercises R8 minification + resource shrinking, but produces an
+        # unsigned, git-derived version that is never published.
+        run: >
+          ./gradlew :app:assembleRelease
+          -PPIXELPAL_RELEASE_PRECHECK=true
+          --stacktrace --no-daemon
 
       - name: Verify release APK exists
         run: |

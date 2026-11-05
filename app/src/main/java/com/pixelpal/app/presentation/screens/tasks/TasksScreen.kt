@@ -50,11 +50,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.domain.model.Task
 import com.pixelpal.app.presentation.components.AppTopBar
@@ -83,6 +85,7 @@ fun TasksScreen(
     val widgetEnabled by viewModel.tasksWidgetEnabled.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val undoLabel = stringResource(R.string.tasks_action_undo)
 
     // Swipe- or detail-delete emits TaskDeleted; Undo reinserts the snapshot
     // (task + subtasks). Mirrors ReminderViewModel's delete/undo pattern.
@@ -90,7 +93,7 @@ fun TasksScreen(
         viewModel.snackbarEvents.collect { event ->
             val result = snackbarHostState.showSnackbar(
                 message = event.message,
-                actionLabel = "Undo",
+                actionLabel = undoLabel,
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -119,7 +122,7 @@ fun TasksScreen(
                 shape = RoundedCornerShape(18.dp),
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "New Task")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.tasks_fab_content_description))
             }
         }
     ) { padding ->
@@ -132,11 +135,11 @@ fun TasksScreen(
                 val pendingCount = uiState.items.count { !it.task.isDone }
                 val completedCount = uiState.items.count { it.task.isDone }
                 AppTopBar(
-                    title = "Tasks",
+                    title = stringResource(R.string.tasks_title),
                     subtitle = when {
                         uiState.items.isEmpty() -> null
-                        pendingCount == 0 -> "All caught up! Great job 🎉"
-                        else -> "$pendingCount pending · $completedCount completed"
+                        pendingCount == 0 -> stringResource(R.string.tasks_subtitle_caught_up)
+                        else -> stringResource(R.string.tasks_subtitle_counts, pendingCount, completedCount)
                     }
                 )
 
@@ -149,8 +152,8 @@ fun TasksScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     EmptyState(
-                        title = "No tasks yet",
-                        message = "Pixel is napping until your first task.",
+                        title = stringResource(R.string.tasks_empty_title),
+                        message = stringResource(R.string.tasks_empty_message),
                         petType = companion?.effectiveSpecies ?: "cat",
                         petState = AnimationState.SLEEP
                     )
@@ -217,15 +220,15 @@ private fun WidgetOptInRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Home Screen Widget",
+                    text = stringResource(R.string.tasks_widget_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = if (enabled) {
-                        "Enabled — add it from your launcher's widget picker"
+                        stringResource(R.string.tasks_widget_enabled_description)
                     } else {
-                        "Show your tasks on your home screen"
+                        stringResource(R.string.tasks_widget_disabled_description)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -274,7 +277,7 @@ private fun SwipeableTaskRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete task",
+                    contentDescription = stringResource(R.string.tasks_row_delete_content_description),
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -327,7 +330,7 @@ private fun TaskRow(
                 if (task.isDone) {
                     Icon(
                         imageVector = Icons.Default.Check,
-                        contentDescription = "Completed",
+                        contentDescription = stringResource(R.string.tasks_row_completed_content_description),
                         tint = Color.White,
                         modifier = Modifier.size(14.dp)
                     )
@@ -352,7 +355,7 @@ private fun TaskRow(
                 if (subtasks.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "$doneCount/${subtasks.size} subtasks",
+                        text = stringResource(R.string.tasks_subtask_count, doneCount, subtasks.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -371,7 +374,7 @@ private fun TaskRow(
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Open task",
+                contentDescription = stringResource(R.string.tasks_row_open_content_description),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.size(20.dp)
             )

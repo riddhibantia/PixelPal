@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.presentation.theme.CompanionColors
 import com.pixelpal.app.domain.model.SpeciesStyle
@@ -84,11 +86,11 @@ fun CustomizeScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = Spacing.lg)
             ) {
-                AppTopBar(title = "Customize Companion")
+                AppTopBar(title = stringResource(R.string.customize_title))
 
             Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
-                SectionHeader(title = "Your Companion")
+                SectionHeader(title = stringResource(R.string.customize_section_companion))
 
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Box(
@@ -125,15 +127,14 @@ fun CustomizeScreen(
                 AppTextField(
                     value = companion?.name ?: "",
                     onValueChange = { if (it.length <= 20) viewModel.updatePetName(it) },
-                    label = "Companion Name",
-                    placeholder = "Name your companion"
+                    label = stringResource(R.string.customize_name_label),
+                    placeholder = stringResource(R.string.customize_name_placeholder)
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 Text(
-                    text = "Transforming your companion never affects your bond, tasks, " +
-                        "reminders, or agent connection.",
+                    text = stringResource(R.string.customize_transform_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -141,7 +142,7 @@ fun CustomizeScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 // ── SPECIES ──
-                SectionHeader(title = "Species")
+                SectionHeader(title = stringResource(R.string.customize_section_species))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     items(SpeciesStyle.SPECIES) { candidate ->
                         OptionCard(
@@ -165,7 +166,7 @@ fun CustomizeScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 // ── APP APPEARANCE ──
-                SectionHeader(title = "App Appearance")
+                SectionHeader(title = stringResource(R.string.customize_section_theme))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm)

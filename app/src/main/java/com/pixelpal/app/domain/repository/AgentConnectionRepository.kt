@@ -30,7 +30,7 @@ interface AgentConnectionRepository {
 
     /**
      * Live WebSocket feed for ws:// providers. Empty flow for other providers.
-     * Caller collects while the workspace is visible.
+     * Caller collects while agent configuration is visible.
      */
     fun streamAgentUpdates(companionId: Long): Flow<AgentCheckResult>
 

@@ -88,7 +88,7 @@ object Constants {
     const val AGENT_WORK_PREFIX = "agent_poll_"
     /** Unique WorkManager name prefix for per-task due notifications. */
     const val TASK_DUE_WORK_PREFIX = "task_due_"
-    /** Polling interval choices offered in the workspace (WorkManager floor is 15 min). */
+    /** Polling interval choices offered in Agent settings (WorkManager floor is 15 min). */
     val AGENT_POLL_INTERVAL_OPTIONS_MIN = listOf(15L, 30L, 60L, 120L)
 
     // Notification action intents

@@ -55,12 +55,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.pixelpal.app.R
 import com.pixelpal.app.domain.model.Subtask
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.AppTextField
@@ -91,7 +93,10 @@ fun TaskDetailScreen(
     if (state.loading) {
         Scaffold { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                AppTopBar(title = "Task", onBack = { navController.popBackStack() })
+                AppTopBar(
+                    title = stringResource(R.string.tasks_detail_title),
+                    onBack = { navController.popBackStack() }
+                )
                 LoadingState()
             }
         }
@@ -118,7 +123,10 @@ fun TaskDetailScreen(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-                AppTopBar(title = "Task", onBack = { navController.popBackStack() })
+                AppTopBar(
+                    title = stringResource(R.string.tasks_detail_title),
+                    onBack = { navController.popBackStack() }
+                )
 
                 Column(
                     modifier = Modifier
@@ -131,7 +139,7 @@ fun TaskDetailScreen(
                 AppTextField(
                     value = editedTitle,
                     onValueChange = { editedTitle = it },
-                    label = "Task title",
+                    label = stringResource(R.string.tasks_field_task_title),
                     isError = editedTitle.isBlank()
                 )
 
@@ -140,8 +148,8 @@ fun TaskDetailScreen(
                 AppTextField(
                     value = editedDescription,
                     onValueChange = { editedDescription = it },
-                    label = "Description (optional)",
-                    placeholder = "Add a description…",
+                    label = stringResource(R.string.tasks_field_description),
+                    placeholder = stringResource(R.string.tasks_field_description_placeholder),
                     singleLine = false,
                     modifier = Modifier.height(110.dp)
                 )
@@ -150,7 +158,7 @@ fun TaskDetailScreen(
 
                 // ── Due date (set/clear fires an immediate update + reschedules
                 //    the "Task due" notification) ──
-                SectionHeader(title = "Due date")
+                SectionHeader(title = stringResource(R.string.tasks_due_date_title))
                 DueDateSection(
                     dueAt = task.dueAt,
                     onDueAtChange = { due -> viewModel.setDueAt(due) }
@@ -202,7 +210,7 @@ fun TaskDetailScreen(
                             if (task.isDone) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
-                                    contentDescription = "Done",
+                                    contentDescription = stringResource(R.string.tasks_content_description_done),
                                     tint = Color.White,
                                     modifier = Modifier.size(16.dp)
                                 )
@@ -211,14 +219,14 @@ fun TaskDetailScreen(
                         Spacer(modifier = Modifier.width(Spacing.md))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (task.isDone) "Completed" else "Mark task complete",
+                                text = if (task.isDone) stringResource(R.string.tasks_action_completed) else stringResource(R.string.tasks_action_mark_complete),
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 textDecoration = if (task.isDone) TextDecoration.LineThrough else null
                             )
                             if (state.subtasks.isNotEmpty()) {
                                 Text(
-                                    text = "${state.doneCount}/${state.subtasks.size} subtasks",
+                                    text = stringResource(R.string.tasks_subtask_count, state.doneCount, state.subtasks.size),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -238,13 +246,13 @@ fun TaskDetailScreen(
                 Spacer(modifier = Modifier.height(Spacing.lg))
 
                 // ── Subtasks ──
-                SectionHeader(title = "Subtasks")
+                SectionHeader(title = stringResource(R.string.tasks_subtasks_title))
 
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
                         if (state.subtasks.isEmpty()) {
                             Text(
-                                text = "No subtasks yet — add the smaller steps below.",
+                                text = stringResource(R.string.tasks_detail_subtasks_empty),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
@@ -279,7 +287,7 @@ fun TaskDetailScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Add,
-                                    contentDescription = "Add subtask",
+                                    contentDescription = stringResource(R.string.tasks_subtask_content_description_add),
                                     tint = if (newSubtask.isNotBlank()) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
@@ -290,7 +298,7 @@ fun TaskDetailScreen(
                             OutlinedTextField(
                                 value = newSubtask,
                                 onValueChange = { newSubtask = it },
-                                placeholder = { Text("Add a subtask…") },
+                                placeholder = { Text(stringResource(R.string.tasks_subtask_add_placeholder)) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(Radius.medium),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -318,7 +326,7 @@ fun TaskDetailScreen(
 
                 // ── Edit & delete actions ──
                 PrimaryButton(
-                    text = "Save Changes",
+                    text = stringResource(R.string.tasks_action_save),
                     enabled = editedTitle.isNotBlank() &&
                         (editedTitle.trim() != task.title || editedDescription.trim() != (task.description ?: "")),
                     onClick = {
@@ -329,7 +337,7 @@ fun TaskDetailScreen(
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
                 DestructiveButton(
-                    text = "Delete Task",
+                    text = stringResource(R.string.tasks_action_delete),
                     onClick = { showDeleteDialog = true }
                 )
             }
@@ -339,10 +347,10 @@ fun TaskDetailScreen(
 
     if (showDeleteDialog) {
         ConfirmationDialog(
-            title = "Delete task?",
-            message = "\"${task.title}\" and its subtasks will be removed from this device and the cloud.",
-            confirmLabel = "Delete",
-            dismissLabel = "Cancel",
+            title = stringResource(R.string.tasks_dialog_delete_title),
+            message = stringResource(R.string.tasks_dialog_delete_message, task.title),
+            confirmLabel = stringResource(R.string.tasks_dialog_delete_confirm),
+            dismissLabel = stringResource(R.string.tasks_dialog_cancel),
             destructive = true,
             onConfirm = {
                 showDeleteDialog = false
@@ -363,14 +371,14 @@ private fun PhotoProofSection(
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) onPick(uri.toString())
     }
-    SectionHeader(title = "Photo proof")
+    SectionHeader(title = stringResource(R.string.tasks_photo_title))
     Spacer(modifier = Modifier.height(Spacing.sm))
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             if (photoUri.isNotBlank()) {
                 AsyncImage(
                     model = photoUri,
-                    contentDescription = "Task photo proof",
+                    contentDescription = stringResource(R.string.tasks_photo_content_description),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(180.dp)
@@ -379,12 +387,12 @@ private fun PhotoProofSection(
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    PrimaryButton(text = "Change photo", onClick = { launcher.launch("image/*") }, modifier = Modifier.weight(1f))
-                    DestructiveButton(text = "Remove", onClick = onClear, modifier = Modifier.weight(1f))
+                    PrimaryButton(text = stringResource(R.string.tasks_photo_action_change), onClick = { launcher.launch("image/*") }, modifier = Modifier.weight(1f))
+                    DestructiveButton(text = stringResource(R.string.tasks_photo_action_remove), onClick = onClear, modifier = Modifier.weight(1f))
                 }
             } else {
                 Text(
-                    text = "Attach a photo as proof you did it — visible in the detail screen and local-first (Coil).",
+                    text = stringResource(R.string.tasks_photo_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -403,7 +411,7 @@ private fun PhotoProofSection(
                     ) {
                         Icon(Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Attach photo", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.tasks_photo_action_attach), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -455,7 +463,7 @@ private fun SubtaskRow(
             if (subtask.isDone) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = "Done",
+                    contentDescription = stringResource(R.string.tasks_content_description_done),
                     tint = Color.White,
                     modifier = Modifier.size(14.dp)
                 )
@@ -489,7 +497,7 @@ private fun SubtaskRow(
         IconButton(onClick = onDelete) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = "Delete subtask",
+                contentDescription = stringResource(R.string.tasks_subtask_content_description_delete),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
