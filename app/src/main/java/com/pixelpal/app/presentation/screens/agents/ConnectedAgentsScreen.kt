@@ -22,6 +22,13 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -202,6 +209,7 @@ fun ConnectedAgentsScreen(
 
         when {
             !state.isPaired -> PairingState(
+                onPair = viewModel::applyPairing,
                 onScanQr = onScanQr,
                 onOpenManualSetup = onOpenManualSetup
             )
@@ -248,9 +256,11 @@ fun ConnectedAgentsScreen(
 
 @Composable
 private fun PairingState(
+    onPair: (String) -> Unit,
     onScanQr: () -> Unit,
     onOpenManualSetup: () -> Unit
 ) {
+    var pasted by remember { mutableStateOf("") }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -287,6 +297,36 @@ private fun PairingState(
                 textAlign = TextAlign.Center
             )
         }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "Paste the pairing code it printed:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = pasted,
+            onValueChange = { pasted = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("pixelpal://pair?host=…&key=…") },
+            textStyle = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace
+            ),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                imeAction = ImeAction.Done,
+                autoCorrectEnabled = false
+            ),
+            keyboardActions = KeyboardActions(onDone = { onPair(pasted) })
+        )
+        Spacer(Modifier.height(8.dp))
+        PrimaryButton(
+            text = "Connect",
+            onClick = { onPair(pasted) },
+            enabled = pasted.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(Modifier.height(20.dp))
         SecondaryButton(
             text = "Scan a QR code",

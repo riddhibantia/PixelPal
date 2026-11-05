@@ -303,10 +303,17 @@ def cmd_setup(args) -> int:
 
     # 5. How the phone connects -----------------------------------------
     print()
-    print("  In the app, go to the Agent tab. Use this address:")
-    print()
     lan = _lan_ip()
-    print(f"    http://{lan or 'YOUR-LAPTOP-IP'}:{port}")
+    key = config.get("pairingKey") or ""
+    print("  In the app, go to the Agent tab and paste this pairing code.")
+    print("  It carries the address AND the key, so there is nothing else to enter:")
+    print()
+    if lan:
+        print(f"    pixelpal://pair?host={lan}&port={port}&key={key}")
+    else:
+        print(f"    pixelpal://pair?host=YOUR-LAPTOP-IP&port={port}&key={key}")
+    print()
+    print(f"  (Plain address, if you prefer: http://{lan or 'YOUR-LAPTOP-IP'}:{port})")
     print()
     if tailnet:
         print("  Away from this Wi-Fi, use the Tailscale address instead:")
