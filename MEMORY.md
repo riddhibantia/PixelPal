@@ -228,6 +228,23 @@ install over the existing v15 database (migration ran on device: user_version 16
   `SCANNED_URL_KEY`, so scanning from the Agent tab did nothing; and
   `parsePairingUri` accepted any host. Now the screen consumes the result and
   the host must be loopback/RFC1918 (`PairingUriTest` updated + 2 new cases).
+- **Bridge setup now prints the app's actual pairing payload**, including
+  host/port/key, with optional terminal QR output when `qrcode` is installed;
+  app onboarding and README tell users to scan or paste the pairing code (a
+  plain URL cannot authenticate).
+- **Agent workflow clarity:** Home places live agent/approval status below the
+  greeting; paired-but-unreachable state has distinct styling and retry
+  guidance. Workspace identifies its legacy manual route as custom provider
+  setup. Permissions screen explains camera, notification, overlay, and
+  exact-alarm purposes; notification permission is no longer prompted on every
+  MainActivity creation.
+- Pairing verifies the bridge address and secret against `/agents` before it
+  persists them. Inline approval actions report delivery success/failure and
+  record successful decisions in Activity Center. Home approval actions also
+  record successful decisions.
+- **Widgets use PixelPal's lilac/violet visual language:** task rows are soft
+  rounded lavender checklist bars with a filled lilac checked state and violet
+  checkmark; the Home widget uses matching plum text and violet action styling.
 - **Forms survive rotation/process death**: `rememberSaveable` in CreateReminder
   (all fields), NewTask (title/description/due/subtask drafts via `listSaver`),
   CompanionWorkspace (endpoint/key/command). The app previously had zero
@@ -484,4 +501,90 @@ Complete frontend overhaul matching the approved frosted violet glassmorphism mo
   - `domain/model/WeeklyActivity.kt`: Mon-Fri activity model tracking intensity and status.
 - **Secondary Screens Consistency**:
   - `TasksScreen`, `ReminderListScreen`, `SettingsScreen`, `SettingsGroup`, and `ConnectedAgentsScreen` updated to use `GlassCard` and given `100.dp` bottom content padding to avoid occlusion by the floating bottom dock.
+
+## 2d. Agent setup consolidation (2026-11-05)
+
+- The standalone `workspace` navigation route has been removed. The Agent tab
+  is the single place for bridge sessions/approvals and direct provider setup.
+- `CustomProviderPanel` in `CustomProviderPanel.kt` reuses the existing
+  Gemini/HTTP/WebSocket setup controls inside a collapsed section on the Agent
+  tab. This preserves polling, command input/voice, Gemini key override,
+  disconnect undo, and endpoint QR scanning.
+- Home's former Workspace action now opens the Agent tab. QR pairing payloads
+  (`pixelpal://pair`) still go through bridge verification; plain URL QR values
+  are passed to custom provider endpoint setup.
+
+## 2f. Production-hardening pass (2026-11-05)
+
+Build/pipeline (all verified by a full signed `assembleRelease` + 83 unit tests
++ bridge 112 pytest):
+
+- **No guessed versions.** `versionCode/name` defaults (`getOrElse(3)` /
+  `"1.2.0"`) are gone. Debug builds derive from git (`900000+commitCount`,
+  `dev-<describe>`); ANY release task (`assemble*Release…`) without explicit
+  `-PPIXELPAL_VERSION_CODE/-PPIXELPAL_VERSION_NAME` throws. Unsigned R8 checks
+  pass `-PPIXELPAL_RELEASE_PRECHECK=true` (android.yml does this now).
+- **Unsigned release impossible by accident.** `assembleRelease` without the
+  `RELEASE_STORE_FILE` block throws (was a soft warning). Release builds also
+  embed **no Gemini key** unless `-PPIXELPAL_EMBED_GEMINI_KEY=true`.
+- **One URL source.** Repo slug (`-PPIXELPAL_REPO_SLUG`, default
+  `riddhibantia/PixelPal`) → `BuildConfig.REPO_SLUG` /
+  `BRIDGE_INSTALL_URL` / `BRIDGE_RELEASES_URL`, surfaced through
+  `util/BridgeSetup`. The duplicated `github.com/riddhibantia/…` curl strings
+  in Onboarding and the Agent tab are gone (previously the onboarding copy had
+  a mid-URL line-continuation split).
+- **No hardcoded pet species in UI.** Agent-tab pairing/empty states and
+  Auth/onboarding use the primary companion's species (VM exposes
+  `companionPetType`); `Constants.DEFAULT_PET_TYPE` remains the fresh-install
+  default.
+- **PersonalityWorker uses real data** (was the known "fabricated stats"
+  defect): `ActivityEventDao.getSince` gives today's rows; `REMINDER_COMPLETED`
+  / `MISSED_REMINDER` counts and the hour of `bond.lastInteractionTime` feed
+  `DailyInteractionStats`. Splits late-night (<05:00) and morning (05–10:59).
+- **Jetifier off** (`android.enableJetifier=false`) — pure-AndroidX project.
+- **docs/OPERATIONS.md** — multi-machine ops handbook: the two-GH-identity
+  table (riddhibantia admin vs shaikhakramshakil read-only), per-command
+  `GH_TOKEN` push form, draft-release visibility, `--latest` flag mechanics
+  (v1.3.0 currently points "Latest" despite v1.3.1 existing), secrets
+  verification, recovery playbook, agent rules. RELEASING.md links to it.
+
+Open follow-ups noticed in this pass: GitHub's "Latest" marker was pointing at
+v1.3.0 instead of v1.3.1 (**fixed** in the same pass with riddhibantia's
+`gh release edit --latest` — install.sh now resolves v1.3.1); the remaining
+string work is the non-composable corpora (ViewModel error strings in
+AuthViewModel/ConnectedAgentsViewModel/OnboardingViewModel, `TaskDueFormat`
+relative labels, `RepeatOption` display labels, `formatAge`/`relativeTimestamp`
+age strings — all blocked by `stringResource` being composable-only).
+
+- **UI-string extraction (2026-11-05, four parallel agents):** every screen +
+  shared component now draws copy from resources — ~357 new strings across
+  `strings_home.xml` (45), `strings_agents.xml` (77), `strings_tasks.xml`
+  (107), `strings_settings.xml`+`strings_auth.xml` (128), alongside the
+  original `strings.xml`. Verified: `assembleDebug` green, 83 unit tests 0
+  failures, `lintDebug` green, installed on device as build 10307/1.3.2.
+  Structure notes: `PixelPalBottomBar` `NavDestination.label: String` became
+  `labelRes: Int` (top-level list can't call composables); snackbar action
+  labels hoisted into composable scope above their `LaunchedEffect`s
+  (TasksScreen, ReminderListScreen, CustomProviderPanel); onboarding voice
+  command prompt hoisted the same way. Dead code found and left alone:
+  `HomeFocusTimeCard`'s mock "2h 15m"/"54%" strings (unreferenced UI).
+
+## 2e. Brand and onboarding pass (2026-11-05)
+
+
+- Launcher icon and splash are the companion itself: `splash_icon.xml` and
+  `ic_launcher_foreground.xml` are frame 0 of `res/raw/pet_cat_idle.json` baked
+  into flat `<path>` data (ears, body, eyes, pupils, highlights, cheeks,
+  mouth; the zero-scale sparkles are dropped). Cat is `DEFAULT_PET_TYPE`, so a
+  fresh install meets the same pet on the launcher, the splash, and the home
+  card. Android 12+ uses the platform SplashScreen API (288dp canvas, pet in
+  the guaranteed-visible centre); earlier versions center the same drawable at
+  168dp on the launch window. Repro bake: `tools/lottie_bake.py` evaluates
+  the Lottie property graph at frame 0, composes layer/group affine transforms
+  and emits absolute paths (`fit`, `size`, `art-height`, `frame` options). No
+  masks or gradients exist in this art, so the bake is exact, not approximated.
+- Onboarding remains five pages: welcome, species, name, overlay permission,
+  and coding-agent setup. The selected species is reflected on the overlay
+  page, permission state refreshes on return from Settings, and step dots expose
+  48dp touch targets with selected-step semantics.
 

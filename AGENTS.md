@@ -34,9 +34,20 @@ two home-screen widgets. Kotlin 2.0 + Jetpack Compose, single Gradle module
 - **Install/device**: `./gradlew :app:installDebug`
 - **Unit tests**: `./gradlew :app:testDebugUnitTest`
 - **Instrumented tests**: `./gradlew :app:connectedDebugAndroidTest` (migration/DAO/nav smoke)
+- **Versioning**: debug builds derive `versionCode`/`versionName` from git
+  (`900000+commitCount`, `dev-<describe>`); **release builds fail** without
+  `-PPIXELPAL_VERSION_CODE/-PPIXELPAL_VERSION_NAME` **and** the release signing
+  block (`-PRELEASE_STORE_*`, see RELEASING.md). Unsigned R8-only checks use
+  `-PPIXELPAL_RELEASE_PRECHECK=true` (what android.yml passes).
+- **Repo slug**: the in-app install one-liner comes from `BuildConfig.REPO_SLUG`
+  (`-PPIXELPAL_REPO_SLUG`, default `riddhibantia/PixelPal`) via
+  `util/BridgeSetup` — no GitHub URLs are hardcoded in screens.
+- **Gemini key**: embedded in debug only; release ships an empty
+  `BuildConfig.GEMINI_API_KEY` unless `-PPIXELPAL_EMBED_GEMINI_KEY=true`.
+  Multi-machine release ops live in `docs/OPERATIONS.md`.
 - **Clean**: `./gradlew clean`
 - No lint/typecheck/formatter beyond the standard Gradle build.
-- Gemini key: `GEMINI_API_KEY` in `local.properties` → `BuildConfig.GEMINI_API_KEY` (optional; app falls back to local dialogue when missing).
+- Gemini key: `GEMINI_API_KEY` in `local.properties` → `BuildConfig.GEMINI_API_KEY` (optional; app falls back to local dialogue when missing; release builds ship it **empty** unless `-PPIXELPAL_EMBED_GEMINI_KEY=true`).
 
 ## Tech stack (verified)
 
@@ -296,18 +307,30 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
 
 ## Presentation map
 
-- **Navigation** (17 plain string routes, fade+slide): onboarding, auth, home,
+- **Navigation** (16 plain string routes, fade+slide): onboarding, auth, home,
   reminders, create_reminder, customize, settings, profile, overlay_settings,
-  about, permissions, workspace (no id — single companion),
-  **connected_agents** (the "Agent" bottom-tab — multi-agent hub backed by the
-  bridge; `workspace` stays reachable for manual provider setup), tasks,
+  about, permissions,
+  **connected_agents** (the "Agent" bottom-tab — bridge sessions plus collapsed
+  Gemini/HTTP/WebSocket provider setup), tasks,
   new_task, task_detail/{taskId}, activity_center, qr_scan.
 - **Onboarding is 5 pages** (welcome, species, name, overlay permission, and a
   "Watch Your Agent Work" page with the one-line `install.sh` curl +
-  `pixelpal-bridge setup` + a copy button; `CONNECT_COMMANDS` in
+  `pixelpal-bridge setup` + a copy button; the setup output is a
+  `pixelpal://pair?...` payload (includes host, port, and key), which can be
+  scanned as terminal QR when optional `qrcode` is installed or pasted into
+  Agent tab; `CONNECT_COMMANDS` in
   `OnboardingScreen.kt`). The one-liner resolves the newest **published
   release**, so it only works once a `v*` tag has produced one — it is not a
-  raw-branch URL.
+  raw-branch URL. Overlay permission state refreshes when returning from system
+  settings, and the onboarding species preview follows the selected pet.
+  Launcher/splash art is the real companion art, not a hand-drawn mark:
+  `res/drawable/splash_icon.xml` and `ic_launcher_foreground.xml` are frame 0
+  of `res/raw/pet_cat_idle.json` baked to flat vector paths (cat = default
+  species). Android 31+ shows it via the SplashScreen API; older versions
+  center it at 168dp on the obsidian launch window. Rebake from the Lottie
+  JSON for another species (`tools/lottie_bake.py` fit/size/art-height
+  options); the icon carries its own padding, so change `art-height` rather
+  than scaling the whole canvas.
 - **Start destination** (MainActivity): first-launch → onboarding; else no
   Firebase user → auth; else home. Reactive sign-out watcher resets to auth
   (`popUpTo(0)`). Overlay service restarted at activity start when enabled.
@@ -331,13 +354,21 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
 - **ConnectedAgentsScreen** (`presentation/screens/agents/`) = the **Agent tab**
   now: one row per live agent (status dot, message, project, "12s ago"), with
   **inline Approve/Deny** when an agent is `WAITING_FOR_INPUT`; pairing is one
-  "Scan pairing code" action. Refreshes via `repeatOnLifecycle(RESUMED)` — no
+  "Scan pairing code" action. The scanned bridge URL/key are verified against
+  `/agents` before being stored. Successful inline decisions are recorded in
+  Activity Center; failures keep the request visible and show retry guidance.
+  Refreshes via `repeatOnLifecycle(RESUMED)` — no
   timers, no wake locks. Empty states distinguish "no bridge paired" from
   "bridge paired but no agents running".
-- **CompanionWorkspaceScreen** = the **AI Agent hub** (provider chips, URLs,
-  poll interval, Connect/Save+checkNow, Check Now, text+voice commands, Gemini
-  key override, disconnect+Undo, favorite/rename ≤20 chars, QR result via
-  previousBackStackEntry SavedStateHandle).
+- **Agent tab** is the single agent surface: bridge sessions and approvals lead;
+  a collapsed **Custom provider** section retains Gemini/HTTP/WebSocket setup,
+  polling controls, commands, Gemini key override, disconnect+Undo, and QR
+  endpoint scanning. Home's Agent card opens this same hub.
+- Home surfaces live agent status and approvals directly below the greeting.
+  Agent setup is unified in the Agent tab; Home's Agent card opens it directly.
+- The Permissions screen explains Camera (QR pairing), notifications
+  (approvals/reminders), overlay, and exact-alarm purposes. Notification
+  permission is not prompted on every MainActivity creation.
 - Tasks/TasksDetail: subtask checklist, photo proof (photoUri via GetContent —
   note: no takePersistableUriPermission), **due dates** (picker + relative labels
   via `TaskDueDateSection`/`TaskDueFormat`, notification via `TaskDueWorker`),
@@ -357,9 +388,22 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   query excludes TAP/FEED legacy rows.
 - AuthScreen: Google/email/guest + reset; nav gate = authenticated AND
   isDataReady AND syncError==null (retry / Continue-offline on sync failure).
-- **Strings**: `res/values/strings.xml` now exists (convention documented in its
-  header: `screen_feature_element`). Only About + ThemePicker are migrated; the
-  rest of the UI is still hardcoded English — migrating more is open work.
+- **Strings**: full migration complete across every screen and shared
+  component. Layout: `values/strings.xml` (manifest/widgets + About +
+  ThemePicker, the original) plus per-area files `strings_home.xml`,
+  `strings_agents.xml`, `strings_tasks.xml`, `strings_settings.xml`,
+  `strings_auth.xml` — all following the `<area>_<feature>_<element>`
+  convention documented in `strings.xml`'s header; positional `%1$s`/`%1$d`
+  placeholders, safe apostrophe/quote escaping. Deliberate non-resources
+  (identifiers, not copy): route names, DataStore keys, stored enum ids
+  (`ONCE`/`DAILY`…), species/appearance ids, scheme strings, `pixelpal://pair`
+  payloads, format patterns, and text produced by non-composable helpers —
+  `TaskDueFormat`, `formatAge()`/`relativeTimestamp()` relative-time strings,
+  `RepeatOption` display labels (enum constructor), the two ViewModel-held
+  `AuthViewModel`/`ConnectedAgentsViewModel` message corpora (ViewModels were
+  out of extraction scope; `stringResource` is composable-only), and
+  `onBackPressed`-era semantics lambdas in onboarding step labels. Those
+  remaining non-composable corpora are the only open string work.
 - Components: LottiePetView (raw `pet_{type}_{state}.json`, process-wide
   res-id cache, draw-phase progress), PetRenderer wrapper, PixelPalBottomBar
   (5 tabs), PixelPalSnackbarHost/SnackbarEvent (Undo flows), settings kit
@@ -416,7 +460,9 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
   `ReminderActionReceiver`) → advance: recurring re-armed, one-shot → TRIGGERED.
   `rescheduleAll` runs only from `BootReceiver` (also restarts overlay).
 - Widgets (EntryPointAccessors via Hilt): HomeWidget (companion/streak/tasks/
-  next reminder/agent line) and TasksWidget (6 rows + toggle intents).
+  next reminder/agent line) and TasksWidget (6 rows + toggle intents). Their
+  RemoteViews use the app's lilac/violet palette, rounded checklist rows, and
+  a violet checked state; keep widget colors in sync with the Compose theme.
   TasksWidget toggles use **`goAsync()` + `CompleteTaskUseCase`** — the same
   bond/activity path as the app (no duplicated bond math). Read-only queries may
   still touch the DB directly.

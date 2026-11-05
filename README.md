@@ -44,7 +44,7 @@ curl -fsSL https://raw.githubusercontent.com/riddhibantia/PixelPal/main/install.
 pixelpal-bridge setup
 ```
 
-`setup` detects every agent on the machine, installs their hooks, starts the bridge as a background service (survives reboot), and prints the address to paste into the app's **Agent** tab. Same Wi-Fi, that's the whole story. Away from home? Install [Tailscale](https://tailscale.com) on both devices and re-run `setup` — it prints your tailnet address instead.
+`setup` detects agents, installs their hooks, starts the bridge as a background service, and prints a pairing code for the app's **Agent** tab. Scan its optional terminal QR or paste the full `pixelpal://pair?...` code; a plain URL is not enough because pairing also needs the key. Same Wi-Fi, that's the whole story. Away from home? Install [Tailscale](https://tailscale.com) on both devices and re-run `setup` — it prints your tailnet address instead.
 
 ### Supported agents
 
@@ -158,7 +158,7 @@ On first launch the app asks for the "Display over other apps" permission — re
 
 1. **Onboard** your companion — pick a species, name it, grant the overlay permission.
 2. **On your laptop**, run the two-line bridge install above → `pixelpal-bridge setup`.
-3. **Paste the printed address** in the Agent tab (or scan the pairing QR).
+3. **Scan the pairing QR** from the Agent tab, or paste the printed pairing code.
 4. Go about your day — the pet animates, speaks, and notifies as your agents work, and asks you to approve permission requests right from the notification or the Agent tab.
 5. Add **tasks and reminders** — completing them grows the bond and streak and gradually shifts your pet's personality.
 

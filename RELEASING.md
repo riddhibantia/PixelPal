@@ -1,6 +1,11 @@
 # Releasing PixelPal
 
-Releases are built **only by GitHub Actions**. Neither laptop builds or signs the
+Releases are built **only by GitHub Actions** — see **docs/OPERATIONS.md** for
+the multi-machine identity setup (two `gh` accounts, push rights, the draft
+release visibility quirk, secret verification). This file covers the release
+workflow internals and pre-flight checks.
+
+Neither laptop builds or signs the
 APK, so it does not matter which machine you are on:
 
 ```bash
@@ -106,7 +111,8 @@ The tag is the source of truth, not the working tree.
 ```bash
 ./gradlew :app:assembleDebug           # debug build still compiles
 ./gradlew :app:testDebugUnitTest       # JVM unit tests
-./gradlew :app:assembleRelease         # R8/shrinking pass (unsigned is fine here)
+./gradlew :app:assembleRelease -PPIXELPAL_RELEASE_PRECHECK=true
+                                       # R8/shrinking pass (unsigned is fine here)
 ```
 
 `assembleDebug` does **not** exercise R8, so a ProGuard mistake can pass it and
