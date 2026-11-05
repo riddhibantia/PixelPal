@@ -95,3 +95,20 @@ class TestOpenCodeAge:
         envelopes = opencode.poll_envelopes()
         assert len(envelopes) == opencode.MAX_SESSIONS
         assert envelopes[0]["sessionId"] == "s0"
+
+    def test_running_client_keeps_idle_session_alive(self, monkeypatch):
+        from pixelpal_bridge.adapters import opencode
+
+        now = 1_700_000_000.0
+        monkeypatch.setattr(opencode.time, "time", lambda: now)
+        monkeypatch.setattr(opencode, "_running_client_count", lambda: 1)
+        monkeypatch.setattr(
+            opencode, "fetch_sessions",
+            lambda port=None: [
+                _session("live_terminal", updated=int((now - STALE_DROP_SECONDS - 60) * 1000))
+            ],
+        )
+        envelopes = opencode.poll_envelopes()
+        assert len(envelopes) == 1
+        assert envelopes[0]["sessionId"] == "live_terminal"
+        assert envelopes[0]["lastEventAgeSeconds"] == 60
