@@ -27,21 +27,33 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.pixelpal.app.domain.model.AgentState
+import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.presentation.components.AppTopBar
+import com.pixelpal.app.presentation.theme.Spacing
 import com.pixelpal.app.presentation.components.DestructiveButton
+import com.pixelpal.app.presentation.components.GlassCard
+import com.pixelpal.app.presentation.components.LottiePetView
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SecondaryButton
+import androidx.navigation.NavController
 import com.pixelpal.app.presentation.components.SectionHeader
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
+import com.pixelpal.app.presentation.components.IconTile
+import androidx.compose.material.icons.filled.SmartToy
+import com.pixelpal.app.presentation.navigation.Screen
 
 /**
  * Connected Agents — the multi-agent home for the bridge.
@@ -56,8 +68,18 @@ fun ConnectedAgentsScreen(
     onBack: () -> Unit,
     onScanQr: () -> Unit,
     onOpenManualSetup: () -> Unit,
+    /** Pairing payload from a scanned QR code, consumed once. */
+    scannedUri: String? = null,
+    onScannedConsumed: () -> Unit = {},
+    navController: NavController? = null,
     viewModel: ConnectedAgentsViewModel = hiltViewModel()
 ) {
+    LaunchedEffect(scannedUri) {
+        if (!scannedUri.isNullOrBlank()) {
+            viewModel.applyPairing(scannedUri)
+            onScannedConsumed()
+        }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     // Refresh on every resume. Cheap (loopback) and means the list is never
@@ -71,56 +93,95 @@ fun ConnectedAgentsScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        AppTopBar(
-            title = "Connected Agents",
-            onBack = onBack,
-            subtitle = when {
-                state.isEmpty -> null
-                else -> buildString {
-                    if (state.workingCount > 0) append("${state.workingCount} working")
-                    if (state.waitingCount > 0) {
-                        if (isNotEmpty()) append(" · ")
-                        append("${state.waitingCount} waiting on you")
-                    }
-                    if (isEmpty()) append("${state.rows.size} idle")
-                }
-            }
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (state.isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp
+    androidx.compose.material3.Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            if (navController != null) {
+                com.pixelpal.app.presentation.components.PixelPalBottomBar(
+                    navController = navController,
+                    selected = Screen.ConnectedAgents
                 )
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                text = when {
-                    state.bridgeUrl.isNotBlank() -> state.bridgeUrl
-                    state.usingRelay -> "Connected over relay"
-                    state.isPaired -> "Relay paired"
-                    else -> "Not connected"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = viewModel::refresh, enabled = state.bridgeUrl.isNotBlank()) {
-                Icon(Icons.Filled.Refresh, contentDescription = "Refresh agents")
             }
         }
+    ) { padding ->
+        PixelPalAtmosphere(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                AppTopBar(
+                    title = "Connected Agents",
+                    onBack = if (navController != null) null else onBack,
+                    subtitle = when {
+                        state.isEmpty -> null
+                        else -> buildString {
+                            if (state.workingCount > 0) append("${state.workingCount} working")
+                            if (state.waitingCount > 0) {
+                                if (isNotEmpty()) append(" · ")
+                                append("${state.waitingCount} waiting on you")
+                            }
+                            if (isEmpty()) append("${state.rows.size} idle")
+                        }
+                    }
+                )
+
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (state.isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (state.isPaired) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outline
+                                    )
+                            )
+                        }
+                        Text(
+                            text = when {
+                                state.bridgeUrl.isNotBlank() -> state.bridgeUrl
+                                state.isPaired -> "Bridge Paired"
+                                else -> "Not connected"
+                            },
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontFamily = if (state.bridgeUrl.isNotBlank()) FontFamily.Monospace else FontFamily.Default
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = viewModel::refresh,
+                            enabled = state.bridgeUrl.isNotBlank(),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Refresh,
+                                contentDescription = "Refresh agents",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
 
         state.lastError?.let { error ->
             Surface(
@@ -140,21 +201,20 @@ fun ConnectedAgentsScreen(
         }
 
         when {
-            !state.isPaired && state.codePair !is CodePairState.Success ->
-                PairingState(
-                    state = state,
-                    onPair = viewModel::pairWithCode,
-                    onScanQr = onScanQr,
-                    onOpenManualSetup = onOpenManualSetup
-                )
+            !state.isPaired -> PairingState(
+                onScanQr = onScanQr,
+                onOpenManualSetup = onOpenManualSetup
+            )
 
             state.isEmpty -> NoAgentsState()
 
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    horizontal = 20.dp,
-                    vertical = 8.dp
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 8.dp,
+                    bottom = 100.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -177,29 +237,68 @@ fun ConnectedAgentsScreen(
         }
     }
 }
+}
+}
+
+
+
+
+
+
 
 @Composable
 private fun PairingState(
-    state: ConnectedAgentsUiState,
-    onPair: (String) -> Unit,
     onScanQr: () -> Unit,
     onOpenManualSetup: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(top = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        CodePairingCard(
-            state = state.codePair,
-            onPair = onPair,
-            onScanQr = onScanQr
+        LottiePetView(
+            petType = "cat",
+            animationState = AnimationState.WAVE,
+            size = 180.dp
         )
-        Spacer(Modifier.height(10.dp))
-        TextButton(onClick = onOpenManualSetup) {
-            Text("Set up manually instead")
+        Spacer(Modifier.height(Spacing.lg))
+        Text(
+            text = "Connect your computer",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "On your laptop, run this once:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        GlassCard(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "pixelpal-bridge setup",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace
+                ),
+                modifier = Modifier.padding(14.dp),
+                textAlign = TextAlign.Center
+            )
         }
+        Spacer(Modifier.height(20.dp))
+        SecondaryButton(
+            text = "Scan a QR code",
+            onClick = onScanQr,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        SecondaryButton(
+            text = "Enter the address manually",
+            onClick = onOpenManualSetup,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -212,14 +311,20 @@ private fun NoAgentsState() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Bridge connected", style = MaterialTheme.typography.titleMedium)
+        LottiePetView(
+            petType = "cat",
+            animationState = AnimationState.SLEEP,
+            size = 180.dp
+        )
+        Spacer(Modifier.height(Spacing.md))
+        Text("Bridge connected", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text(
             text = "No agents are running yet. Start Claude Code (or any supported " +
                 "agent) in a terminal and it will appear here within a second.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -231,31 +336,45 @@ private fun AgentRowCard(
     onDeny: () -> Unit
 ) {
     val isWaiting = row.status == AgentState.WAITING_FOR_INPUT
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = if (isWaiting) 4.dp else 1.dp,
-        color = if (isWaiting) {
-            MaterialTheme.colorScheme.tertiaryContainer
+    com.pixelpal.app.presentation.components.GlassCard(
+        shape = RoundedCornerShape(com.pixelpal.app.presentation.theme.Radius.large),
+        elevation = if (isWaiting) 4.dp else 1.dp,
+        borderStroke = if (isWaiting) {
+            androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+        },
+        backgroundColor = if (isWaiting) {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
         },
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
+
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(statusColor(row.status))
+                IconTile(
+                    icon = Icons.Filled.SmartToy,
+                    contentDescription = null,
+                    tint = statusColor(row.status)
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = row.displayName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = row.displayName,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(statusColor(row.status))
+                        )
+                    }
                     Text(
                         text = buildString {
                             append(row.status.displayName)

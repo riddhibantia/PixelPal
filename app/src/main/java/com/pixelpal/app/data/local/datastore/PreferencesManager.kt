@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.pixelpal.app.util.Constants
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -37,7 +38,9 @@ class PreferencesManager @Inject constructor(
         val AGENT_BRIDGE_URL = stringPreferencesKey(Constants.KEY_AGENT_BRIDGE_URL)
         val AGENT_BRIDGE_KEY = stringPreferencesKey(Constants.KEY_AGENT_BRIDGE_KEY)
         val AGENT_BRIDGE_ID = stringPreferencesKey(Constants.KEY_AGENT_BRIDGE_ID)
-        val AGENT_RELAY_ID = stringPreferencesKey(Constants.KEY_AGENT_RELAY_ID)
+
+        /** Bridge approvals already shown as notifications: "<companionId>|<approvalId>". */
+        val NOTIFIED_BRIDGE_APPROVALS = stringSetPreferencesKey(Constants.KEY_NOTIFIED_BRIDGE_APPROVALS)
 
         /** Per-companion overlay positions: overlay_x_<id> / overlay_y_<id>. */
         fun overlayX(companionId: Long) = floatPreferencesKey("${Constants.KEY_OVERLAY_X}_$companionId")
@@ -152,13 +155,18 @@ class PreferencesManager @Inject constructor(
     suspend fun getAgentBridgeId(): String =
         dataStore.data.first()[Keys.AGENT_BRIDGE_ID] ?: ""
 
-    /** Relay doc id, set after pairing with a 9-character code. */
-    suspend fun getAgentRelayId(): String =
-        dataStore.data.first()[Keys.AGENT_RELAY_ID] ?: ""
-
-    suspend fun setAgentRelayId(relayId: String) {
-        dataStore.edit { it[Keys.AGENT_RELAY_ID] = relayId }
+    /** True when a bridge address has been configured. */
+    val bridgePaired: Flow<Boolean> = dataStore.data.map { preferences ->
+        !preferences[Keys.AGENT_BRIDGE_URL].isNullOrBlank()
     }
+
+    suspend fun getNotifiedBridgeApprovals(): Set<String> =
+        dataStore.data.first()[Keys.NOTIFIED_BRIDGE_APPROVALS] ?: emptySet()
+
+    suspend fun setNotifiedBridgeApprovals(values: Set<String>) {
+        dataStore.edit { it[Keys.NOTIFIED_BRIDGE_APPROVALS] = values }
+    }
+
 
     /** Stores pairing info after a QR scan / manual entry. */
     suspend fun setAgentBridge(url: String, key: String, bridgeId: String) {
@@ -174,7 +182,6 @@ class PreferencesManager @Inject constructor(
             preferences.remove(Keys.AGENT_BRIDGE_URL)
             preferences.remove(Keys.AGENT_BRIDGE_KEY)
             preferences.remove(Keys.AGENT_BRIDGE_ID)
-            preferences.remove(Keys.AGENT_RELAY_ID)
         }
     }
 

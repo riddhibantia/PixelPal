@@ -6,92 +6,60 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Decides **how** to reach the bridge, so the rest of the app never has to care.
+ * Fetches agent state from the bridge. This is the seam between the app and
+ * however we reach the laptop.
  *
- * Order of preference:
- *  1. **Direct (LAN)** — fastest, no third party involved. Used whenever the
- *     phone can reach the laptop.
- *  2. **Relay (Firestore)** — used when direct fails, e.g. phone on mobile data.
+ * There used to be a second transport: a Firestore relay for when the phone
+ * was away from the Wi-Fi. It was removed because it cost 17,280 document
+ * reads per user per day against a 50,000/day free tier (so it stopped
+ * working for everyone after ~2 users) and it required deploying security
+ * rules before it would pair at all.
  *
- * The fallback is silent: the UI shows "Connected", and [Transport] is only
- * surfaced in diagnostics. A user should never have to reason about which path
- * is live.
+ * Off-Wi-Fi now means **Tailscale**: a private network between the user's own
+ * devices. It is free, needs no third party in the data path, has no quota,
+ * and the bridge reports its tailnet address during `pixelpal-bridge setup`.
+ * Both addresses are ordinary HTTPS URLs, so this class does not need to know
+ * which one it was given.
  */
 @Singleton
 class AgentBridgeTransport @Inject constructor(
-    private val repository: AgentSessionRepository,
-    private val relay: BridgeRelayClient
+    private val repository: AgentSessionRepository
 ) {
 
-    enum class Kind { DIRECT, RELAY }
-
-    data class Result(
-        val kind: Kind,
-        val agentsFound: Int,
-        val fromRelayPayload: String? = null
+    data class Snapshot(
+        /** Agents the bridge reported. Empty is meaningful: "no agents running". */
+        val agents: List<AgentSessionRepository.WireAgent>
     )
 
     /**
-     * Fetch agents, preferring the direct bridge.
+     * Fetch the current agent list, or null when the bridge did not answer.
      *
-     * [bridgeUrl] is the LAN endpoint, [relayLookupId] the paired relay (both may
-     * be blank if the user hasn't paired that way).
+     * Null is deliberately distinct from an empty list: a laptop that is
+     * asleep must leave the existing pet rows alone rather than erase them.
      */
-    suspend fun refresh(
-        bridgeUrl: String,
-        relayLookupId: String?
-    ): Result? {
-        // 1. Direct. A LAN bridge answers in milliseconds when present.
-        if (bridgeUrl.isNotBlank()) {
-            val direct = try {
-                repository.fetchAgents(bridgeUrl)
-            } catch (e: Exception) {
-                Timber.d(e, "Direct transport failed")
-                null
-            }
-            if (direct != null) {
-                return Result(Kind.DIRECT, direct.size)
-            }
-        }
-
-        // 2. Relay.
-        if (!relayLookupId.isNullOrBlank()) {
-            val payload = try {
-                relay.fetchAgents(relayLookupId)
-            } catch (e: Exception) {
-                Timber.d(e, "Relay transport failed")
-                null
-            }
-            if (payload != null) {
-                return Result(
-                    kind = Kind.RELAY,
-                    agentsFound = relay.parsePayload(payload).size,
-                    fromRelayPayload = payload
-                )
-            }
-        }
-
-        return null
+    suspend fun refresh(bridgeUrl: String): Snapshot? {
+        if (bridgeUrl.isBlank()) return null
+        val agents = try {
+            repository.fetchAgents(bridgeUrl)
+        } catch (e: Exception) {
+            Timber.d(e, "Bridge unreachable")
+            return null
+        } ?: return null
+        return Snapshot(agents)
     }
 
-    /** Answer an approval over whichever transport is live. */
+    /** Send an approve/deny decision back to the bridge. */
     suspend fun respondToApproval(
         bridgeUrl: String,
-        relayLookupId: String?,
         approvalId: String,
         approved: Boolean
     ): Boolean {
-        if (bridgeUrl.isNotBlank()) {
-            val ok = try {
-                repository.respondToApproval(bridgeUrl, approvalId, approved)
-            } catch (e: Exception) {
-                false
-            }
-            if (ok) return true
+        if (bridgeUrl.isBlank()) return false
+        return try {
+            repository.respondToApproval(bridgeUrl, approvalId, approved)
+        } catch (e: Exception) {
+            Timber.d(e, "Approval could not be sent")
+            false
         }
-        if (!relayLookupId.isNullOrBlank()) {
-            return relay.sendVerdict(relayLookupId, approvalId, approved)
-        }
-        return false
     }
 }

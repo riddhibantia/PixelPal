@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pixelpal.app.data.local.datastore.PreferencesManager
 import com.pixelpal.app.data.local.db.entity.AgentSessionEntity
+import com.pixelpal.app.data.remote.bridge.AgentBridgePoller
+import com.pixelpal.app.data.remote.bridge.AgentBridgeSync
 import com.pixelpal.app.data.remote.bridge.AgentBridgeTransport
-import com.pixelpal.app.data.remote.bridge.BridgeRelayClient
+import com.pixelpal.app.data.remote.bridge.BridgeApprovalNotifier
+import com.pixelpal.app.data.remote.GenericHttpAgentConnector
 import com.pixelpal.app.data.repository.AgentSessionRepository
 import com.pixelpal.app.domain.engine.ActiveCompanionManager
 import com.pixelpal.app.domain.model.AgentState
@@ -37,23 +40,12 @@ data class AgentRow(
     val toolsCompleted: Int
 )
 
-/** Progress of the "type a 9-character code" flow. */
-sealed interface CodePairState {
-    data object Idle : CodePairState
-    data object Working : CodePairState
-    data class Success(val agentsFound: Int) : CodePairState
-    data class Error(val message: String) : CodePairState
-}
-
 data class ConnectedAgentsUiState(
     val rows: List<AgentRow> = emptyList(),
     val bridgeUrl: String = "",
     val isPaired: Boolean = false,
     val isRefreshing: Boolean = false,
-    val lastError: String? = null,
-    val codePair: CodePairState = CodePairState.Idle,
-    /** True when we are reaching the bridge over the relay, not the LAN. */
-    val usingRelay: Boolean = false
+    val lastError: String? = null
 ) {
     val waitingCount: Int get() = rows.count { it.status == AgentState.WAITING_FOR_INPUT }
     val workingCount: Int get() = rows.count { it.status == AgentState.WORKING }
@@ -74,7 +66,10 @@ class ConnectedAgentsViewModel @Inject constructor(
     private val preferences: PreferencesManager,
     private val activeCompanion: ActiveCompanionManager,
     private val transport: AgentBridgeTransport,
-    private val relay: BridgeRelayClient
+    private val bridgeSync: AgentBridgeSync,
+    private val poller: AgentBridgePoller,
+    private val notifier: BridgeApprovalNotifier,
+    private val workerScheduler: com.pixelpal.app.worker.WorkerScheduler
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ConnectedAgentsUiState(isRefreshing = true))
@@ -104,10 +99,8 @@ class ConnectedAgentsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _state.value = _state.value.copy(isRefreshing = true)
-            val url = preferences.getAgentBridgeUrl()
-            val relayId = preferences.getAgentRelayId()
-
-            if (url.isBlank() && relayId.isBlank()) {
+            val paired = preferences.getAgentBridgeUrl().isNotBlank()
+            if (!paired) {
                 _state.value = _state.value.copy(
                     isRefreshing = false,
                     lastError = null,
@@ -116,8 +109,8 @@ class ConnectedAgentsViewModel @Inject constructor(
                 return@launch
             }
 
-            val result = transport.refresh(url, relayId)
-            if (result == null) {
+            val outcome = bridgeSync.sync()
+            if (!outcome.reachable) {
                 _state.value = _state.value.copy(
                     isRefreshing = false,
                     isPaired = true,
@@ -125,108 +118,56 @@ class ConnectedAgentsViewModel @Inject constructor(
                 )
                 return@launch
             }
-
-            // Direct transport already mirrored into Room; relay payload needs
-            // the same treatment so both paths converge on one data source.
-            if (result.kind == AgentBridgeTransport.Kind.RELAY) {
-                repository.replaceFromPayload(
-                    rawPayload = result.fromRelayPayload.orEmpty(),
-                    bridgeId = "relay:$relayId",
-                    companionId = companionId
-                )
-            } else {
-                val bridgeId = preferences.getAgentBridgeId().ifBlank { url }
-                repository.refresh(url, bridgeId, companionId)
-            }
+            // Notifications follow the same state the screen shows.
+            notifier.reconcile()
 
             _state.value = _state.value.copy(
                 isRefreshing = false,
-                bridgeUrl = url,
+                bridgeUrl = preferences.getAgentBridgeUrl(),
                 isPaired = true,
-                usingRelay = result.kind == AgentBridgeTransport.Kind.RELAY,
                 lastError = null
             )
         }
     }
 
+
     /**
-     * Pair by typing the 9-character code printed by `pixelpal-bridge setup`.
+     * Accept a pairing payload (from the QR scanner or the manual setup row).
      *
-     * This is the beginner path: no IP address, no QR, works off-Wi-Fi.
+     * [applyPairing] takes the `pixelpal://host=…&key=…` URI the bridge prints;
+     * the address may be a LAN URL or a Tailscale one — both are plain URLs.
      */
-    fun pairWithCode(rawCode: String) {
-        val normalized = com.pixelpal.app.data.remote.bridge.RelayCrypto.normalizeCode(rawCode)
-        if (normalized == null) {
+    fun applyPairing(rawUri: String): Boolean {
+        val parsed = parsePairingUri(rawUri) ?: run {
             _state.value = _state.value.copy(
-                codePair = CodePairState.Error(
-                    "That code doesn't look right. It's 9 letters and numbers."
-                )
+                lastError = "That pairing code doesn't look right."
             )
-            return
+            return false
         }
-        viewModelScope.launch {
-            _state.value = _state.value.copy(codePair = CodePairState.Working)
-            when (val result = relay.pair(normalized)) {
-                is BridgeRelayClient.PairResult.Success -> {
-                    val lookupId =
-                        com.pixelpal.app.data.remote.bridge.RelayCrypto.lookupId(normalized)
-                    preferences.setAgentRelayId(lookupId)
-                    val agents = relay.parsePayload(result.payload)
-                    if (agents.isNotEmpty()) {
-                        repository.replaceFromPayload(
-                            rawPayload = result.payload.orEmpty(),
-                            bridgeId = "relay:$lookupId",
-                            companionId = companionId
-                        )
-                    }
-                    _state.value = _state.value.copy(
-                        codePair = CodePairState.Success(agents.size),
-                        isPaired = true,
-                        usingRelay = true,
-                        lastError = null
-                    )
-                }
-
-                BridgeRelayClient.PairResult.WrongCode -> {
-                    _state.value = _state.value.copy(
-                        codePair = CodePairState.Error("Wrong code — check the 9 characters.")
-                    )
-                }
-
-                BridgeRelayClient.PairResult.BridgeOffline -> {
-                    _state.value = _state.value.copy(
-                        codePair = CodePairState.Error(
-                            "No bridge found. On your computer run `pixelpal-bridge setup`."
-                        )
-                    )
-                }
-
-                is BridgeRelayClient.PairResult.Failed -> {
-                    _state.value = _state.value.copy(
-                        codePair = CodePairState.Error(result.message)
-                    )
-                }
-            }
-        }
-    }
-
-    fun clearCodePairState() {
-        _state.value = _state.value.copy(codePair = CodePairState.Idle)
-    }
-
-    /** Pairing payload from the QR code: pixelpal://pair?host=…&port=…&key=… */
-    fun applyPairing(uri: String): Boolean {
-        val parsed = parsePairingUri(uri) ?: return false
         viewModelScope.launch {
             preferences.setAgentBridge(parsed.url, parsed.key, parsed.bridgeId)
-            _state.value = _state.value.copy(bridgeUrl = parsed.url, isPaired = true, lastError = null)
+            _state.value = _state.value.copy(
+                bridgeUrl = parsed.url,
+                isPaired = true,
+                lastError = null
+            )
+            onPaired()
             refresh()
         }
         return true
     }
 
+    /** Keep the bridge watched from now on, without waiting for a screen. */
+    private fun onPaired() {
+        poller.start()
+        workerScheduler.scheduleBridgePolling()
+    }
+
     fun unpair() {
         viewModelScope.launch {
+            poller.stop()
+            workerScheduler.cancelBridgePolling()
+            notifier.reset()
             preferences.clearAgentBridge()
             repository.clear()
             _state.value = ConnectedAgentsUiState()
@@ -238,7 +179,6 @@ class ConnectedAgentsViewModel @Inject constructor(
         viewModelScope.launch {
             transport.respondToApproval(
                 preferences.getAgentBridgeUrl(),
-                preferences.getAgentRelayId(),
                 approvalId,
                 approved = true
             )
@@ -251,7 +191,6 @@ class ConnectedAgentsViewModel @Inject constructor(
         viewModelScope.launch {
             transport.respondToApproval(
                 preferences.getAgentBridgeUrl(),
-                preferences.getAgentRelayId(),
                 approvalId,
                 approved = false
             )
@@ -263,9 +202,17 @@ class ConnectedAgentsViewModel @Inject constructor(
         data class Pairing(val url: String, val key: String, val bridgeId: String)
 
         /**
-         * Parse `pixelpal://pair?host=1.2.3.4&port=8787&key=…`.
-         * Returns null for anything that isn't a valid pairing URI, so a stray
-         * QR code can never silently reconfigure the app.
+         * Parse `pixelpal://pair?host=…&port=…&key=…`.
+         *
+         * A QR code can come from a poster or a screen share, so only hosts we
+         * are willing to talk to are accepted:
+         *  - loopback and private LAN (10/8, 172.16/12, 192.168/16)
+         *  - the Tailscale range 100.64.0.0/10, which is how the phone reaches
+         *    the laptop from outside the home Wi-Fi
+         *  - `*.ts.net` (Tailscale MagicDNS) and `*.local` (mDNS)
+         *
+         * Anything else returns null, so a stray code cannot point the app —
+         * and the bridge key it sends — at an arbitrary server.
          */
         fun parsePairingUri(raw: String): Pairing? {
             val trimmed = raw.trim()
@@ -276,14 +223,37 @@ class ConnectedAgentsViewModel @Inject constructor(
                 if (idx <= 0) null else pair.substring(0, idx) to pair.substring(idx + 1)
             }.toMap()
             val host = params["host"] ?: return null
-            val port = params["port"] ?: "8787"
             val key = params["key"] ?: return null
             if (key.length < 8) return null
-            return Pairing(
-                url = "http://$host:$port",
-                key = key,
-                bridgeId = "$host:$port"
-            )
+            if (!isAllowedHost(host)) return null
+
+            // A Tailscale host is reached over HTTPS; LAN hosts over plain HTTP.
+            val https = host.endsWith(".ts.net", ignoreCase = true)
+            val port = params["port"] ?: "8787"
+            val url = if (https) "https://$host" else "http://$host:$port"
+            return Pairing(url = url, key = key, bridgeId = "$host:$port")
+        }
+
+        /** Why: see [parsePairingUri]. Kept separate so it is unit-testable. */
+        fun isAllowedHost(host: String): Boolean {
+            val h = host.trim().lowercase()
+            if (h.isBlank()) return false
+            if (h == "localhost" || h == "10.0.2.2") return true
+            if (h.endsWith(".local")) return true
+            if (h.endsWith(".ts.net")) return true
+
+            val octets = h.split('.')
+                .map { it.toIntOrNull() ?: return false }
+            if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+            val (a, b) = octets[0] to octets[1]
+            return when {
+                a == 127 -> true                       // loopback
+                a == 10 -> true                        // 10.0.0.0/8
+                a == 192 && b == 168 -> true           // 192.168.0.0/16
+                a == 172 && b in 16..31 -> true        // 172.16.0.0/12
+                a == 100 && b in 64..127 -> true       // Tailscale 100.64.0.0/10
+                else -> false
+            }
         }
     }
 }

@@ -28,8 +28,8 @@ object Constants {
     const val KEY_AGENT_BRIDGE_KEY = "agent_bridge_key"
     const val KEY_AGENT_BRIDGE_ID = "agent_bridge_id"
 
-    /** Relay pairing: the Firestore doc id derived from the 9-char code. */
-    const val KEY_AGENT_RELAY_ID = "agent_relay_id"
+    /** Bridge approvals already surfaced as notifications ("<companionId>|<approvalId>"). */
+    const val KEY_NOTIFIED_BRIDGE_APPROVALS = "notified_bridge_approvals"
 
     // Notification channels
     const val CHANNEL_COMPANION = "companion_channel"

@@ -59,6 +59,20 @@ class AgentSessionRepository @Inject constructor(
         if (bridgeUrl.isBlank()) return@withContext -1
 
         val agents = fetchAgents(bridgeUrl) ?: return@withContext -1
+        applyAgents(agents, bridgeId, companionId)
+    }
+
+    /**
+     * Mirror an already-fetched `/agents` list into Room.
+     *
+     * Split out from [refresh] so callers that fetched the payload themselves
+     * (the poller, the relay path) persist it without a second HTTP round-trip.
+     */
+    suspend fun applyAgents(
+        agents: List<WireAgent>,
+        bridgeId: String,
+        companionId: Long
+    ): Int = withContext(Dispatchers.IO) {
         if (agents.isEmpty()) {
             dao.deleteAllForBridge(bridgeId)
             return@withContext 0
@@ -89,15 +103,7 @@ class AgentSessionRepository @Inject constructor(
             Timber.e(e, "Malformed relay payload")
             return@withContext -1
         }
-        if (agents.isEmpty()) {
-            dao.deleteAllForBridge(bridgeId)
-            return@withContext 0
-        }
-        val now = System.currentTimeMillis()
-        val entities = agents.map { it.toEntity(bridgeId, companionId, now) }
-        dao.upsertAll(entities)
-        dao.deleteMissingForBridge(bridgeId, entities.map { it.id })
-        entities.size
+        applyAgents(agents, bridgeId, companionId)
     }
 
     /** One-shot fetch; null means "unreachable", an empty list means "no agents". */

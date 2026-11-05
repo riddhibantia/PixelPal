@@ -118,6 +118,72 @@ class AgentNotificationHelper @Inject constructor(
             ?.cancel(approvalNotificationId(companionId, approvalId))
     }
 
+    /**
+     * Approval ask coming from the multi-agent bridge (Claude Code, Codex, …).
+     *
+     * Same Approve/Deny actions as [notifyApproval], but the verdict is routed
+     * back through [com.pixelpal.app.receiver.AgentApprovalReceiver]'s bridge
+     * branch, which talks to `AgentBridgeTransport` instead of the legacy
+     * single-agent endpoint.
+     */
+    fun notifyBridgeApproval(
+        companionId: Long,
+        agentName: String,
+        approvalId: String,
+        action: String,
+        detail: String?
+    ) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (!manager.areNotificationsEnabled()) return
+
+        ensureChannel(manager)
+
+        fun verdictIntent(approve: Boolean) = Intent(context, AgentApprovalReceiver::class.java).apply {
+            this.action = if (approve) Constants.ACTION_APPROVE_AGENT else Constants.ACTION_DENY_AGENT
+            putExtra(AgentApprovalReceiver.EXTRA_COMPANION_ID, companionId)
+            putExtra(AgentApprovalReceiver.EXTRA_APPROVAL_ID, approvalId)
+            putExtra(AgentApprovalReceiver.EXTRA_SOURCE, AgentApprovalReceiver.SOURCE_BRIDGE)
+        }
+        val approve = PendingIntent.getBroadcast(
+            context,
+            approvalId.hashCode() xor 0xA1,
+            verdictIntent(approve = true),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val deny = PendingIntent.getBroadcast(
+            context,
+            approvalId.hashCode() xor 0xD1,
+            verdictIntent(approve = false),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val openApp = PendingIntent.getActivity(
+            context,
+            companionId.toInt() xor 0xBB,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val text = buildString {
+            append(action)
+            detail?.takeIf { it.isNotBlank() }?.let { append(" — ${it.take(120)}") }
+        }
+        val notification = NotificationCompat.Builder(context, Constants.CHANNEL_AGENT)
+            .setSmallIcon(R.drawable.ic_stat_companion)
+            .setContentTitle("$agentName asks for approval")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(openApp)
+            .addAction(0, "Approve", approve)
+            .addAction(0, "Deny", deny)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
+        manager.notify(approvalNotificationId(companionId, approvalId), notification)
+    }
+
     private fun approvalNotificationId(companionId: Long, approvalId: String): Int =
         (Constants.NOTIFICATION_ID_AGENT + companionId + approvalId.hashCode()).toInt()
 
