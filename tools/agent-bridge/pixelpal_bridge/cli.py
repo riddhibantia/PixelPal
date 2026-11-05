@@ -119,6 +119,27 @@ def _tailscale_hostname() -> str | None:
     return f"https://{dns_name}"
 
 
+def _print_pairing_qr(uri: str) -> None:
+    """Print a scannable terminal QR; the copy/paste URI is printed separately.
+
+    The encoder is vendored (`pixelpal_bridge.qr`), so this works on every
+    machine `install.sh` supports — no pip package required. On a terminal the
+    code is drawn dark-on-light whatever the colour theme is; when the output
+    is piped (CI, logs, issue reports) plain blocks are used instead.
+    """
+    try:
+        from .qr import render
+
+        lines = render(uri)
+    except Exception:  # noqa: BLE001 - a drawing is a convenience, never a failure
+        return
+    colour = sys.stdout.isatty()
+    for line in lines:
+        # 30;47 = black on white, so the code keeps the polarity scanners need
+        # instead of depending on the terminal's own foreground/background.
+        print(f"\033[30;47m{line}\033[0m" if colour else line)
+
+
 def cmd_serve(args) -> int:
     config = {}
     if CONFIG_PATH.exists():
@@ -304,23 +325,24 @@ def cmd_setup(args) -> int:
     # 5. How the phone connects -----------------------------------------
     print()
     lan = _lan_ip()
+    pair_host = (
+        tailnet.removeprefix("https://").removeprefix("http://").split("/")[0]
+        if tailnet else lan
+    )
     key = config.get("pairingKey") or ""
-    print("  In the app, go to the Agent tab and paste this pairing code.")
-    print("  It carries the address AND the key, so there is nothing else to enter:")
+    print("  In PixelPal, open the Agent tab → Scan pairing code, or paste this code.")
+    print("  It includes the bridge address and pairing key:")
     print()
-    if lan:
-        print(f"    pixelpal://pair?host={lan}&port={port}&key={key}")
+    if pair_host:
+        pairing_uri = f"pixelpal://pair?host={pair_host}&port={port}&key={key}"
     else:
-        print(f"    pixelpal://pair?host=YOUR-LAPTOP-IP&port={port}&key={key}")
+        pairing_uri = f"pixelpal://pair?host=YOUR-LAPTOP-IP&port={port}&key={key}"
+    print(f"    {pairing_uri}")
+    _print_pairing_qr(pairing_uri)
     print()
     print(f"  (Plain address, if you prefer: http://{lan or 'YOUR-LAPTOP-IP'}:{port})")
     print()
-    if tailnet:
-        print("  Away from this Wi-Fi, use the Tailscale address instead:")
-        print()
-        print(f"    {tailnet}")
-        print()
-    else:
+    if not tailnet:
         print("  To reach this machine from outside your Wi-Fi, install Tailscale")
         print("  on both your computer and your phone (free), sign in with the")
         print("  same account, then run `pixelpal-bridge setup` again.")
@@ -394,17 +416,9 @@ def cmd_pair(args) -> int:
     print()
     print("  pair URI:", uri)
     print()
-    try:
-        import qrcode  # optional dependency
-
-        qr = qrcode.QRCode(border=1)
-        qr.add_data(uri)
-        qr.make()
-        qr.print_ascii(invert=True)
-    except ImportError:
-        print("  (install `qrcode` for a scannable QR: pip install qrcode)")
-        print(f"  manual entry — host: {payload['host']}  port: {payload['port']}")
-        print(f"  key: {config['pairingKey']}")
+    _print_pairing_qr(uri)
+    print(f"  manual entry — host: {payload['host']}  port: {payload['port']}")
+    print(f"  key: {config['pairingKey']}")
     return 0
 
 

@@ -30,15 +30,18 @@ release tarball works: `pipx install ./pixelpal-bridge-<ver>.tar.gz`.
 
 `setup` does everything: detects your agents, installs their hooks, starts the
 bridge as a **background service** (so it survives reboot — no terminal to
-keep open), and prints the address to paste into the app's **Agent** tab:
+keep open), and prints a pairing code for the app's **Agent** tab, with a
+scannable QR right above it (the encoder is vendored, so there is nothing to
+install — or just paste the full `pixelpal://pair?...` code if you prefer):
 
 ```
-  Pair your phone — open the Agent tab and enter:
+  Pair your phone — open Agent → Scan pairing code, or paste this code:
 
-    http://192.168.1.20:8787
+    pixelpal://pair?host=192.168.1.20&port=8787&key=...
 ```
 
-Same Wi-Fi, that is the whole story. Away from home? Install
+The pairing code includes both the address and key; a plain HTTP URL is not a
+pairing code. Same Wi-Fi, that is the whole story. Away from home? Install
 [Tailscale](https://tailscale.com) on the laptop and phone; `setup` detects it
 and prints your `https://<machine>.ts.net` address instead — same paste, same
 pairing, no firewall work. (The old Firestore relay was removed in v2.0 — it

@@ -10,7 +10,6 @@ requires-python = ">=3.9"
 dependencies = []
 
 [project.optional-dependencies]
-qr = ["qrcode"]
 dev = ["pytest"]
 
 [project.scripts]

@@ -164,10 +164,12 @@ class TestSetupCommand:
         for key in ("relayCode", "relayRefreshToken", "googleServicesPath"):
             assert key not in config, f"{key} must not exist anymore"
 
-    def test_setup_prints_the_lan_address(self, scratch, capsys):
+    def test_setup_prints_pairing_code_for_the_agent_tab(self, scratch, capsys):
         cli.main(["setup", "--no-service"])
         out = capsys.readouterr().out
         assert "Agent tab" in out
+        assert "pixelpal://pair?host=" in out
+        assert "&key=" in out
         assert ":8787" in out or "127.0.0.1" in out or "http://" in out
 
     def test_setup_reports_tailscale_when_present(self, scratch, monkeypatch, capsys):
@@ -182,11 +184,20 @@ class TestSetupCommand:
         out = capsys.readouterr().out
         assert "Tailscale" in out
 
-    def test_setup_has_no_pairing_code(self, scratch, capsys):
-        """Codes belonged to the relay; the LAN path needs no code."""
+    def test_setup_has_copyable_pairing_code(self, scratch, capsys):
+        """The app needs the bridge key as well as the LAN address."""
         cli.main(["setup", "--no-service"])
         out = capsys.readouterr().out
-        assert "type this in the app" not in out.lower()
+        assert "paste this code" in out.lower()
+
+    def test_setup_draws_a_scannable_qr(self, scratch, capsys):
+        """The QR must appear on a stock machine: the encoder is vendored."""
+        cli.main(["setup", "--no-service"])
+        out = capsys.readouterr().out
+        assert any(ch in out for ch in "█▀▄"), (
+            "setup must print the pairing QR without extra packages"
+        )
+        assert "pip install" not in out, "a missing pip package must never be the story"
 
     def test_rerunning_setup_restarts_an_existing_daemon(self, scratch, monkeypatch):
         restarted: list[str] = []
