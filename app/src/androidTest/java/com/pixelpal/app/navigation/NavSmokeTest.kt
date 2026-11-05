@@ -26,7 +26,7 @@ class NavSmokeTest {
             Screen.OverlaySettings.route,
             Screen.About.route,
             Screen.Permissions.route,
-            Screen.CompanionWorkspace.route,
+            Screen.ConnectedAgents.route,
             Screen.Tasks.route,
             Screen.NewTask.route,
             Screen.TaskDetail.route,
@@ -45,8 +45,12 @@ class NavSmokeTest {
     }
 
     @Test
-    fun workspace_ignoresId_singleCompanionInvariant() {
-        assert(Screen.companionWorkspace(999L) == Screen.CompanionWorkspace.route)
-        assert(Screen.CompanionWorkspace.route == "workspace")
+    fun agentHub_isTheOnlyRouteWithArgs_absent() {
+        // The Agent tab replaced the per-companion workspace: one agent surface,
+        // no companion id in the route (the single-companion invariant).
+        assert(Screen.ConnectedAgents.route == "connected_agents")
+        assert(!Screen.ConnectedAgents.route.contains("{")) {
+            "the Agent hub must not take a companion id: ${Screen.ConnectedAgents.route}"
+        }
     }
 }
