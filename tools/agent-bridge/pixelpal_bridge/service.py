@@ -70,8 +70,37 @@ def has_launchd() -> bool:
 # ---------------------------------------------------------------------------
 
 
+def _package_root() -> str | None:
+    """
+    The directory to put on PYTHONPATH so `-m pixelpal_bridge.cli` resolves.
+
+    Three install layouts exist and each needs a different answer:
+      * repo checkout / pipx venv -> the interpreter already has the package,
+        so no PYTHONPATH is needed.
+      * install.sh (no venv) -> the package sits in
+        ~/.local/share/pixelpal-bridge and is only reachable via PYTHONPATH.
+
+    Returns None when the running interpreter can already import the package.
+    """
+    try:
+        import pixelpal_bridge  # noqa: F401  (probe only)
+        return None
+    except ImportError:
+        pass
+    candidate = Path.home() / ".local" / "share" / "pixelpal-bridge"
+    if (candidate / "pixelpal_bridge").is_dir():
+        return str(candidate)
+    # Last resort: the directory containing this file's parent package.
+    return str(Path(__file__).resolve().parent.parent)
+
+
 def _systemd_unit_text(port: int) -> str:
     python = _python()
+    root = _package_root()
+    # Without this, an install.sh install dies on every restart with
+    # "No module named 'pixelpal_bridge'" — the wrapper script sets PYTHONPATH
+    # but the unit bypasses the wrapper.
+    env_line = f"Environment=PYTHONPATH={root}\n" if root else ""
     return f"""[Unit]
 Description=PixelPal bridge — connects terminal coding agents to the PixelPal app
 Documentation=https://github.com/pixelpal
@@ -79,7 +108,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart={python} -m pixelpal_bridge.cli serve --port {port}
+{env_line}ExecStart={python} -m pixelpal_bridge.cli serve --port {port}
 Restart=always
 RestartSec=3
 # A bridge crash must never take the session down or spam logs.
@@ -107,6 +136,7 @@ def install_systemd(port: int = 8787) -> str:
 
 def _launchd_plist_text(port: int) -> str:
     python = _python()
+    root = _package_root()
     log_dir = Path.home() / "Library" / "Logs"
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
@@ -121,6 +151,10 @@ def _launchd_plist_text(port: int) -> str:
     <string>serve</string>
     <string>--port</string><string>{port}</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key><string>{root or ""}</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>{log_dir / 'pixelpal-bridge.log'}</string>

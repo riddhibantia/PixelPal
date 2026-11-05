@@ -46,6 +46,36 @@ class TestSystemdUnit:
         text = service._systemd_unit_text(8787)
         assert "ExecStart=python3 " in text or "ExecStart=/" in text
 
+    def test_unit_can_import_the_package_when_installed_by_install_sh(
+        self, tmp_path, monkeypatch
+    ):
+        """
+        Regression: install.sh drops the package in ~/.local/share/pixelpal-bridge
+        and only the wrapper script sets PYTHONPATH. The unit calls python
+        directly, so it crash-looped 33 times with
+        "No module named 'pixelpal_bridge'" before reporting success.
+        """
+        root = tmp_path / ".local" / "share" / "pixelpal-bridge"
+        (root / "pixelpal_bridge").mkdir(parents=True)
+        monkeypatch.setattr(service.Path, "home", staticmethod(lambda: tmp_path))
+        # Pretend the current interpreter cannot import the package (the
+        # systemd case); otherwise _package_root() correctly returns None.
+        import builtins
+
+        real_import = builtins.__import__
+
+        def blocked(name, *args, **kwargs):
+            if name == "pixelpal_bridge":
+                raise ImportError("simulated systemd interpreter")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", blocked)
+        text = service._systemd_unit_text(8787)
+        assert f"Environment=PYTHONPATH={root}" in text, (
+            "without PYTHONPATH the daemon cannot find the package and "
+            "crash-loops on every restart"
+        )
+
     def test_install_writes_and_enables(self, isolated):
         description = service.install_systemd(8787)
         assert service.SYSTEMD_UNIT.exists()
