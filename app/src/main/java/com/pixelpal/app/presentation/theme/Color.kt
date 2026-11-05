@@ -1,117 +1,81 @@
 package com.pixelpal.app.presentation.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 
 /**
  * PixelPal semantic color palettes.
  *
- * Screens and components must consume colors through [androidx.compose.material3.MaterialTheme]
- * colorScheme slots — never raw Color values. These palettes exist to feed Theme.kt mappings.
- *
- * Identity: modern neutral dark (near-black zinc surfaces, white text) with a
- * gold primary accent and purple secondary.
+ * Impeccable design system: Linear & Apple Notes caliber craft.
+ * Exactly two themes: Obsidian Dark and Clean Paper Light.
+ * Quiet chrome, neutral ramps, single disciplined Indigo accent.
  */
 
-/** Semantic state colors shared by every theme. */
-val PixelSuccess = Color(0xFF6BCB77)
-val PixelWarning = Color(0xFFFFD166)
+val PixelSuccess = Color(0xFF2EA043)
+val PixelWarning = Color(0xFFD29922)
 
 object DarkPalette {
-    val Background = Color(0xFF0F0F13)
-    val Surface = Color(0xFF17171C)
-    val SurfaceElevated = Color(0xFF1E1E25)
+    // Mockup-tuned: cards read as clearly elevated panels against the
+    // obsidian canvas (channel spread kept ≤ 20 — pinned by DarkThemeTest).
+    val Background = Color(0xFF131124)
+    val Surface = Color(0xFF1D1A2E)
+    val SurfaceElevated = Color(0xFF242134)
 
-    val Primary = Color(0xFFF6C453)
-    val OnPrimary = Color(0xFF1C1607)
-    val PrimaryContainer = Color(0xFF3A2E10)
-    val OnPrimaryContainer = Color(0xFFF8D47E)
+    val Primary = Color(0xFF8B6CF6)
+    val OnPrimary = Color(0xFFFFFFFF)
+    val PrimaryContainer = Color(0xFF2E2458)
+    val OnPrimaryContainer = Color(0xFFEDE9FE)
 
-    val Secondary = Color(0xFF8B6CF6)
-    val OnSecondary = Color(0xFFF4F4F5)
-    val SecondaryContainer = Color(0xFF2B2545)
-    val OnSecondaryContainer = Color(0xFFCFC2FA)
+    val Secondary = Color(0xFFA78BFA)
+    val OnSecondary = Color(0xFF131124)
+    val SecondaryContainer = Color(0xFF262044)
+    val OnSecondaryContainer = Color(0xFFDDD6FE)
 
-    val TextPrimary = Color(0xFFF4F4F5)
-    val TextSecondary = Color(0xFFA1A1AA)
+    val TextPrimary = Color(0xFFFAF9FE)
+    val TextSecondary = Color(0xFFA6A0B8)
 
-    val Outline = Color(0xFF3F3F46)
-    val Divider = Color(0xFF27272A)
+    val Outline = Color(0x338B6CF6)
+    val Divider = Color(0x1F8B6CF6)
 
     val Error = Color(0xFFFF6B6B)
-    val OnError = Color(0xFF200D0D)
+    val OnError = Color(0xFFFFFFFF)
 }
 
 object LightPalette {
-    val Background = Color(0xFFF8F1E5)
-    val Surface = Color(0xFFFFF9EF)
+    // Mockup-tuned: pale lilac canvas deep enough that WHITE cards float on
+    // it (the wash fix), pure white surfaces carried by soft shadows.
+    val Background = Color(0xFFEDE7F9)
+    val Surface = Color(0xFFFFFFFF)
     val SurfaceElevated = Color(0xFFFFFFFF)
 
-    val Primary = Color(0xFFD99F2B)
-    val OnPrimary = Color(0xFF2A1F16)
-    val PrimaryContainer = Color(0xFFF3E1B8)
-    val OnPrimaryContainer = Color(0xFF6B4E10)
+    val Primary = Color(0xFF7B57FF)
+    val OnPrimary = Color(0xFFFFFFFF)
+    val PrimaryContainer = Color(0xFFEDE8FE)
+    val OnPrimaryContainer = Color(0xFF351A88)
 
-    val Secondary = Color(0xFF7658C7)
-    val OnSecondary = Color(0xFFFFF9EF)
-    val SecondaryContainer = Color(0xFFE6DFF7)
-    val OnSecondaryContainer = Color(0xFF4A3899)
+    val Secondary = Color(0xFF9878F8)
+    val OnSecondary = Color(0xFFFFFFFF)
+    val SecondaryContainer = Color(0xFFF3EFFF)
+    val OnSecondaryContainer = Color(0xFF452B94)
 
-    val TextPrimary = Color(0xFF2A1F16)
-    val TextSecondary = Color(0xFF6F6254)
+    val TextPrimary = Color(0xFF1B162E)
+    val TextSecondary = Color(0xFF736D8A)
 
-    val Outline = Color(0xFFCDBFAE)
-    val Divider = Color(0xFFE7DCCB)
+    val Outline = Color(0xFFD9CFF0)
+    val Divider = Color(0xFFE9E3F7)
 
-    val Error = Color(0xFFFF6B6B)
-    val OnError = Color(0xFF2A1F16)
+    val Error = Color(0xFFDC2626)
+    val OnError = Color(0xFFFFFFFF)
 }
 
-object SpringPalette {
-    val Background = Color(0xFFF2F6EA)
-    val Surface = Color(0xFFE8F0DE)
-    val SurfaceElevated = Color(0xFFFAFCF5)
-
-    val Primary = Color(0xFFD5A93A)
-    val OnPrimary = Color(0xFF2A2515)
-    val PrimaryContainer = Color(0xFFEDE3C0)
-    val OnPrimaryContainer = Color(0xFF6B5716)
-
-    val Secondary = Color(0xFF6D8E70)
-    val OnSecondary = Color(0xFFFAFCF5)
-    val SecondaryContainer = Color(0xFFD8E4D4)
-    val OnSecondaryContainer = Color(0xFF3E5342)
-
-    val TextPrimary = Color(0xFF283126)
-    val TextSecondary = Color(0xFF657061)
-
-    val Outline = Color(0xFFBFCBB7)
-    val Divider = Color(0xFFDCE5D6)
-
-    val Error = Color(0xFFFF6B6B)
-    val OnError = Color(0xFF2A2515)
-}
-
-object AutumnPalette {
-    val Background = Color(0xFFF4E4CF)
-    val Surface = Color(0xFFEAD3B8)
-    val SurfaceElevated = Color(0xFFFAEBDD)
-
-    val Primary = Color(0xFFC98A2E)
-    val OnPrimary = Color(0xFF2A1A0D)
-    val PrimaryContainer = Color(0xFFEFD3A8)
-    val OnPrimaryContainer = Color(0xFF6B4615)
-
-    val Secondary = Color(0xFF80506A)
-    val OnSecondary = Color(0xFFFAEBDD)
-    val SecondaryContainer = Color(0xFFE5D0DA)
-    val OnSecondaryContainer = Color(0xFF5A3648)
-
-    val TextPrimary = Color(0xFF342318)
-    val TextSecondary = Color(0xFF715E4D)
-
-    val Outline = Color(0xFFC6AA8B)
-    val Divider = Color(0xFFDEC8AC)
-
-    val Error = Color(0xFFFF6B6B)
-    val OnError = Color(0xFF2A1A0D)
+/**
+ * Solid brushes for the redesign. No radial glows — radiance reads as slop.
+ */
+object PixelPalGradients {
+    val primaryCard = androidx.compose.ui.graphics.Brush.linearGradient(
+        colors = listOf(Color(0xFF8B6CF6), Color(0xFF6738EB))
+    )
+    val streakBar = androidx.compose.ui.graphics.Brush.verticalGradient(
+        colors = listOf(Color(0xFFA78BFA), Color(0xFF6738EB))
+    )
 }

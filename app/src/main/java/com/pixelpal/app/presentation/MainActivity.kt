@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,6 +42,26 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val currentTheme by preferencesManager.currentTheme.collectAsStateWithLifecycle(initialValue = "dark")
+            // Status-bar icons must follow the IN-APP theme, not the system
+            // one: picking Light inside PixelPal while the system is dark
+            // would otherwise leave white icons on a pale canvas.
+            val themeIsDark = when (currentTheme.lowercase()) {
+                "light" -> false
+                "dark" -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+            SideEffect {
+                enableEdgeToEdge(
+                    statusBarStyle = androidx.activity.SystemBarStyle.auto(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT
+                    ) { themeIsDark },
+                    navigationBarStyle = androidx.activity.SystemBarStyle.auto(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT
+                    ) { themeIsDark }
+                )
+            }
             PixelPalTheme(theme = currentTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

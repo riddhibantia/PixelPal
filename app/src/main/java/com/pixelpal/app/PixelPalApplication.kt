@@ -14,6 +14,7 @@ import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import timber.log.Timber
@@ -49,6 +50,12 @@ class PixelPalApplication : Application(), Configuration.Provider {
 
     @Inject
     lateinit var overlayManager: OverlayManager
+
+    @Inject
+    lateinit var agentBridgePoller: com.pixelpal.app.data.remote.bridge.AgentBridgePoller
+
+    @Inject
+    lateinit var preferencesManager: com.pixelpal.app.data.local.datastore.PreferencesManager
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -117,6 +124,12 @@ class PixelPalApplication : Application(), Configuration.Provider {
                         connection.companionId,
                         connection.pollingIntervalMinutes
                     )
+                }
+                // Multi-agent bridge: keep sessions live in this process and
+                // schedule the worker fallback for when it is gone.
+                if (preferencesManager.bridgePaired.first()) {
+                    agentBridgePoller.start()
+                    workerScheduler.scheduleBridgePolling()
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Companion bootstrap failed")
