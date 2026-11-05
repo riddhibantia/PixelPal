@@ -29,3 +29,10 @@ venv/
 .release-keys/
 release-keystore*
 *.jks
+
+# Local logs and build metadata
+firestore-debug.log
+*.egg-info/
+
+# Session capture dumps (large, not source)
+dsh-session-*.zip

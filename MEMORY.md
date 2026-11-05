@@ -59,10 +59,11 @@
 5. **[FIXED]** **Past-due one-shot reminders dropped on boot:** ReminderScheduler
    .rescheduleAll leaves next==null rows PENDING forever (alarm never re-set;
    stuck until user edits). (ReminderScheduler.kt:90-101)
-6. **OverlaySession show/hide race:** (still open — see OverlayManager/OverlaySession edits: unrelated to this pass) `show()` is async; if `hide()` runs
-   before `addView` completes the coroutine still adds a window nothing will
-   remove → leaked overlay + `isShowing()==false`.
-   (OverlaySession.kt:80-133)
+6. **[FIXED]** **OverlaySession show/hide race:** `show()` suspends on the
+   DataStore position read before `addView`; a `hide()` in that window used to
+   leak a window nothing would remove. Fixed with a `showToken` bumped by both
+   `show()` and `hide()`; the pending `addView` aborts when the token moved.
+   (OverlaySession.kt)
 7. **WebSocket single-slot race:** (open — Batch-2 agent-monitoring scope) `checkOnce`'s `finally { disconnect() }`
    kills any concurrently-live `connectAndStream` socket; `activeWebSocket`
    last-write-wins so `sendMessage` can target a stale socket; two concurrent
@@ -204,6 +205,134 @@ New/changed shapes a future session must know. Update this list when these evolv
   11 files. Still no tests for the coordinator's I/O orchestration, connector
   routing, or ReminderScheduler re-arm (open).
 
+### 2026-11-04 — "core loop actually works" pass
+
+Shipped after the audit above; each item was verified by compile + unit tests +
+install over the existing v15 database (migration ran on device: user_version 16).
+
+- **Bridge polling left the UI.** `AgentBridgeSync` (one fetch→mirror path),
+  `AgentBridgePoller` (process-life poll: 4 s while approving, 20 s idle),
+  `AgentBridgeWorker` (15-min WorkManager fallback, `pixelpal_bridge_poll`),
+  `BridgeApprovalNotifier` (dedupes by `notified_bridge_approvals`, cancels
+  resolved asks). `AgentApprovalReceiver` gained `EXTRA_SOURCE`/`SOURCE_BRIDGE`
+  so notification Approve/Deny reaches `AgentBridgeTransport`. Before this the
+  Agents screen was the only poller and bridge sessions never notified.
+- **One agent data source.** `HomeViewModel.AgentSlice` (paired/working/waiting/
+  headline/detail/progress) replaces the legacy `AgentConnection` slice; the
+  home widget reads `agent_sessions` instead of `agent_connection`.
+- **Recurring reminders exist.** Repeat picker (Once/Daily/Weekly/Monthly) in
+  CreateReminder, `recurrenceDayOfMonth` (Room **15_16**, entity+model+
+  Firestore `toMap`), and pure `domain/engine/RecurrenceMath.kt` with
+  `RecurrenceMathTest` (month-end clamp 31→28→31, DST, interval jump).
+- **QR pairing was inert and unguarded.** The Agents screen never read
+  `SCANNED_URL_KEY`, so scanning from the Agent tab did nothing; and
+  `parsePairingUri` accepted any host. Now the screen consumes the result and
+  the host must be loopback/RFC1918 (`PairingUriTest` updated + 2 new cases).
+- **Forms survive rotation/process death**: `rememberSaveable` in CreateReminder
+  (all fields), NewTask (title/description/due/subtask drafts via `listSaver`),
+  CompanionWorkspace (endpoint/key/command). The app previously had zero
+  `rememberSaveable` calls.
+- **Sign-out fails closed** when the local wipe fails (retry once, then abort
+  and surface `lastSyncError`).
+- **Auto Backup no longer carries secrets**: both XML rule files include only
+  `database`. The prefs file (bridge key, Gemini key) is excluded.
+- **Bond decay is calendar-day based** (`ChronoUnit.DAYS` between local dates,
+  cursor advanced by whole days so a retried worker can't double-subtract).
+- **Bridge server compares `X-PixelPal-Key` with `hmac.compare_digest`.**
+- **Onboarding page 5** ("Watch Your Agent Work") shows the install commands
+  with a copy button.
+
+Known limit of this pass: `cleartextTrafficPermitted="true"` stays in
+`network_security_config.xml` because Android cannot express RFC1918 ranges in
+`domain-config`; flipping the base-config to false would break LAN pairing. The
+host allowlist (`isAllowedEndpoint` + the new pairing check) is the real gate.
+
+### 2026-11-05 — ⚠️ THE FIREBASE RELAY IS REMOVED (supersedes the two 2026-11-04 relay entries below)
+
+Everything from here to "Deliberately NOT done" describing `relay.py`,
+`relay_crypto.py`, `BridgeRelayClient`, pairing codes, `/relays` rules and
+`test/rules/` is **history of deleted code**. Reason: ~17,280 Firestore
+reads/user/day vs a 50k/day free tier (dead at ~2 users) plus a mandatory
+manual rules deploy. Off-Wi-Fi is Tailscale now; transport is direct-only.
+Current truth lives in `AGENTS.md` → "Direct connect (2026-11-05)". The
+daemon-interpreter, port-collision and hook-safety lessons below still apply.
+
+### 2026-11-04 — relay actually works end to end
+
+Found while trying to pair a real phone against the deployed rules. The relay
+was *registered* by `setup` and never used again: `RelayClient` had
+`publish_agents`/`fetch_verdict` but nothing called them, so a pairing either
+succeeded into an empty screen or failed at the first write.
+
+- **`RelayLoop`** (`relay.py`): one `step()` = read verdict → publish state if
+  it changed → return `next_poll_delay()`. `run_forever(stop)` never dies on a
+  transport error (backs off 3×20 s). Wired into `serve` by `_start_relay`,
+  which retries every 30 s if the relay is unreachable.
+- **Stable bridge identity**: the rules tie writes to `bridgeUid`, and every
+  process used to mint a new anonymous account → HTTP 403 on the daemon's first
+  publish (observed in the journal). The refresh token is now persisted
+  (`relayRefreshToken`, 0600) and rotation is written back.
+- **`register()` is idempotent**: create once; afterwards only
+  `lastSeen`/`version` through `updateMask` (a full re-PATCH is denied by the
+  rules). `_owns_existing()` refuses to adopt a relay whose verifier or
+  `bridgeUid` is someone else's.
+- **Daemon interpreter**: the systemd unit used `/usr/bin/python3`, which has no
+  `pixelpal_bridge` when installed by pipx/uv → crash-loop with
+  `ModuleNotFoundError`. Now `sys.executable`.
+- **Port collisions**: setup picks the first free port and saves it (8787 was
+  held by an unrelated dev server here, so the daemon would have crash-looped).
+- **google-services discovery**: an installed CLI lives outside the repo, so the
+  source-tree walk found nothing. Now `--google-services` /
+  `PIXELPAL_GOOGLE_SERVICES` / CWD tree / source tree, and setup persists
+  `googleServicesPath` so the daemon (CWD=/) can find it.
+- **`doctor`** grew a Relay block (registered? readable? which project) and
+  `status` prints the code it is publishing to.
+
+Tests: `test_relay_loop.py`, `test_bridge_identity.py`, `test_serve_relay.py`
+plus setup ordering/persistence cases — 187 python tests total. Proven live:
+`relay registered (pixel-pet-a1cc6)` in the journal and `state/current` holding
+the agent payload pushed by a real `/events` POST.
+
+### 2026-11-04 — pairing was impossible: the handshake read rule
+
+Reproduced live against the deployed rules, not guessed:
+
+```
+GET relays/{lookupId}  as an anonymous phone account  ->  403
+{"error":{"code":403,"message":"Missing or insufficient permissions."}}
+```
+
+`BridgeRelayClient.pair()` reads the handshake document to verify the code and
+*then* claims `phoneUid`. The rule was `allow read: if isParty()`, and a phone
+that has not claimed yet is not a party — so pairing could never succeed, and
+the user saw the raw Firebase text.
+
+- `firestore.rules`: handshake read is now `if signedIn()`. This leaks nothing
+  new: the doc id is `sha256(code)[:32]`, so reading the document already
+  implies knowing the 42.8-bit code, and the verifier is an HMAC of that same
+  code. Writes, `state` reads and `inbox` writes still require being a party.
+- `test/rules/relay.rules.test.mjs`: the old "third party is denied everything"
+  assertion became "can read the handshake, cannot change it, cannot read
+  state", plus a new test that walks the app's real order (verify → claim →
+  read state). 20 rules tests, e2e script still green.
+- **The app now says what to do**: `BridgeRelayClient.describe()` turns
+  `PERMISSION_DENIED` into "the project's Firestore rules are out of date — run
+  `firebase deploy --only firestore:rules`". Unit-tested
+  (`RelayPairErrorMessageTest`) with the denial flag injected, because
+  constructing `FirebaseFirestoreException` runs its static initializer and
+  needs a Firebase app.
+
+Not caused by the relay loop work: the phone never got that far.
+
+**Then made the deploy unnecessary.** `pair()` now claims `phoneUid` *first* and
+reads the handshake second. The claim rule is unchanged by the fix, so the app
+pairs against a project that still runs the old ruleset — verified in the
+emulator with `git show HEAD:firestore.rules` as the ruleset: read-before-claim
+denied, claim succeeded, handshake readable afterwards, state readable after
+publish. Both orders are now pinned in `relay.rules.test.mjs` (21 tests). The
+rules edit stays because it is the better contract (nothing is written on a
+typo), but it is no longer a prerequisite.
+
 ### Deliberately NOT done (user scope decision)
 Batch-2 agent-monitoring roadmap: adaptive/frequent polling, foreground fast-refresh,
 WebSocket socket-ownership fix, agent events in the Activity feed, agent state on
@@ -334,3 +463,25 @@ asked).
   laptop agents on same Wi-Fi); everything else must be HTTPS.
 - The app foregrounds-parks the overlay bubble to avoid a second infinite
   Lottie loop over the in-app hero card.
+
+---
+
+## 2c. UI Overhaul & Glassmorphism Redesign Pass (2026-11-04)
+
+Complete frontend overhaul matching the approved frosted violet glassmorphism mockups (`media_1793796050484.jpg`):
+- **GlassCard Component** (`presentation/components/GlassCard.kt`): Frosted glass container with configurable translucency, gradient borders (`PixelPalGradients.glassBorder`), and optional click ripple. Rolled out to Home cards, Task rows, Reminder cards, Settings groups, and Agent cards.
+- **Floating Pill Bottom Dock** (`presentation/components/PixelPalBottomBar.kt`): 5 navigation tabs (Home, Tasks, Agent, Reminders, Settings) with an animated violet gradient active pill and system navigation bar padding.
+- **Redesigned Home Dashboard** (`presentation/screens/home/HomeScreen.kt`):
+  - Top header with grid customize icon, notification bell, greeting, and compact mascot inside an organic violet glow blob reacting to taps with spring physics and sparkles.
+  - Action cards row: "Interact" (Gemini chat) in rich violet gradient and "Workspace" (dev space) in frosted glass.
+  - Weekly activity streak bar chart (Mon-Fri) with dynamic height intensity.
+  - Quick Stats row for Tasks left and Reminders.
+  - Live AI Agent card with inline Approve/Deny buttons for pending approvals.
+  - Today task checklist preview with direct toggle.
+  - Focus Time card with circular progress ring (`FocusCircularProgress`) integrated with `FocusTimerEngine`.
+- **Domain Engines & Models**:
+  - `domain/engine/FocusTimerEngine.kt`: Singleton focus timer with start/pause/toggle, goal tracking, and formatted elapsed/goal strings. Fully unit-tested in `FocusTimerEngineTest.kt`.
+  - `domain/model/WeeklyActivity.kt`: Mon-Fri activity model tracking intensity and status.
+- **Secondary Screens Consistency**:
+  - `TasksScreen`, `ReminderListScreen`, `SettingsScreen`, `SettingsGroup`, and `ConnectedAgentsScreen` updated to use `GlassCard` and given `100.dp` bottom content padding to avoid occlusion by the floating bottom dock.
+

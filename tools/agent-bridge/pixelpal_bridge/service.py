@@ -36,7 +36,15 @@ PIDFILE = Path.home() / ".config" / "pixelpal" / "bridge.pid"
 
 
 def _python() -> str:
-    return shutil.which("python3") or sys.executable
+    """
+    The interpreter that actually has this package.
+
+    `pixelpal-bridge` installed by pipx/uv runs inside its own venv; a unit
+    pointing at /usr/bin/python3 dies with ModuleNotFoundError on every restart.
+    """
+    if sys.executable:
+        return sys.executable
+    return shutil.which("python3") or "python3"
 
 
 def _run(command: list[str], *, check: bool = False) -> subprocess.CompletedProcess:

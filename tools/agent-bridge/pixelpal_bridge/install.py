@@ -165,7 +165,9 @@ def detected_agents() -> dict[str, Path]:
     return found
 
 
-def install(agents: list[str] | None = None) -> dict[str, list[str]]:
+def install(
+    agents: list[str] | None = None, port: int = 8787
+) -> dict[str, list[str]]:
     """Install hooks for the requested (or all detected) agents."""
     targets = detected_agents()
     if agents:
@@ -184,7 +186,7 @@ def install(agents: list[str] | None = None) -> dict[str, list[str]]:
     if "omp" in targets:
         from .adapters import omp as omp_adapter
 
-        result["omp"] = omp_adapter.install()
+        result["omp"] = omp_adapter.install(port)
     if "opencode" in targets:
         from .adapters import opencode as oc_adapter
 

@@ -17,6 +17,7 @@ Security
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import queue
@@ -116,7 +117,12 @@ def make_handler(state: BridgeState):
                 return True
             if self._is_loopback():
                 return True  # local hooks never need the key
-            return self.headers.get("X-PixelPal-Key", "") == state.pairing_key
+            presented = self.headers.get("X-PixelPal-Key", "") or ""
+            # Constant-time: a plain `==` leaks the key's prefix through timing.
+            return hmac.compare_digest(
+                presented.encode("utf-8"),
+                state.pairing_key.encode("utf-8"),
+            )
 
         def _body(self) -> dict:
             try:
@@ -248,6 +254,27 @@ def make_handler(state: BridgeState):
     return Handler
 
 
+# Agents that expose state over an API or a database instead of firing hooks.
+# They are polled; nothing else would ever see them (`doctor` only probes them).
+POLL_INTERVAL_SECONDS = 5.0
+
+
+def poll_loop(state: BridgeState) -> None:
+    from .adapters import hermes as hermes_adapter
+    from .adapters import opencode as oc_adapter
+
+    while True:
+        for poller in (oc_adapter.poll_envelopes, hermes_adapter.poll_envelopes):
+            try:
+                envelopes = poller()
+            except Exception:  # noqa: BLE001 - a broken adapter must not stop the others
+                continue
+            with state.lock:
+                for envelope in envelopes:
+                    state.registry.upsert_envelope(envelope)
+        time.sleep(POLL_INTERVAL_SECONDS)
+
+
 def serve(host: str, port: int, state: BridgeState) -> None:
     server = ThreadingHTTPServer((host, port), make_handler(state))
     server.daemon_threads = True
@@ -261,6 +288,7 @@ def serve(host: str, port: int, state: BridgeState) -> None:
                 pass
 
     threading.Thread(target=decay_loop, daemon=True).start()
+    threading.Thread(target=poll_loop, args=(state,), daemon=True).start()
     print(f"PixelPal bridge v2 on http://{host}:{port}", flush=True)
     print(f"  GET /agents   all agents   GET /status   primary", flush=True)
     print(f"  paired: {'yes' if state.pairing_key else 'no (LAN open)'}", flush=True)

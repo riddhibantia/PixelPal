@@ -19,79 +19,78 @@ One companion. Many agents. The pet reacts to whichever is working, and can
 ## Install
 
 ```bash
-pipx install pixelpal-bridge    # once, ever
+curl -fsSL https://raw.githubusercontent.com/riddhibantia/PixelPal/main/install.sh | bash
 pixelpal-bridge setup           # once, ever
 ```
 
+`install.sh` downloads the bridge from the latest GitHub Release (pure Python
+stdlib — no venv, no pipx, no compiler), verifies its SHA-256, and puts
+`pixelpal-bridge` / `pixelpal-hook` on your PATH. If you prefer pipx, the same
+release tarball works: `pipx install ./pixelpal-bridge-<ver>.tar.gz`.
+
 `setup` does everything: detects your agents, installs their hooks, starts the
 bridge as a **background service** (so it survives reboot — no terminal to
-keep open), registers the relay, and prints a **9-character code**:
+keep open), and prints the address to paste into the app's **Agent** tab:
 
 ```
-  Pair your phone — type this in the app:
+  Pair your phone — open the Agent tab and enter:
 
-    ┌─────────────────┐
-    │   ABC-DEF-GHI   │
-    └─────────────────┘
+    http://192.168.1.20:8787
 ```
 
-Type that code in the app. Done. No IP address, no port, no QR required.
+Same Wi-Fi, that is the whole story. Away from home? Install
+[Tailscale](https://tailscale.com) on the laptop and phone; `setup` detects it
+and prints your `https://<machine>.ts.net` address instead — same paste, same
+pairing, no firewall work. (The old Firestore relay was removed in v2.0 — it
+burned ~17k reads/user/day and needed a manual rules deploy for no benefit.)
 
-### Why a code, and why 9 characters
+`setup` is safe to re-run: hooks are matched by their marker and the config
+keeps its pairing key.
 
-The code is the *entire* handshake, so it has to be both typable and strong.
-
-We never encrypt a secret under the code and ship it (an attacker could grind
-that offline forever). Instead **both sides derive the relay key from the code**:
+### What `setup` leaves running
 
 ```
-relayKey = PBKDF2-HMAC-SHA256(code, "pixelpal-relay-v1", 260_000)
+~/.config/pixelpal/bridge.json      mode 0600: LAN pairing key, port, daemon settings
+systemd --user / launchd / detached  runs `serve` (HTTP) forever
+~/.config/pixelpal/bridge.pid        only for the detached fallback
 ```
 
-Firestore only ever holds `HMAC(relayKey, "pixelpal-handshake")`. The code itself
-is never transmitted, logged, or stored anywhere.
-
-9 characters from a 27-symbol alphabet with every ambiguous glyph removed
-(no `0/O`, `1/I/L`, `2/Z`, `5/S`) = **42.8 bits**, still read-and-typed in one
-glance. 6 characters would have been only 30 bits — brute-forceable in ~39
-GPU-hours — which is why the code is longer than it looks like it needs to be.
+One thing it deliberately gets right (it was a bug): **the daemon uses the
+interpreter that has the package** — an `ExecStart` with `/usr/bin/python3`
+dies with `ModuleNotFoundError` on every restart when PixelPal came from
+pipx/uv. `setup` also refuses to fight for a busy port: if something else
+holds 8787 (a dev server, an older bridge) it moves to the next free port and
+saves it.
 
 ## How the connection works
 
 ```
                 ┌── same Wi-Fi ──→  direct HTTP (fastest, no third party)
 laptop bridge ──┤
-                └── anywhere else ─→ Firestore relay (encrypted, rules-scoped)
+                └── anywhere else ─→ Tailscale (direct WireGuard, no relay server)
 
 phone  ─────────────────────────────────────────────→ pet
 ```
 
-The transport is chosen automatically and silently; you never configure a
-network. The UI just says "Connected".
+There is no middle service to configure: the bridge prints one URL and the
+phone talks straight to it. The UI just says "Connected".
 
-### Relay setup (one-time, only if you want off-Wi-Fi support)
-
-The relay needs the security rules deployed once:
+### Verify the connection without a phone
 
 ```bash
-firebase deploy --only firestore:rules
+pixelpal-bridge doctor          # names whatever is broken
+curl -s 127.0.0.1:8788/agents   # the payload the phone will read
 ```
 
-The rules in `firestore.rules` add a `/relays` branch and leave `/users`
-untouched. Security properties, each covered by a test in `test/rules/`:
+Then, in another terminal, drive a fake event through the real pipeline:
 
-- both sides must be **authenticated**, and must already be named in the document;
-- **knowing the document id is not enough** — a third party is denied everything;
-- the **phone can answer approvals but cannot forge agent state**;
-- the bridge **cannot approve its own requests** (an agent can't self-approve);
-- a relay can be claimed by **exactly one phone**.
+```bash
+curl -s -X POST 127.0.0.1:8788/events -H 'Content-Type: application/json' \
+  -d '{"source":"claude_code","kind":"tool_start","session_id":"s1",
+       "project":"demo","tool":"Edit","detail":"main.py"}'
+```
 
-### Cost
-
-The bridge polls Firestore only as often as it must: **2 s while an approval is
-pending** (someone is blocked, so latency matters) and **20 s when idle**
-(~4.3k reads/day). Firestore's free tier is 50k/day, so normal use stays inside
-it. This is enforced by `next_poll_delay()` and pinned by a test.
+Within one poll interval the pet shows that agent on the phone.
 
 ## Supported agents
 
@@ -104,7 +103,8 @@ it. This is enforced by `next_poll_delay()` and pinned by a test.
 | **opencode** | `GET /session` from `opencode serve` | ~1s | ⛔ status only |
 | **Hermes** | read-only poll of `~/.hermes/state.db` | ~1s | ⛔ status only |
 
-Latency is on the same Wi-Fi. Off-Wi-Fi (relay) adds roughly one poll interval.
+Latency is on the same Wi-Fi. Over Tailscale the first hop adds a few
+milliseconds of WireGuard overhead — the poll interval dominates.
 
 Anything else that can POST JSON can be wired up by hand — see
 [Custom agents](#custom-agents).
@@ -274,7 +274,7 @@ Run `pixelpal-bridge doctor` first — it names the broken thing.
 ## Tests
 
 ```bash
-python3 -m pytest pixelpal_bridge/tests/ -q     # 79 tests
+python3 -m pytest pixelpal_bridge/tests/ -q     # 103 tests
 ```
 
 Covers the reducer state machine, the Claude adapter against **verbatim

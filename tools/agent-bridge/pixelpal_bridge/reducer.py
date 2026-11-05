@@ -258,6 +258,34 @@ class AgentRegistry:
         self.sessions[key] = updated
         return updated
 
+    def upsert_envelope(self, envelope: dict, now: float | None = None) -> AgentState | None:
+        """
+        Merge a polled adapter's envelope (opencode, Hermes).
+
+        Those agents expose state instead of pushing events, so there is no
+        event to reduce: the envelope *is* the state. Returns None for an
+        unknown source instead of raising, so one bad row cannot stop a poll.
+        """
+        try:
+            source = AgentSource(str(envelope.get("source") or ""))
+        except ValueError:
+            return None
+        session_id = str(envelope.get("sessionId") or "default")
+        key = (source.value, session_id)
+        now = now or time.time()
+        state = self.sessions.get(key) or AgentState(
+            source=source, session_id=session_id
+        )
+        state.project = envelope.get("project") or state.project
+        state.status = str(envelope.get("status") or state.status)
+        state.message = str(envelope.get("message") or state.message)
+        state.task = envelope.get("currentTask") or state.task
+        age = envelope.get("lastEventAgeSeconds")
+        state.last_event_at = now - float(age) if isinstance(age, (int, float)) else now
+        state.watermark = max(state.watermark, state.last_event_at)
+        self.sessions[key] = state
+        return state
+
     def tick(self, now: float | None = None) -> None:
         """Decay every session; drop sessions idle for a long time."""
         now = now or time.time()

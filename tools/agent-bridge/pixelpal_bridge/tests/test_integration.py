@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -80,7 +81,11 @@ class TestStableApprovalIds:
         out = subprocess.run(
             [sys.executable, "-c", code], capture_output=True, env=env, timeout=30
         )
-        return out.stdout.decode().strip()
+        # The approval id is a 64-hex SHA-256. Some dev environments inject
+        # interpreter-startup banners (crash-capture hooks) around the child's
+        # stdout with varying timestamps/pids, so match the id line itself.
+        ids = re.findall(r"^[0-9a-f]{64}$", out.stdout.decode(), re.MULTILINE)
+        return ids[0] if ids else ""
 
     def test_same_hash_seed_gives_same_id(self):
         assert self._id_in_subprocess("0") == self._id_in_subprocess("0")

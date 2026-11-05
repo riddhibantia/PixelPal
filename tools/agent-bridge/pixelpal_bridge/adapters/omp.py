@@ -18,6 +18,7 @@ OMP's TUI never waits on us.
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -31,7 +32,7 @@ EXTENSION_SOURCE = """// PixelPal status bridge — installed by `pixelpal-bridg
 // slow or dead bridge must never stall the TUI. We cap every post at 1s and
 // keep only the latest pending payload (no unbounded queue).
 
-const BRIDGE = process.env.PIXELPAL_BRIDGE || 'http://127.0.0.1:8787'
+const BRIDGE = process.env.PIXELPAL_BRIDGE || '__BASE_URL__'
 const POST_TIMEOUT_MS = 1000
 
 let pending = null
@@ -119,14 +120,25 @@ export default function (pi) {
 """
 
 
-def install() -> list[str]:
-    """Write the OMP extension. Returns the list of files touched."""
+def install(port: int = 8787) -> list[str]:
+    """
+    Write the OMP extension. Returns the list of files touched.
+
+    The bridge URL is baked in: OMP loads extensions once at startup and has no
+    reason to read our config, and the port is not always 8787 (setup moves to
+    the next free one when something else holds it).
+    """
     if not OMP_EXTENSIONS.exists():
         return []
     target = OMP_EXTENSIONS / EXTENSION_NAME
-    if target.exists() and "pixelpal" in target.read_text()[:200].lower():
-        return []  # already installed
-    target.write_text(EXTENSION_SOURCE)
+    if target.exists():
+        current = target.read_text()
+        if f"127.0.0.1:{port}'" in current:
+            return []  # already installed for this port
+        # The extension is ours but points at a different port: rewrite it.
+        target.write_text(EXTENSION_SOURCE.replace("__BASE_URL__", f"http://127.0.0.1:{port}"))
+        return [str(target)]
+    target.write_text(EXTENSION_SOURCE.replace("__BASE_URL__", f"http://127.0.0.1:{port}"))
     return [str(target)]
 
 
@@ -141,3 +153,13 @@ def uninstall() -> int:
 
 def is_installed() -> bool:
     return (OMP_EXTENSIONS / EXTENSION_NAME).exists()
+
+
+def installed_port() -> int | None:
+    """The port the on-disk extension posts to, or None if it can't be read."""
+    try:
+        text = (OMP_EXTENSIONS / EXTENSION_NAME).read_text()
+    except OSError:
+        return None
+    match = re.search(r"127\.0\.0\.1:(\d+)", text)
+    return int(match.group(1)) if match else None
