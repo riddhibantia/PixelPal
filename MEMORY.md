@@ -229,7 +229,9 @@ install over the existing v15 database (migration ran on device: user_version 16
   `parsePairingUri` accepted any host. Now the screen consumes the result and
   the host must be loopback/RFC1918 (`PairingUriTest` updated + 2 new cases).
 - **Bridge setup now prints the app's actual pairing payload**, including
-  host/port/key, with optional terminal QR output when `qrcode` is installed;
+  host/port/key, with terminal QR output from a vendored encoder (no pip
+  dependency, dark-on-light via ANSI on a tty) so a stock machine always gets
+  a scannable code;
   app onboarding and README tell users to scan or paste the pairing code (a
   plain URL cannot authenticate).
 - **Agent workflow clarity:** Home places live agent/approval status below the

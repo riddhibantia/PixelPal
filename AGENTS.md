@@ -316,9 +316,10 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
 - **Onboarding is 5 pages** (welcome, species, name, overlay permission, and a
   "Watch Your Agent Work" page with the one-line `install.sh` curl +
   `pixelpal-bridge setup` + a copy button; the setup output is a
-  `pixelpal://pair?...` payload (includes host, port, and key), which can be
-  scanned as terminal QR when optional `qrcode` is installed or pasted into
-  Agent tab; `CONNECT_COMMANDS` in
+  `pixelpal://pair?...` payload (includes host, port, and key), printed with a
+  terminal QR that needs no pip package (encoder vendored in
+  `pixelpal_bridge/_qrcode.py`) or pasted into the Agent tab;
+  `CONNECT_COMMANDS` in
   `OnboardingScreen.kt`). The one-liner resolves the newest **published
   release**, so it only works once a `v*` tag has produced one — it is not a
   raw-branch URL. Overlay permission state refreshes when returning from system
