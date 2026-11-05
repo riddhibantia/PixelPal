@@ -765,17 +765,40 @@ class FirestoreSyncCoordinator @Inject constructor(
         scope.launch { signOutSuspend() }
     }
 
-    suspend fun signOutSuspend() {
+    /**
+     * @return true when the local wipe succeeded and the auth session ended.
+     *
+     * Fails **closed**: if the wipe cannot complete, the user stays signed in
+     * rather than handing the next account a DB full of the previous user's
+     * rows (which the next sync would then push under the new uid).
+     */
+    suspend fun signOutSuspend(): Boolean {
         sessionEpoch++
         cancelRealtimeSync()
         clearPendingApplies()
-        try {
+
+        val wiped = try {
             clearAllLocalData()
-        } catch (e: Exception) {
-            Timber.e(e, "[AUTH] Failed to clear local data on sign-out")
+            true
+        } catch (first: Exception) {
+            Timber.w(first, "[AUTH] Local wipe failed, retrying once")
+            try {
+                clearAllLocalData()
+                true
+            } catch (second: Exception) {
+                Timber.e(second, "[AUTH] Local wipe failed twice — sign-out aborted")
+                false
+            }
         }
+        if (!wiped) {
+            _lastSyncError.value =
+                "Couldn't clear local data, so sign-out was cancelled. Try again."
+            return false
+        }
+
         Timber.d("[AUTH] Signed out, local session cleared")
         authManager.signOut()
+        return true
     }
 
     private suspend fun clearAllLocalData() {

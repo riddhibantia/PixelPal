@@ -30,6 +30,12 @@ data class ReminderEntity(
     val soundUri: String? = null,
     val recurrence: String = "ONCE",       // ONCE, DAILY, WEEKLY, MONTHLY
     val recurrenceInterval: Long? = null,
+    /**
+     * Original day-of-month for MONTHLY series (1–31), so a 31st reminder
+     * clamps to Feb 28 and returns to Mar 31 instead of drifting to the 28th
+     * forever. Null for non-monthly reminders and pre-v16 rows.
+     */
+    val recurrenceDayOfMonth: Int? = null,
     val category: String = "CUSTOM",       // MEETING, MEDICINE, BIRTHDAY, SHOPPING, ASSIGNMENT, CUSTOM
     val status: String = "PENDING",        // PENDING, TRIGGERED, COMPLETED, SNOOZED, DISMISSED
     val snoozeCount: Int = 0,

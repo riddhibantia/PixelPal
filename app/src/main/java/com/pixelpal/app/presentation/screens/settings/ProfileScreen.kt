@@ -38,7 +38,9 @@ import androidx.navigation.NavController
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.ConfirmationDialog
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.PixelAvatar
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.theme.Radius
@@ -96,85 +98,86 @@ fun ProfileScreen(
         if (hasChanges) showDiscardDialog = true else navController.popBackStack()
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Profile", onBack = { attemptBack() })
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTopBar(title = "Profile", onBack = { attemptBack() })
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.screenHorizontal)
-                .padding(bottom = Spacing.xl),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Warm avatar header
-            PixelAvatar(seed = currentSeed, size = 96.dp)
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Text(
-                text = currentName.ifBlank { "Your name" },
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = "This is your personal space in PixelPal",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            IconButton(onClick = {
-                avatarSeed = viewModel.nextAvatarSeed(currentSeed)
-            }) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Change avatar style",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            SectionHeader(title = "Personal Information")
-
-            Surface(
-                shape = RoundedCornerShape(Radius.large),
-                color = MaterialTheme.colorScheme.surface
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screenHorizontal)
+                    .padding(bottom = Spacing.xl),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.md)
-                ) {
-                    AppTextField(
-                        value = currentName,
-                        onValueChange = { name = it },
-                        label = "Name",
-                        placeholder = "Your name",
-                        isError = nameError,
-                        supportingText = if (nameError) "Name is required" else null
-                    )
-                    AppTextField(
-                        value = currentEmail,
-                        onValueChange = { email = it },
-                        label = "Email (optional)",
-                        placeholder = "you@example.com",
-                        keyboardType = KeyboardType.Email,
-                        isError = emailError,
-                        supportingText = when {
-                            emailError -> "That email doesn't look right"
-                            else -> null
-                        }
+                // Warm avatar header
+                PixelAvatar(seed = currentSeed, size = 96.dp)
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = currentName.ifBlank { "Your name" },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "This is your personal space in PixelPal",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                IconButton(onClick = {
+                    avatarSeed = viewModel.nextAvatarSeed(currentSeed)
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Change avatar style",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(Spacing.lg))
+                SectionHeader(title = "Personal Information")
 
-            SectionHeader(title = "Cloud Sync & Firestore")
+                GlassCard(
+                    shape = RoundedCornerShape(Radius.large),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.md)
+                    ) {
+                        AppTextField(
+                            value = currentName,
+                            onValueChange = { name = it },
+                            label = "Name",
+                            placeholder = "Your name",
+                            isError = nameError,
+                            supportingText = if (nameError) "Name is required" else null
+                        )
+                        AppTextField(
+                            value = currentEmail,
+                            onValueChange = { email = it },
+                            label = "Email (optional)",
+                            placeholder = "you@example.com",
+                            keyboardType = KeyboardType.Email,
+                            isError = emailError,
+                            supportingText = when {
+                                emailError -> "That email doesn't look right"
+                                else -> null
+                            }
+                        )
+                    }
+                }
 
-            Surface(
-                shape = RoundedCornerShape(Radius.large),
-                color = MaterialTheme.colorScheme.surface
-            ) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+
+                SectionHeader(title = "Cloud Sync & Firestore")
+
+                GlassCard(
+                    shape = RoundedCornerShape(Radius.large),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -266,6 +269,7 @@ fun ProfileScreen(
             )
         }
     }
+}
 
     if (showDiscardDialog) {
         ConfirmationDialog(

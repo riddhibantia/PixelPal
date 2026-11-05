@@ -47,6 +47,14 @@ class OverlaySession(
     private var keyboardJob: Job? = null
     private var reactionJob: Job? = null
 
+    /**
+     * Bumped by every [show]/[hide]. The show path suspends on the DataStore
+     * position read before `addView`; without this token a [hide] that lands in
+     * that window removes nothing and the coroutine then adds a window nobody
+     * holds a reference to (leaked overlay, second pet on the next show).
+     */
+    private var showToken = 0
+
     private var currentX = 0
     private var currentY = 0
     private var homeX = 0
@@ -60,6 +68,7 @@ class OverlaySession(
         if (view != null) return
         val overlayView = CompanionOverlayView(context)
         view = overlayView
+        val token = ++showToken
 
         val density = context.resources.displayMetrics.density
         val layoutParams = WindowManager.LayoutParams(
@@ -115,6 +124,10 @@ class OverlaySession(
                 )
             )
 
+            // hide() ran while we were suspended on the position read: abort,
+            // otherwise this window would be added with no owner.
+            if (token != showToken) return@launch
+
             try {
                 windowManager.addView(overlayView, layoutParams)
             } catch (e: Exception) {
@@ -134,6 +147,7 @@ class OverlaySession(
     }
 
     fun hide() {
+        showToken++
         keyboardJob?.cancel()
         keyboardJob = null
         reactionJob?.cancel()

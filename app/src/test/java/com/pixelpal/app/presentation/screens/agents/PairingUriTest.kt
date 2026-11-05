@@ -42,7 +42,7 @@ class PairingUriTest {
     fun `rejects a different pixelpal scheme`() {
         assertNull(
             ConnectedAgentsViewModel.parsePairingUri(
-                "pixelpal://something?host=1.2.3.4&key=abcdef123456"
+                "pixelpal://something?host=192.168.1.20&key=abcdef123456"
             )
         )
     }
@@ -54,7 +54,7 @@ class PairingUriTest {
 
     @Test
     fun `rejects when key is missing`() {
-        assertNull(ConnectedAgentsViewModel.parsePairingUri("pixelpal://pair?host=1.2.3.4"))
+        assertNull(ConnectedAgentsViewModel.parsePairingUri("pixelpal://pair?host=192.168.1.20"))
     }
 
     @Test
@@ -66,7 +66,7 @@ class PairingUriTest {
     fun `rejects a trivially short key`() {
         assertNull(
             ConnectedAgentsViewModel.parsePairingUri(
-                "pixelpal://pair?host=1.2.3.4&key=short"
+                "pixelpal://pair?host=192.168.1.20&key=short"
             )
         )
     }
@@ -80,9 +80,36 @@ class PairingUriTest {
     @Test
     fun `tolerates surrounding whitespace`() {
         val parsed = ConnectedAgentsViewModel.parsePairingUri(
-            "  pixelpal://pair?host=1.2.3.4&key=abcdef123456  "
+            "  pixelpal://pair?host=192.168.1.20&key=abcdef123456  "
         )
-        assertEquals("http://1.2.3.4:8787", parsed?.url)
+        assertEquals("http://192.168.1.20:8787", parsed?.url)
+    }
+
+    /**
+     * A QR code can come from a poster or a screen share. Only loopback and
+     * private-LAN hosts are allowed, so scanning one cannot point the app (and
+     * the bridge key it sends) at an arbitrary server.
+     */
+    @Test
+    fun `rejects a public host`() {
+        assertNull(
+            ConnectedAgentsViewModel.parsePairingUri(
+                "pixelpal://pair?host=203.0.113.9&port=8787&key=abcdef123456"
+            )
+        )
+        assertNull(
+            ConnectedAgentsViewModel.parsePairingUri(
+                "pixelpal://pair?host=evil.example.com&port=8787&key=abcdef123456"
+            )
+        )
+    }
+
+    @Test
+    fun `accepts loopback`() {
+        val parsed = ConnectedAgentsViewModel.parsePairingUri(
+            "pixelpal://pair?host=127.0.0.1&port=8787&key=abcdef123456"
+        )
+        assertEquals("http://127.0.0.1:8787", parsed?.url)
     }
 
     /**

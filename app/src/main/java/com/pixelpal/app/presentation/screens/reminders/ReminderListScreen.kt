@@ -14,15 +14,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
@@ -43,6 +40,9 @@ import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.EmptyState
+import com.pixelpal.app.presentation.components.GlassChip
+import com.pixelpal.app.presentation.components.GlassSegmentedRow
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PixelPalBottomBar
 import com.pixelpal.app.presentation.components.PixelPalSnackbarHost
 import com.pixelpal.app.presentation.components.PrimaryButton
@@ -51,9 +51,21 @@ import com.pixelpal.app.presentation.components.SnackbarEvent
 import com.pixelpal.app.presentation.navigation.Screen
 import com.pixelpal.app.presentation.theme.Spacing
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import com.pixelpal.app.presentation.components.GlassCard
+
 private enum class ReminderFilter { UPCOMING, COMPLETED }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ReminderListScreen(
     navController: NavController,
@@ -70,7 +82,7 @@ fun ReminderListScreen(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    LaunchedEffect(Unit) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -100,10 +112,17 @@ fun ReminderListScreen(
 
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate(Screen.CreateReminder.route) }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Reminder")
+            if (reminders.isNotEmpty()) {
+                FloatingActionButton(
+                    onClick = { navController.navigate(Screen.CreateReminder.route) },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Reminder")
+                }
             }
         },
         bottomBar = {
@@ -111,112 +130,167 @@ fun ReminderListScreen(
         },
         snackbarHost = { PixelPalSnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            AppTopBar(title = "Reminders")
-
-            SingleChoiceSegmentedButtonRow(
-                modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)
-            ) {
-                SegmentedButton(
-                    selected = filter == ReminderFilter.UPCOMING,
-                    onClick = { filter = ReminderFilter.UPCOMING },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) {
-                    Text("Upcoming")
-                }
-                SegmentedButton(
-                    selected = filter == ReminderFilter.COMPLETED,
-                    onClick = { filter = ReminderFilter.COMPLETED },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) {
-                    Text("Completed")
-                }
-            }
-
-            // Category filter: "All" + one chip per category. Filtering happens
-            // in the ViewModel so the empty states below stay honest.
-            FlowRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(top = Spacing.sm),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-            ) {
-                FilterChip(
-                    selected = categoryFilter == null,
-                    onClick = { viewModel.setCategoryFilter(null) },
-                    label = { Text("All") }
-                )
-                ReminderCategory.ALL.forEach { option ->
-                    FilterChip(
-                        selected = categoryFilter == option,
-                        onClick = {
-                            viewModel.setCategoryFilter(
-                                if (categoryFilter == option) null else option
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = option.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        },
-                        label = { Text(option.displayName) }
-                    )
-                }
-            }
-
-            if (reminders.isEmpty()) {
-                Box(
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Professional Header with Title, Count Subtitle & Frosted Glass Action Button
+                Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = 96.dp),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = Spacing.screenHorizontal)
+                        .padding(top = Spacing.xs, bottom = Spacing.sm),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (filter == ReminderFilter.UPCOMING) {
-                        EmptyState(
-                            title = "Nothing planned yet",
-                            message = "Create a reminder and Pixel will help you remember.",
-                            petType = companion?.effectiveSpecies ?: "cat",
-                            petState = AnimationState.WAVE,
-                            content = {
-                                PrimaryButton(
-                                    text = "Create Reminder",
-                                    onClick = { navController.navigate(Screen.CreateReminder.route) }
-                                )
-                            }
+                    Column {
+                        Text(
+                            text = "Reminders",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                    } else {
-                        EmptyState(
-                            title = "No completed reminders",
-                            message = "Reminders you complete will show up here.",
-                            petType = companion?.effectiveSpecies ?: "cat",
-                            petState = AnimationState.SLEEP
+                        val subtitle = if (pendingReminders.isEmpty()) {
+                            "All caught up"
+                        } else {
+                            "${pendingReminders.size} scheduled · ${completedReminders.size} completed"
+                        }
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    // Top Quick Action: Create Reminder
+                    GlassCard(
+                        shape = CircleShape,
+                        modifier = Modifier.size(42.dp),
+                        onClick = { navController.navigate(Screen.CreateReminder.route) }
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add Reminder",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Segmented Control with Live Tab Badges
+                GlassSegmentedRow(
+                    options = listOf(
+                        "Upcoming (${pendingReminders.size})",
+                        "Completed (${completedReminders.size})"
+                    ),
+                    selectedIndex = if (filter == ReminderFilter.UPCOMING) 0 else 1,
+                    onSelected = { index ->
+                        filter = if (index == 0) ReminderFilter.UPCOMING else ReminderFilter.COMPLETED
+                    },
+                    modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                // Smooth Horizontal Category Filter Row (Replaces Cluttered FlowRow)
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = Spacing.screenHorizontal),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                ) {
+                    item {
+                        GlassChip(
+                            label = "All",
+                            selected = categoryFilter == null,
+                            onClick = { viewModel.setCategoryFilter(null) }
+                        )
+                    }
+                    items(ReminderCategory.ALL) { option ->
+                        GlassChip(
+                            label = option.displayName,
+                            selected = categoryFilter == option,
+                            onClick = {
+                                viewModel.setCategoryFilter(
+                                    if (categoryFilter == option) null else option
+                                )
+                            },
+                            leadingIcon = option.icon
                         )
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        start = Spacing.screenHorizontal,
-                        end = Spacing.screenHorizontal,
-                        top = Spacing.md,
-                        bottom = 96.dp
-                    ),
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.sm)
-                ) {
-                    items(reminders, key = { it.id }) { reminder ->
-                        ReminderCard(
-                            reminder = reminder,
-                            onComplete = { viewModel.completeReminder(reminder.id) },
-                            onDelete = { viewModel.deleteReminder(reminder) }
-                        )
+
+                Spacer(modifier = Modifier.height(Spacing.sm))
+
+                if (reminders.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = 96.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (filter == ReminderFilter.UPCOMING) {
+                            EmptyState(
+                                title = "Nothing planned yet",
+                                message = "Create a reminder and Pixel will keep you on schedule.",
+                                petType = companion?.effectiveSpecies ?: "rabbit",
+                                petState = AnimationState.WAVE,
+                                content = {
+                                    Button(
+                                        onClick = { navController.navigate(Screen.CreateReminder.route) },
+                                        shape = RoundedCornerShape(24.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Create Reminder",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            )
+                        } else {
+                            EmptyState(
+                                title = "No completed reminders",
+                                message = "Reminders you complete will show up here.",
+                                petType = companion?.effectiveSpecies ?: "rabbit",
+                                petState = AnimationState.SLEEP
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = Spacing.screenHorizontal,
+                            end = Spacing.screenHorizontal,
+                            top = Spacing.xs,
+                            bottom = 96.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        items(reminders, key = { it.id }) { reminder ->
+                            ReminderCard(
+                                reminder = reminder,
+                                onComplete = { viewModel.completeReminder(reminder.id) },
+                                onDelete = { viewModel.deleteReminder(reminder) }
+                            )
+                        }
                     }
                 }
             }

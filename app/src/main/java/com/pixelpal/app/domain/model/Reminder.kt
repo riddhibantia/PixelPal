@@ -10,6 +10,8 @@ data class Reminder(
     val soundUri: String? = null,
     val recurrence: String = "ONCE",
     val recurrenceInterval: Long? = null,
+    /** Anchor day for MONTHLY series (1–31); see ReminderEntity. */
+    val recurrenceDayOfMonth: Int? = null,
     val category: String = "CUSTOM",
     val status: String = "PENDING",
     val snoozeCount: Int = 0,

@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.data.remote.firebase.AuthState
 import com.pixelpal.app.presentation.components.AppTextField
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.LottiePetView
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SecondaryButton
@@ -132,13 +133,10 @@ fun AuthScreen(
 
                 // Google Sign-In first — the one-tap path.
                 val activityContext = LocalContext.current
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { if (!uiState.isLoading) viewModel.signInWithGoogle(activityContext) },
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(Radius.medium),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                    onClick = { if (!uiState.isLoading) viewModel.signInWithGoogle(activityContext) }
                 ) {
                     Row(
                         modifier = Modifier

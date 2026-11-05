@@ -15,22 +15,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.pixelpal.app.presentation.components.IconTile
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,6 +47,8 @@ import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.domain.model.ActivityType
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.EmptyState
+import com.pixelpal.app.presentation.components.GlassCard
+import com.pixelpal.app.presentation.components.GlassChip
 import com.pixelpal.app.presentation.components.GroupDivider
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
@@ -62,88 +64,87 @@ fun ActivityCenterScreen(
     val selectedFilter by viewModel.selectedFilter.collectAsState()
     val liveAgent by viewModel.liveAgent.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        AppTopBar(title = "Activity", onBack = { navController.popBackStack() })
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AppTopBar(title = "Activity", onBack = { navController.popBackStack() })
 
-        // WebSocket live typing banner — shows when agent is WORKING/ONLINE with a task
-        if (liveAgent != null) {
-            Card(
+            // WebSocket live typing banner — shows when agent is WORKING/ONLINE with a task
+            if (liveAgent != null) {
+                GlassCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xs),
+                    shape = RoundedCornerShape(Radius.medium)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Text(
+                            text = liveAgent!!,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Companion filter chips (All + one per companion)
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xs),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screenHorizontal),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Text(
-                        text = liveAgent!!,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                GlassChip(
+                    label = "All",
+                    selected = selectedFilter == null,
+                    onClick = { viewModel.filterBy(null) }
+                )
+                companion?.let { c ->
+                    GlassChip(
+                        label = c.name,
+                        selected = selectedFilter == c.id,
+                        onClick = { viewModel.filterBy(c.id) }
                     )
                 }
             }
-        }
 
-        // Companion filter chips (All + one per companion)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.screenHorizontal),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-        ) {
-            FilterChip(
-                selected = selectedFilter == null,
-                onClick = { viewModel.filterBy(null) },
-                label = { Text("All") }
-            )
-            companion?.let { c ->
-                FilterChip(
-                    selected = selectedFilter == c.id,
-                    onClick = { viewModel.filterBy(c.id) },
-                    label = { Text(c.name) }
+            Spacer(modifier = Modifier.height(Spacing.md))
+
+            if (events.isEmpty()) {
+                EmptyState(
+                    title = "No activity yet",
+                    message = "Meaningful moments — bond milestones, completed tasks and " +
+                        "reminders, agent updates — will appear here.",
+                    petState = AnimationState.SLEEP,
+                    modifier = Modifier.weight(1f)
                 )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
-        if (events.isEmpty()) {
-            EmptyState(
-                title = "No activity yet",
-                message = "Meaningful moments — bond milestones, completed tasks and " +
-                    "reminders, agent updates — will appear here.",
-                petState = AnimationState.SLEEP,
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(bottom = Spacing.lg)
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            } else {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.screenHorizontal)
+                        .padding(bottom = Spacing.lg)
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.md)) {
-                        events.forEachIndexed { index, event ->
-                            if (index > 0) {
-                                GroupDivider()
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(Spacing.md)) {
+                            events.forEachIndexed { index, event ->
+                                if (index > 0) {
+                                    GroupDivider()
+                                }
+                                ActivityEventRow(event = event)
                             }
-                            ActivityEventRow(event = event)
                         }
                     }
                 }
@@ -158,22 +159,11 @@ private fun ActivityEventRow(event: ActivityEvent) {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .background(
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = eventIcon(event.type),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        IconTile(
+            icon = eventIcon(event.type),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
         Spacer(modifier = Modifier.width(Spacing.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -202,12 +192,10 @@ private fun ActivityEventRow(event: ActivityEvent) {
     }
 }
 
-
-
 private fun eventIcon(type: ActivityType): ImageVector = when (type) {
     ActivityType.BOND_LEVEL_UP -> Icons.AutoMirrored.Filled.TrendingUp
     ActivityType.REMINDER_COMPLETED -> Icons.Default.Alarm
-    ActivityType.TASK_ADDED, ActivityType.TASK_COMPLETED -> Icons.Default.Checklist
+    ActivityType.TASK_ADDED, ActivityType.TASK_COMPLETED -> Icons.Default.TaskAlt
     ActivityType.AGENT_CHECKED, ActivityType.AGENT_STATUS_CHANGED -> Icons.Default.SmartToy
     ActivityType.COMPANION_ARCHIVED -> Icons.Default.Archive
     ActivityType.COMPANION_RESTORED -> Icons.Default.Restore

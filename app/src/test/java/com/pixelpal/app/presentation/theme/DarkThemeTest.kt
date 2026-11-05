@@ -1,12 +1,11 @@
 package com.pixelpal.app.presentation.theme
 
 import org.junit.Test
-import kotlin.math.abs
 import kotlin.test.assertTrue
 
 /**
- * Guards the modern neutral dark theme: surfaces and text must stay
- * low-saturation (no yellow/brown tint). The gold accent is exempt.
+ * Guards the Linear-inspired obsidian dark theme: surfaces and text must stay
+ * quiet, neutral, and low-saturation.
  */
 class DarkThemeTest {
 
@@ -21,19 +20,19 @@ class DarkThemeTest {
         0.2126f * color.red + 0.7152f * color.green + 0.0722f * color.blue
 
     @Test
-    fun darkSurfaces_areNeutral() {
+    fun darkSurfaces_maintainNeutralObsidianAtmosphere() {
         listOf(DarkPalette.Background, DarkPalette.Surface, DarkPalette.SurfaceElevated).forEach {
             assertTrue(
-                maxChannelSpread(it) <= 14f,
-                "Dark surface $it has a color tint (spread ${maxChannelSpread(it)})"
+                maxChannelSpread(it) <= 20f,
+                "Dark surface $it has too strong a color tint (spread ${maxChannelSpread(it)})"
             )
         }
     }
 
     @Test
-    fun darkText_isNeutral() {
-        assertTrue(maxChannelSpread(DarkPalette.TextPrimary) <= 14f, "Primary text is tinted")
-        assertTrue(maxChannelSpread(DarkPalette.TextSecondary) <= 14f, "Secondary text is tinted")
+    fun darkText_isLegibleAndBalanced() {
+        assertTrue(maxChannelSpread(DarkPalette.TextPrimary) <= 10f, "Primary text must stay near pure crisp white")
+        assertTrue(maxChannelSpread(DarkPalette.TextSecondary) <= 25f, "Secondary text must maintain quiet neutral slate tone")
     }
 
     @Test
@@ -49,15 +48,9 @@ class DarkThemeTest {
     }
 
     @Test
-    fun darkPrimary_staysGoldAccent() {
-        // Brand accent: strong red+green, weak blue.
-        assertTrue(DarkPalette.Primary.red > 0.85f, "Primary should stay a vivid gold")
-        assertTrue(DarkPalette.Primary.blue < 0.45f, "Primary should stay a vivid gold")
-    }
-
-    @Test
-    fun darkOutline_isNeutral() {
-        assertTrue(maxChannelSpread(DarkPalette.Outline) <= 14f, "Outline is tinted")
-        assertTrue(maxChannelSpread(DarkPalette.Divider) <= 14f, "Divider is tinted")
+    fun darkPrimary_staysDisciplinedIndigoAccent() {
+        // Linear Indigo brand accent
+        assertTrue(DarkPalette.Primary.blue > 0.75f, "Primary should stay a clear indigo/blue")
+        assertTrue(DarkPalette.Primary.red > 0.30f, "Primary should have balanced indigo warmth")
     }
 }

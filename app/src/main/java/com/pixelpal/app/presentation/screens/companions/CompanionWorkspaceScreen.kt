@@ -19,9 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -44,6 +44,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,8 +61,11 @@ import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.BaseCompanionAvatar
 import com.pixelpal.app.presentation.components.ConfirmationDialog
 import com.pixelpal.app.presentation.components.DestructiveButton
+import com.pixelpal.app.presentation.components.GlassCard
+import com.pixelpal.app.presentation.components.GlassChip
 import com.pixelpal.app.presentation.components.GroupDivider
 import com.pixelpal.app.presentation.components.LoadingState
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PixelPalSnackbarHost
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SecondaryButton
@@ -159,12 +163,15 @@ fun CompanionWorkspaceScreen(
         },
         snackbarHost = { PixelPalSnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            AppTopBar(title = "AI Agent", onBack = { navController.popBackStack() })
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                AppTopBar(title = "AI Agent", onBack = { navController.popBackStack() })
 
             Column(
                 modifier = Modifier
@@ -207,6 +214,7 @@ fun CompanionWorkspaceScreen(
         }
     }
 }
+}
 
 @Composable
 private fun ProfileHeader(
@@ -214,11 +222,7 @@ private fun ProfileHeader(
     bond: com.pixelpal.app.domain.model.Bond?,
     viewModel: CompanionWorkspaceViewModel
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface
-    ) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -295,29 +299,29 @@ private fun AgentConnectionSection(
     SectionHeader(title = "AI Agent Connection")
 
     val currentProvider = com.pixelpal.app.domain.model.AgentProviders.normalize(connection?.provider ?: "")
-    var endpoint by remember(connection?.companionId) {
+    var endpoint by rememberSaveable(connection?.companionId) {
         mutableStateOf(connection?.endpointUrl ?: "")
     }
-    var commandEndpoint by remember(connection?.companionId) {
+    var commandEndpoint by rememberSaveable(connection?.companionId) {
         mutableStateOf(connection?.commandUrl ?: "")
     }
-    var agentName by remember(connection?.companionId) {
+    var agentName by rememberSaveable(connection?.companionId) {
         mutableStateOf(connection?.agentName ?: "")
     }
-    var provider by remember(connection?.companionId, currentProvider) {
+    var provider by rememberSaveable(connection?.companionId, currentProvider) {
         mutableStateOf(currentProvider)
     }
-    var intervalMinutes by remember(connection?.companionId) {
+    var intervalMinutes by rememberSaveable(connection?.companionId) {
         mutableStateOf(connection?.pollingIntervalMinutes ?: com.pixelpal.app.util.Constants.DEFAULT_AGENT_POLL_INTERVAL_MIN)
     }
-    var geminiKeyInput by remember(connection?.companionId, geminiKeyOverride) {
+    var geminiKeyInput by rememberSaveable(connection?.companionId, geminiKeyOverride) {
         mutableStateOf(geminiKeyOverride)
     }
-    var commandText by remember { mutableStateOf("") }
-    var pollingEnabled by remember(connection?.companionId) {
+    var commandText by rememberSaveable { mutableStateOf("") }
+    var pollingEnabled by rememberSaveable(connection?.companionId) {
         mutableStateOf(connection?.pollingEnabled ?: false)
     }
-    var showDisconnectConfirm by remember { mutableStateOf(false) }
+    var showDisconnectConfirm by rememberSaveable { mutableStateOf(false) }
 
     val isGemini = provider == com.pixelpal.app.domain.model.AgentProviders.GEMINI
     val isWebSocket = provider == com.pixelpal.app.domain.model.AgentProviders.WEBSOCKET
@@ -349,11 +353,7 @@ private fun AgentConnectionSection(
         )
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface
-    ) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             // Status line
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -417,12 +417,10 @@ private fun AgentConnectionSection(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 com.pixelpal.app.domain.model.AgentProviders.ALL.forEach { option ->
-                    androidx.compose.material3.FilterChip(
+                    GlassChip(
+                        label = com.pixelpal.app.domain.model.AgentProviders.displayName(option),
                         selected = provider == option,
-                        onClick = { provider = option },
-                        label = {
-                            Text(com.pixelpal.app.domain.model.AgentProviders.displayName(option))
-                        }
+                        onClick = { provider = option }
                     )
                 }
             }
@@ -495,10 +493,10 @@ private fun AgentConnectionSection(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 com.pixelpal.app.util.Constants.AGENT_POLL_INTERVAL_OPTIONS_MIN.forEach { option ->
-                    androidx.compose.material3.FilterChip(
+                    GlassChip(
+                        label = if (option >= 60) "${option / 60}h" else "${option}m",
                         selected = intervalMinutes == option,
-                        onClick = { intervalMinutes = option },
-                        label = { Text(if (option >= 60) "${option / 60}h" else "${option}m") }
+                        onClick = { intervalMinutes = option }
                     )
                 }
             }
@@ -586,7 +584,7 @@ private fun AgentConnectionSection(
                         enabled = commandText.isNotBlank()
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Send,
+                            imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send command",
                             tint = if (commandText.isNotBlank()) {
                                 MaterialTheme.colorScheme.primary

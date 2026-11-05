@@ -28,11 +28,9 @@ fun SettingsGroup(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Surface(
+    GlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface,
-        contentColor = contentColorFor(MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(Radius.large)
     ) {
         Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
             content()

@@ -32,6 +32,7 @@ import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GroupDivider
 import com.pixelpal.app.presentation.components.PetRenderer
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.components.SettingsGroup
 import com.pixelpal.app.presentation.components.SettingsRow
@@ -52,18 +53,19 @@ fun AboutScreen(
 ) {
     val context = LocalContext.current
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = Spacing.lg)
-    ) {
-        AppTopBar(title = stringResource(R.string.about_title), onBack = { navController.popBackStack() })
-
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = Spacing.lg)
         ) {
+            AppTopBar(title = stringResource(R.string.about_title), onBack = { navController.popBackStack() })
+
+            Column(
+                modifier = Modifier.padding(horizontal = Spacing.screenHorizontal),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             PetRenderer(
                 petType = petType,
                 animationState = AnimationState.WAVE,
@@ -149,4 +151,5 @@ fun AboutScreen(
             )
         }
     }
+}
 }

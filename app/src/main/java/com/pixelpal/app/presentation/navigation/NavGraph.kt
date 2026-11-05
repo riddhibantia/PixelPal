@@ -6,12 +6,15 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.pixelpal.app.presentation.screens.activity.ActivityCenterScreen
+import com.pixelpal.app.presentation.screens.agent.SCANNED_URL_KEY
 import com.pixelpal.app.presentation.screens.companions.CompanionWorkspaceScreen
 import com.pixelpal.app.presentation.screens.customize.CustomizeScreen
 import com.pixelpal.app.presentation.screens.home.HomeScreen
@@ -58,6 +61,14 @@ sealed class Screen(val route: String) {
     }
 }
 
+private val mainTabRoutes = setOf(
+    Screen.Home.route,
+    Screen.Tasks.route,
+    Screen.ConnectedAgents.route,
+    Screen.Reminders.route,
+    Screen.Settings.route
+)
+
 @Composable
 fun PixelPalNavGraph(
     navController: NavHostController,
@@ -67,14 +78,40 @@ fun PixelPalNavGraph(
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            fadeIn(animationSpec = tween(220)) +
-                slideInHorizontally(animationSpec = tween(220)) { it / 8 }
+            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
+            if (isTabSwitch) {
+                fadeIn(animationSpec = tween(220, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+            } else {
+                slideInHorizontally(animationSpec = tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { (it * 0.25f).toInt() } +
+                    fadeIn(animationSpec = tween(320))
+            }
         },
-        exitTransition = { fadeOut(animationSpec = tween(180)) },
-        popEnterTransition = { fadeIn(animationSpec = tween(220)) },
+        exitTransition = {
+            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
+            if (isTabSwitch) {
+                fadeOut(animationSpec = tween(150, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+            } else {
+                slideOutHorizontally(animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -(it * 0.25f).toInt() } +
+                    fadeOut(animationSpec = tween(220))
+            }
+        },
+        popEnterTransition = {
+            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
+            if (isTabSwitch) {
+                fadeIn(animationSpec = tween(220, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+            } else {
+                slideInHorizontally(animationSpec = tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -(it * 0.25f).toInt() } +
+                    fadeIn(animationSpec = tween(320))
+            }
+        },
         popExitTransition = {
-            fadeOut(animationSpec = tween(180)) +
-                slideOutHorizontally(animationSpec = tween(220)) { it / 8 }
+            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
+            if (isTabSwitch) {
+                fadeOut(animationSpec = tween(150, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+            } else {
+                slideOutHorizontally(animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { (it * 0.25f).toInt() } +
+                    fadeOut(animationSpec = tween(220))
+            }
         }
     ) {
         composable(Screen.Onboarding.route) {
@@ -128,11 +165,20 @@ fun PixelPalNavGraph(
             CompanionWorkspaceScreen(navController = navController)
         }
         composable(Screen.ConnectedAgents.route) {
+            // QrScanScreen writes its result onto the previous entry's handle,
+            // which for this tab is the Agents screen — not the workspace.
+            val handle = navController.currentBackStackEntry?.savedStateHandle
+            val scannedUrl by (handle?.getStateFlow(SCANNED_URL_KEY, "")
+                ?.collectAsState() ?: kotlinx.coroutines.flow.flowOf("").collectAsState(""))
             com.pixelpal.app.presentation.screens.agents.ConnectedAgentsScreen(
+                navController = navController,
                 onBack = { navController.popBackStack() },
                 onScanQr = { navController.navigate(Screen.QrScan.route) },
-                onOpenManualSetup = { navController.navigate(Screen.CompanionWorkspace.route) }
+                onOpenManualSetup = { navController.navigate(Screen.CompanionWorkspace.route) },
+                scannedUri = scannedUrl.takeIf { it.isNotBlank() },
+                onScannedConsumed = { handle?.remove<String>(SCANNED_URL_KEY) }
             )
+
         }
         composable(Screen.QrScan.route) {
             com.pixelpal.app.presentation.screens.agent.QrScanScreen(navController = navController)

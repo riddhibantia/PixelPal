@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.pixelpal.app.domain.engine.RecurrenceMath
 import com.pixelpal.app.domain.model.Reminder
 import com.pixelpal.app.domain.repository.ReminderRepository
 import com.pixelpal.app.receiver.AlarmReceiver
@@ -124,37 +125,17 @@ class ReminderScheduler @Inject constructor(
     }
 
     /**
-     * Next trigger time for a recurring reminder after [from], or null for one-shot
-     * (ONCE) reminders. Rolls the original trigger time forward by whole periods so
-     * the schedule stays anchored to the time the user picked.
+     * Next trigger time for a recurring reminder after [from], or null for a
+     * one-shot. All the clock/DST/month-end rules live in [RecurrenceMath].
      */
-    fun nextTriggerTime(reminder: Reminder, from: Long = System.currentTimeMillis()): Long? {
-        val interval = reminder.recurrenceInterval
-        return when {
-            interval != null && interval > 0 -> {
-                var next = reminder.triggerTime
-                while (next <= from) next += interval
-                next
-            }
-            reminder.recurrence == "DAILY" || reminder.recurrence == "WEEKLY" || reminder.recurrence == "MONTHLY" -> {
-                val calendar = Calendar.getInstance().apply {
-                    timeInMillis = reminder.triggerTime
-                    if (reminder.hour > 0 || reminder.minute > 0) {
-                        set(Calendar.HOUR_OF_DAY, reminder.hour)
-                        set(Calendar.MINUTE, reminder.minute)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }
-                }
-                val step = when (reminder.recurrence) {
-                    "DAILY" -> Calendar.DAY_OF_YEAR
-                    "WEEKLY" -> Calendar.WEEK_OF_YEAR
-                    else -> Calendar.MONTH
-                }
-                while (calendar.timeInMillis <= from) calendar.add(step, 1)
-                calendar.timeInMillis
-            }
-            else -> null
-        }
-    }
+    fun nextTriggerTime(reminder: Reminder, from: Long = System.currentTimeMillis()): Long? =
+        RecurrenceMath.nextTriggerTime(
+            triggerTime = reminder.triggerTime,
+            hour = reminder.hour,
+            minute = reminder.minute,
+            recurrence = reminder.recurrence,
+            intervalMs = reminder.recurrenceInterval,
+            dayOfMonth = reminder.recurrenceDayOfMonth,
+            from = from
+        )
 }

@@ -1,6 +1,16 @@
 package com.pixelpal.app.presentation.screens.home
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,36 +20,46 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.ViewInAr
+import androidx.compose.material.icons.filled.Whatshot
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.ViewInAr
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -53,66 +73,64 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.pixelpal.app.R
 import com.pixelpal.app.animation.AnimationState
-import com.pixelpal.app.domain.model.AgentState
+import com.pixelpal.app.domain.model.Companion
+import com.pixelpal.app.domain.model.DayActivity
+import com.pixelpal.app.domain.model.WeeklyActivity
 import com.pixelpal.app.presentation.components.EmptyState
-import com.pixelpal.app.presentation.components.LottiePetView
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.LoadingState
+import com.pixelpal.app.presentation.components.LottiePetView
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PixelPalBottomBar
-import com.pixelpal.app.presentation.components.PrimaryButton
-import com.pixelpal.app.presentation.components.SecondaryButton
-import com.pixelpal.app.presentation.components.SectionHeader
-import com.pixelpal.app.presentation.components.SettingsGroup
-import com.pixelpal.app.presentation.components.SettingsRow
 import com.pixelpal.app.presentation.navigation.Screen
+import com.pixelpal.app.presentation.theme.PixelPalGradients
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
-import java.util.Calendar
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 @Composable
 fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    // Perf: gate only on two distinct booleans. Every section below collects
-    // its own slice, so e.g. an unread-badge bump from a background worker
-    // no longer recomposes the Lottie hero and the whole screen.
     val isLoading by viewModel.isLoading.collectAsState()
     val hasCompanion by viewModel.hasCompanion.collectAsState()
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             PixelPalBottomBar(navController = navController, selected = Screen.Home)
         }
     ) { innerPadding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = Spacing.lg)
         ) {
-            HomeHeaderSlot(
-                viewModel = viewModel,
-                onBellClick = { navController.navigate(Screen.ActivityCenter.route) },
-                onSettingsClick = { navController.navigate(Screen.Settings.route) }
-            )
-
-            when {
-                isLoading -> LoadingState(modifier = Modifier.padding(top = Spacing.xl))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screenHorizontal)
+                    .padding(bottom = 96.dp)
+            ) {
+                when {
+                    isLoading -> LoadingState(modifier = Modifier.padding(top = Spacing.xl))
 
                 !hasCompanion -> EmptyState(
                     title = "No companion yet",
@@ -120,461 +138,243 @@ fun HomeScreen(
                     petState = AnimationState.WAVE
                 )
 
-                else -> Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
-
-                    HeroSlot(
+                else -> {
+                    // 1. Top Header with Quick Actions & Blob Mascot
+                    HomeHeaderSlot(
                         viewModel = viewModel,
-                        onOpenWorkspace = {
-                            navController.navigate(Screen.CompanionWorkspace.route)
-                        }
+                        onCustomizeClick = { navController.navigate(Screen.Customize.route) },
+                        onBellClick = { navController.navigate(Screen.ActivityCenter.route) }
                     )
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    // The agent is the axis of the app — give it a live card on home.
-                    AgentSlot(
-                        viewModel = viewModel,
-                        onOpen = { navController.navigate(Screen.CompanionWorkspace.route) }
+                    // 2. Action Cards: Interact (Chat) + Workspace (Dev Space)
+                    HomeActionCardsRow(
+                        onInteractClick = { viewModel.interactWithCompanion() },
+                        onWorkspaceClick = { navController.navigate(Screen.CompanionWorkspace.route) }
                     )
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    TodaySlot(
+                    // 3. Weekly Consistency & Streak Bar Chart
+                    HomeStreakCard(viewModel = viewModel)
+
+                    Spacer(modifier = Modifier.height(Spacing.md))
+
+                    // 4. Quick Stats: Tasks & Reminders
+                    HomeQuickStatsRow(
                         viewModel = viewModel,
                         onTasksClick = { navController.navigate(Screen.Tasks.route) },
-                        onRemindersClick = { navController.navigate(Screen.Reminders.route) },
-                        onAgentClick = { navController.navigate(Screen.ConnectedAgents.route) }
+                        onRemindersClick = { navController.navigate(Screen.Reminders.route) }
                     )
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    OverlaySlot(
+                    // 5. AI Agent Card with Inline Approvals
+                    HomeAgentCard(
                         viewModel = viewModel,
-                        onClick = { navController.navigate(Screen.OverlaySettings.route) }
+                        onOpen = { navController.navigate(Screen.ConnectedAgents.route) }
                     )
+
+                    Spacer(modifier = Modifier.height(Spacing.md))
+
+                    // 6. Today Task Checklist Preview
+                    HomeTodayTasksSection(
+                        viewModel = viewModel,
+                        onViewAllClick = { navController.navigate(Screen.Tasks.route) }
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.md))
+
+                    // 7. Focus Time Progress Card matching inspiration
+                    HomeFocusTimeCard()
                 }
             }
         }
     }
 }
+}
+
+// -------------------------------------------------------------------------
+// 1. HEADER SLOT
+// -------------------------------------------------------------------------
 
 @Composable
 private fun HomeHeaderSlot(
     viewModel: HomeViewModel,
-    onBellClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onCustomizeClick: () -> Unit,
+    onBellClick: () -> Unit
 ) {
     val header by viewModel.headerSlice.collectAsState()
-    HomeHeader(
-        userName = header.userName,
-        unreadCount = header.unreadCount,
-        onBellClick = onBellClick,
-        onSettingsClick = onSettingsClick
-    )
-}
-
-@Composable
-private fun HeroSlot(
-    viewModel: HomeViewModel,
-    onOpenWorkspace: () -> Unit
-) {
     val hero by viewModel.heroSlice.collectAsState()
-    val companion = hero.companion ?: return
-    CompanionHeroCard(
-        companion = companion,
-        bond = hero.bond,
-        onInteract = { viewModel.interactWithCompanion() },
-        onFeed = { viewModel.feedCompanion() },
-        onOpenWorkspace = onOpenWorkspace
-    )
-}
-
-@Composable
-private fun AgentSlot(
-    viewModel: HomeViewModel,
-    onOpen: () -> Unit
-) {
-    val connection by viewModel.agentSlice.collectAsState()
-    AgentStatusCard(
-        connection = connection,
-        onOpen = onOpen
-    )
-}
-
-@Composable
-private fun TodaySlot(
-    viewModel: HomeViewModel,
-    onTasksClick: () -> Unit,
-    onRemindersClick: () -> Unit,
-    onAgentClick: () -> Unit
-) {
     val today by viewModel.todaySlice.collectAsState()
     val agent by viewModel.agentSlice.collectAsState()
-    SectionHeader(title = "Today")
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
-    ) {
-        QuickStatusCard(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.Checklist,
-            label = "Tasks",
-            value = "${today.pendingCount} remaining",
-            onClick = onTasksClick
-        )
-        QuickStatusCard(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.Alarm,
-            label = "Reminders",
-            value = if (today.hasUpcomingReminder) "1 upcoming" else "None",
-            onClick = onRemindersClick
-        )
-        QuickStatusCard(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.SmartToy,
-            label = "Agent",
-            value = agentChipValue(agent?.currentStatus),
-            onClick = onAgentClick
-        )
-    }
-}
+    val companion = hero.companion
 
-@Composable
-private fun OverlaySlot(
-    viewModel: HomeViewModel,
-    onClick: () -> Unit
-) {
-    val overlay by viewModel.overlaySlice.collectAsState()
-    SettingsGroup {
-        SettingsRow(
-            title = "Screen Overlay",
-            description = if (overlay.enabled) {
-                "${overlay.companionName} is active on top of other apps"
-            } else {
-                "The overlay companion is paused"
-            },
-            value = if (overlay.enabled) "Active" else "Paused",
-            icon = Icons.Default.SmartToy,
-            onClick = onClick
-        )
-    }
-}
-
-@Composable
-private fun AgentStatusCard(
-    connection: com.pixelpal.app.domain.model.AgentConnection?,
-    onOpen: () -> Unit
-) {
-    SectionHeader(title = "AI Agent")
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = "Open AI Agent") { onOpen() },
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-        )
-    ) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(color = agentDotColor(connection), shape = CircleShape)
-                )
-                Spacer(modifier = Modifier.width(Spacing.sm))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = agentStatusText(connection),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    connection?.currentTask?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Default.ChevronRight,
-                    contentDescription = "Open AI Agent",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            connection?.progress?.let { progress ->
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                LinearProgressIndicator(
-                    progress = { progress / 100f },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = "$progress% • ${connection.currentStatus.displayName}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            connection?.lastMessage?.let {
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
-            }
-
-            if (connection == null || connection.endpointUrl.isBlank()) {
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = "Connect your coding agent and watch it work through your pet",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun agentDotColor(connection: com.pixelpal.app.domain.model.AgentConnection?) =
-    when {
-        connection == null -> MaterialTheme.colorScheme.onSurfaceVariant
-        connection.connectionStatus == com.pixelpal.app.domain.model.ConnectionStatus.ERROR ->
-            MaterialTheme.colorScheme.error
-        connection.isConnected && connection.currentStatus in setOf(
-            AgentState.WORKING, AgentState.ONLINE, AgentState.IDLE
-        ) -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
-@Composable
-private fun agentStatusText(connection: com.pixelpal.app.domain.model.AgentConnection?): String =
-    when {
-        connection == null || connection.endpointUrl.isBlank() -> "No agent connected"
-        connection.connectionStatus == com.pixelpal.app.domain.model.ConnectionStatus.ERROR ->
-            "Connection error"
-        else -> "Connected — ${connection.currentStatus.displayName}"
-    }
-
-private fun agentChipValue(state: AgentState?): String = when (state) {
-    null, AgentState.DISCONNECTED -> "Off"
-    AgentState.WORKING -> "Working"
-    AgentState.WAITING_FOR_INPUT, AgentState.ERROR, AgentState.OFFLINE -> "Attention"
-    else -> state.displayName
-}
-
-@Composable
-private fun HomeHeader(
-    userName: String,
-    unreadCount: Int,
-    onBellClick: () -> Unit,
-    onSettingsClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.md),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            val greeting = remember { getGreeting() }
-            Text(
-                text = greeting,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            if (userName.isNotBlank()) {
-                Text(
-                    text = userName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        IconButton(onClick = onBellClick) {
-            BadgedBox(badge = {
-                if (unreadCount > 0) {
-                    Badge { Text(text = unreadCount.coerceAtMost(9).toString()) }
-                }
-            }) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "Notifications",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-        IconButton(onClick = onSettingsClick) {
-            Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-private fun CompanionHeroCard(
-    companion: com.pixelpal.app.domain.model.Companion,
-    bond: com.pixelpal.app.domain.model.Bond?,
-    onInteract: () -> Unit,
-    onFeed: () -> Unit,
-    onOpenWorkspace: () -> Unit
-) {
-    // Derived once per bond change — not recomputed on every frame/recompose.
-    val stateLabel = remember(bond?.lastInteractionTime) { bondStateLabel(bond) }
-    val isMaxBond = (bond?.level ?: 0) >= com.pixelpal.app.util.Constants.MAX_BOND_LEVEL
-
-    // -- Interaction animation state --
+    // Mascot tap animations
     var interactionTick by remember { mutableIntStateOf(0) }
     var feedbackText by remember { mutableStateOf<String?>(null) }
-    var showParticles by remember { mutableStateOf(false) }
     var currentExpression by remember { mutableStateOf(AnimationState.IDLE) }
 
     val scaleAnim = remember { Animatable(1f) }
     val rotationAnim = remember { Animatable(0f) }
-    val glowAlphaAnim = remember { Animatable(0f) }
 
-    val feedbackAlpha by animateFloatAsState(
-        targetValue = if (feedbackText != null) 1f else 0f,
-        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
-        label = "feedbackAlpha"
-    )
-
-    val reactionMessages = remember(companion.name) {
+    val reactionMessages = remember(companion?.name) {
         listOf(
-            "${companion.name} is happy!",
-            "That made me smile!",
+            "${companion?.name ?: "Pixel"} is happy!",
+            "Coding mode on!",
             "Bond strengthened!",
-            "${companion.name} enjoyed that!",
-            "A happy moment!",
-            "So much love!",
-            "You made my day!",
-            "We are getting closer!"
+            "Let's get things done!",
+            "Always here for you!"
         )
     }
 
     LaunchedEffect(interactionTick) {
         if (interactionTick == 0) return@LaunchedEffect
-        // Pick random feedback and expression for varied reactions
         feedbackText = reactionMessages.random()
-        showParticles = true
-        // Randomly choose happy smile or blink for this interaction
-        val reactionType = (0..3).random()
-        currentExpression = when (reactionType) {
-            0 -> AnimationState.HAPPY  // bounce + happy smile + sparkles
-            1 -> AnimationState.BLINK  // blink + bounce
-            2 -> AnimationState.HAPPY  // wiggle + happy
-            else -> AnimationState.HAPPY // heart glow
+        currentExpression = AnimationState.HAPPY
+
+        launch {
+            scaleAnim.animateTo(1.16f, tween(120, easing = FastOutSlowInEasing))
+            scaleAnim.animateTo(0.96f, tween(100))
+            scaleAnim.animateTo(1.05f, tween(80))
+            scaleAnim.animateTo(1f, spring(Spring.DampingRatioMediumBouncy))
+        }
+        launch {
+            rotationAnim.animateTo(-6f, tween(90))
+            rotationAnim.animateTo(6f, tween(110))
+            rotationAnim.animateTo(0f, spring(Spring.DampingRatioMediumBouncy))
         }
 
-        // Bounce + wiggle + glow sequence — slight variation per reaction
-        launch {
-            when (reactionType) {
-                0 -> {
-                    scaleAnim.animateTo(1.18f, animationSpec = tween(140, easing = FastOutSlowInEasing))
-                    scaleAnim.animateTo(0.94f, animationSpec = tween(120))
-                    scaleAnim.animateTo(1.06f, animationSpec = tween(100))
-                    scaleAnim.animateTo(1f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
-                }
-                1 -> {
-                    scaleAnim.animateTo(1.08f, tween(100))
-                    scaleAnim.animateTo(1f, tween(120))
-                    scaleAnim.animateTo(1.05f, tween(80))
-                    scaleAnim.animateTo(1f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium))
-                }
-                else -> {
-                    scaleAnim.animateTo(1.12f, tween(130))
-                    scaleAnim.animateTo(0.98f, tween(110))
-                    scaleAnim.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
-                }
-            }
-        }
-        launch {
-            glowAlphaAnim.animateTo(0.55f, animationSpec = tween(180))
-            glowAlphaAnim.animateTo(0f, animationSpec = tween(500, delayMillis = 400))
-        }
-        launch {
-            // Wiggle varies per reaction
-            if (reactionType == 2) {
-                rotationAnim.animateTo(-7f, tween(90))
-                rotationAnim.animateTo(7f, tween(110))
-                rotationAnim.animateTo(-4f, tween(90))
-                rotationAnim.animateTo(4f, tween(80))
-                rotationAnim.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium))
-            } else if (reactionType == 1) {
-                // Subtle blink doesn't wiggle much
-                rotationAnim.animateTo(-2f, tween(80))
-                rotationAnim.animateTo(2f, tween(80))
-                rotationAnim.animateTo(0f, tween(80))
-            }
-        }
-        delay(900)
+        delay(800)
         currentExpression = AnimationState.IDLE
-        delay(300)
-        showParticles = false
-        delay(900)
+        delay(800)
         feedbackText = null
     }
 
-    fun triggerInteract() {
-        interactionTick++
-        onInteract()
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = Spacing.xs)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = Spacing.lg, horizontal = Spacing.md),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // Top action icons: Grid on left, Bell on right
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            GlassCard(
+                shape = CircleShape,
+                modifier = Modifier.size(44.dp),
+                onClick = onCustomizeClick
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(
+                        imageVector = Icons.Default.GridView,
+                        contentDescription = "Customize Companion",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
 
-            // -- Large centered companion - the visual heart of the app --
+            GlassCard(
+                shape = CircleShape,
+                modifier = Modifier.size(44.dp),
+                onClick = onBellClick
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    BadgedBox(badge = {
+                        if (header.unreadCount > 0) {
+                            Badge { Text(text = header.unreadCount.coerceAtMost(9).toString()) }
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Notifications,
+                            contentDescription = "Activity Center",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+
+        // Title row with Greeting & Organic Fluid Blob Pet
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                val who = header.userName.ifBlank { "Akram" }
+                Text(
+                    text = "Hello, $who 👋",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Pixel",
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "Pal",
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color(0xFF8B6CF6)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Your AI companion for a calmer,\nmore productive day.",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        lineHeight = 18.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Mascot with soft organic purple fluid blob background matching the inspiration
             Box(
-                modifier = Modifier.size(220.dp),
+                modifier = Modifier
+                    .size(126.dp)
+                    .clickable {
+                        interactionTick++
+                        viewModel.interactWithCompanion()
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                // Soft glow behind companion during reaction. graphicsLayer
-                // lambda reads the animated value in the layout phase, so the
-                // glow frames never recompose this subtree.
+                // Organic fluid purple blob backdrop
                 Box(
                     modifier = Modifier
-                        .size(190.dp)
-                        .graphicsLayer { alpha = glowAlphaAnim.value }
+                        .size(116.dp, 106.dp)
+                        .clip(RoundedCornerShape(topStart = 48.dp, topEnd = 32.dp, bottomStart = 56.dp, bottomEnd = 40.dp))
                         .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                            CircleShape
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF8B6CF6).copy(alpha = 0.50f),
+                                    Color(0xFF6738EB).copy(alpha = 0.25f),
+                                    Color.Transparent
+                                )
+                            )
                         )
                 )
 
-                // Sparkles / stars / hearts overlay - positioned around the pet
-                if (showParticles) {
-                    SparkleOverlay(alpha = glowAlphaAnim.value)
-                }
-
+                // Mascot pet
                 Box(
                     modifier = Modifier
-                        .size(200.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-                        .clickable(onClickLabel = "Interact with ${companion.name}") { triggerInteract() }
-                        // Lambda form: animation frames update the layer
-                        // without recomposing the Lottie subtree every frame.
+                        .size(86.dp)
                         .graphicsLayer {
                             scaleX = scaleAnim.value
                             scaleY = scaleAnim.value
@@ -583,227 +383,758 @@ private fun CompanionHeroCard(
                     contentAlignment = Alignment.Center
                 ) {
                     LottiePetView(
-                        petType = companion.effectiveSpecies,
+                        petType = companion?.effectiveSpecies ?: "rabbit",
                         animationState = currentExpression,
-                        size = 180.dp
+                        size = 82.dp
+                    )
+                }
+            }
+        }
+
+        // Feedback speech reaction under header if present
+        feedbackText?.let { feedback ->
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = feedback,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// 2. ACTION CARDS ROW (Interact & Workspace)
+// -------------------------------------------------------------------------
+
+@Composable
+private fun HomeActionCardsRow(
+    onInteractClick: () -> Unit,
+    onWorkspaceClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        // Left: Interact Card (Rich Purple Gradient)
+        GlassCard(
+            modifier = Modifier
+                .weight(1f)
+                .height(116.dp),
+            backgroundBrush = PixelPalGradients.primaryCard,
+            borderStroke = null,
+            elevation = 6.dp,
+            onClick = onInteractClick
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(Spacing.md),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .background(Color.White.copy(alpha = 0.25f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(Color.White.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Column {
+                    Text(
+                        text = "Interact",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Chat with PixelPal",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+            }
+        }
+
+        // Right: Workspace Card (Frosted Glass Surface)
+        GlassCard(
+            modifier = Modifier
+                .weight(1f)
+                .height(116.dp),
+            elevation = 2.dp,
+            onClick = onWorkspaceClick
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(Spacing.md),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Terminal,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Column {
+                    Text(
+                        text = "Workspace",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Open your dev space",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// 3. STREAK CARD WITH WEEKLY BAR CHART
+// -------------------------------------------------------------------------
+
+@Composable
+private fun HomeStreakCard(viewModel: HomeViewModel) {
+    val hero by viewModel.heroSlice.collectAsState()
+    val weekly by viewModel.weeklyActivity.collectAsState()
+    val streakDays = hero.bond?.streakDays ?: 0
+
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Left flame badge and streak count
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Whatshot,
+                        contentDescription = "Streak",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(Spacing.md))
+
+                Column {
+                    Text(
+                        text = "${streakDays}d streak",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Keep going!",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Temporary feedback text
-            if (feedbackText != null) {
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text(
-                    text = feedbackText!!,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .alpha(feedbackAlpha)
-                        .padding(horizontal = Spacing.md)
-                )
-            } else {
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                // Reserve space so layout doesn't jump - invisible placeholder
-                Text(
-                    text = " ",
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.height(18.dp)
-                )
-            }
-
-            Text(
-                text = companion.name,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "$stateLabel \u00B7 ${bond?.streakDays ?: 0}d streak",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.md))
-
-            // Primary interaction - compact, centered with press feedback
-            PrimaryButton(
-                text = "Interact",
-                onClick = { triggerInteract() },
-                modifier = Modifier.fillMaxWidth(0.55f)
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.sm))
-
-            SecondaryButton(
-                text = "Open Workspace",
-                onClick = onOpenWorkspace,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(Spacing.md))
-
-            // -- Compact stats footer --
+            // Right: Mon-Fri weekly activity bar chart
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom
             ) {
-                StatText("${bond?.totalInteractions ?: 0} interactions")
-                StatText("${bond?.streakDays ?: 0}d streak")
+                weekly.days.forEach { day ->
+                    WeeklyBarItem(day = day)
+                }
             }
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            if (isMaxBond) {
+        }
+    }
+}
+
+@Composable
+private fun WeeklyBarItem(day: DayActivity) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        Text(
+            text = day.dayLabel,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            color = if (day.isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Normal
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        val barHeight = (36.dp * day.intensity.coerceIn(0.2f, 1f))
+        val barModifier = if (day.isActive) {
+            Modifier.background(PixelPalGradients.streakBar)
+        } else {
+            Modifier.background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        }
+        Box(
+            modifier = Modifier
+                .width(18.dp)
+                .height(barHeight)
+                .clip(RoundedCornerShape(6.dp))
+                .then(barModifier)
+        )
+    }
+}
+
+// -------------------------------------------------------------------------
+// 4. QUICK STATS ROW (Tasks Left & Reminders)
+// -------------------------------------------------------------------------
+
+@Composable
+private fun HomeQuickStatsRow(
+    viewModel: HomeViewModel,
+    onTasksClick: () -> Unit,
+    onRemindersClick: () -> Unit
+) {
+    val today by viewModel.todaySlice.collectAsState()
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.md)
+    ) {
+        // Left: Tasks Left Card
+        GlassCard(
+            modifier = Modifier.weight(1f),
+            onClick = onTasksClick
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.FormatListBulleted,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(Spacing.sm))
+
+                Column {
+                    Text(
+                        text = "${today.pendingCount}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Tasks left",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Right: Reminders Card
+        GlassCard(
+            modifier = Modifier.weight(1f),
+            onClick = onRemindersClick
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(Spacing.sm))
+
+                Column {
+                    Text(
+                        text = if (today.hasUpcomingReminder) "1" else "None",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Reminders",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// 5. AI AGENT CARD (With Inline Approval Gate)
+// -------------------------------------------------------------------------
+
+@Composable
+private fun HomeAgentCard(
+    viewModel: HomeViewModel,
+    onOpen: () -> Unit
+) {
+    val agent by viewModel.agentSlice.collectAsState()
+    val isWaiting = agent.waiting > 0 && agent.pendingApprovalId != null
+
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        borderStroke = if (isWaiting) {
+            BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+        },
+        onClick = onOpen
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Soft organic purple fluid wave in the bottom right corner matching inspiration
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = 20.dp, y = 20.dp)
+                    .size(90.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF8B6CF6).copy(alpha = 0.35f),
+                                Color(0xFF6738EB).copy(alpha = 0.15f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ViewInAr,
+                                contentDescription = "AI Agent",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+
+                        Column {
+                            Text(
+                                text = "AI Agent",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            val title = if (agent.headline.isBlank() || agent.headline == "No agents connected") {
+                                "No agent connected"
+                            } else {
+                                agent.headline
+                            }
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isWaiting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    if (!isWaiting) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(PixelPalGradients.primaryCard),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add or Pair Agent",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                val subtitle = if (agent.detail.isNullOrBlank()) {
+                    "Pair your terminal and let\nPixelPal work for you."
+                } else {
+                    agent.detail!!
+                }
                 Text(
-                    text = "Max Bond reached",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = 16.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Progress bar if working
+                agent.progress?.let { progress ->
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    LinearProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        strokeCap = StrokeCap.Round
+                    )
+                }
+
+                // Inline Approve / Deny buttons if waiting for user permission!
+                if (isWaiting) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        androidx.compose.material3.Button(
+                            onClick = { agent.pendingApprovalId?.let { viewModel.approveAgentApproval(it) } },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(Radius.medium)
+                        ) {
+                            Text("Approve", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { agent.pendingApprovalId?.let { viewModel.denyAgentApproval(it) } },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(Radius.medium)
+                        ) {
+                            Text("Deny", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+// 6. TODAY SECTION
+// -------------------------------------------------------------------------
+
+@Composable
+private fun HomeTodayTasksSection(
+    viewModel: HomeViewModel,
+    onViewAllClick: () -> Unit
+) {
+    val today by viewModel.todaySlice.collectAsState()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Today",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { onViewAllClick() }
+            ) {
+                Text(
+                    text = "View all",
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
                 )
-            } else {
-                LinearProgressIndicator(
-                    progress = { (bond?.level ?: 0) / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                    strokeCap = StrokeCap.Round
+                Spacer(modifier = Modifier.width(3.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(13.dp)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.xs))
+
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onViewAllClick
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(Spacing.md),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (today.pendingCount == 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "No tasks for today",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Add a task to get started",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = today.firstTaskTitle ?: "${today.pendingCount} pending tasks",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+
+                // Decorative 3D-styled purple clipboard illustration badge matching inspiration
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .graphicsLayer { rotationZ = -6f }
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF8B6CF6).copy(alpha = 0.35f),
+                                    Color(0xFF6738EB).copy(alpha = 0.20f)
+                                )
+                            )
+                        )
+                        .border(
+                            BorderStroke(1.dp, Color(0xFF8B6CF6).copy(alpha = 0.40f)),
+                            RoundedCornerShape(14.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Assignment,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
     }
 }
 
+// -------------------------------------------------------------------------
+// 7. FOCUS TIME CARD (Matching Inspiration)
+// -------------------------------------------------------------------------
+
 @Composable
-private fun SparkleOverlay(alpha: Float) {
-    // Painters resolved once — not re-looked-up on every recompose.
-    val sparkle = androidx.compose.ui.res.painterResource(id = com.pixelpal.app.R.drawable.particle_sparkle)
-    val star = androidx.compose.ui.res.painterResource(id = com.pixelpal.app.R.drawable.particle_star)
-    val heart = androidx.compose.ui.res.painterResource(id = com.pixelpal.app.R.drawable.particle_heart)
-    val dot = androidx.compose.ui.res.painterResource(id = com.pixelpal.app.R.drawable.particle_dot)
-    Box(
-        modifier = Modifier
-            .size(220.dp)
-            .alpha(alpha)
+private fun HomeFocusTimeCard() {
+    GlassCard(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        // Top-left sparkle (vector, not text emoji)
-        androidx.compose.foundation.Image(
-            painter = sparkle,
-            contentDescription = null,
+        Row(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(x = 12.dp, y = 18.dp)
-                .size(20.dp)
-        )
-        // Top-right star
-        androidx.compose.foundation.Image(
-            painter = star,
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-14).dp, y = 22.dp)
-                .size(18.dp)
-        )
-        // Bottom-left heart
-        androidx.compose.foundation.Image(
-            painter = heart,
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .offset(x = 20.dp, y = (-16).dp)
-                .size(16.dp)
-        )
-        // Bottom-right sparkle
-        androidx.compose.foundation.Image(
-            painter = sparkle,
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .offset(x = (-18).dp, y = (-20).dp)
-                .size(16.dp)
-        )
-        // Mid-right dot glow
-        androidx.compose.foundation.Image(
-            painter = dot,
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = (-6).dp)
-                .size(14.dp)
-        )
-    }
-}
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "Focus time",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "2h 15m",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "of 4h goal",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-private fun speciesLabel(species: String): String =
-    species.replaceFirstChar { it.uppercase() }
+            // Circular progress indicator matching mockup: purple gradient arc with "54%" in center
+            Box(
+                modifier = Modifier.size(68.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.size(64.dp)) {
+                    val stroke = 6.dp.toPx()
+                    val radius = (size.minDimension - stroke) / 2
+                    // Background track
+                    drawCircle(
+                        color = Color(0xFF8B6CF6).copy(alpha = 0.15f),
+                        radius = radius,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                    )
+                    // Progress arc (54%)
+                    drawArc(
+                        brush = androidx.compose.ui.graphics.Brush.sweepGradient(
+                            listOf(
+                                Color(0xFF8B6CF6),
+                                Color(0xFF6738EB),
+                                Color(0xFFA78BFA)
+                            )
+                        ),
+                        startAngle = -90f,
+                        sweepAngle = 360f * 0.54f,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = stroke,
+                            cap = StrokeCap.Round
+                        )
+                    )
+                }
 
-@Composable
-private fun StatText(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-}
-
-
-
-@Composable
-private fun QuickStatusCard(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    label: String,
-    value: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = modifier.clickable(onClickLabel = label) { onClick() },
-        shape = RoundedCornerShape(Radius.medium),
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Column(modifier = Modifier.padding(Spacing.md)) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                Text(
+                    text = "54%",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
     }
-}
-
-private fun getGreeting(): String {
-    val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-    return when {
-        hour < 12 -> "Good morning"
-        hour < 17 -> "Good afternoon"
-        hour < 21 -> "Good evening"
-        else -> "Good night"
-    }
-}
-
-private const val RECENT_INTERACTION_WINDOW_MS = 2 * 60 * 1000L
-
-/** "Happy"/"Calm" label from bond recency (matches HomeUiState.stateLabel). */
-private fun bondStateLabel(
-    bond: com.pixelpal.app.domain.model.Bond?,
-    now: Long = System.currentTimeMillis()
-): String {
-    val last = bond?.lastInteractionTime ?: 0L
-    return if (now - last < RECENT_INTERACTION_WINDOW_MS) "Happy" else "Calm"
 }

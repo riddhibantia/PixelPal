@@ -1,13 +1,10 @@
 package com.pixelpal.app.presentation.theme
 
-import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPalette.Primary,
@@ -59,80 +56,20 @@ private val LightColorScheme = lightColorScheme(
     onError = LightPalette.OnError
 )
 
-private val SpringColorScheme = lightColorScheme(
-    primary = SpringPalette.Primary,
-    onPrimary = SpringPalette.OnPrimary,
-    primaryContainer = SpringPalette.PrimaryContainer,
-    onPrimaryContainer = SpringPalette.OnPrimaryContainer,
-    secondary = SpringPalette.Secondary,
-    onSecondary = SpringPalette.OnSecondary,
-    secondaryContainer = SpringPalette.SecondaryContainer,
-    onSecondaryContainer = SpringPalette.OnSecondaryContainer,
-    tertiary = SpringPalette.Secondary,
-    onTertiary = SpringPalette.OnSecondary,
-    tertiaryContainer = SpringPalette.SecondaryContainer,
-    onTertiaryContainer = SpringPalette.OnSecondaryContainer,
-    background = SpringPalette.Background,
-    onBackground = SpringPalette.TextPrimary,
-    surface = SpringPalette.Surface,
-    onSurface = SpringPalette.TextPrimary,
-    surfaceVariant = SpringPalette.SurfaceElevated,
-    onSurfaceVariant = SpringPalette.TextSecondary,
-    outline = SpringPalette.Outline,
-    outlineVariant = SpringPalette.Divider,
-    error = SpringPalette.Error,
-    onError = SpringPalette.OnError
-)
-
-private val AutumnColorScheme = lightColorScheme(
-    primary = AutumnPalette.Primary,
-    onPrimary = AutumnPalette.OnPrimary,
-    primaryContainer = AutumnPalette.PrimaryContainer,
-    onPrimaryContainer = AutumnPalette.OnPrimaryContainer,
-    secondary = AutumnPalette.Secondary,
-    onSecondary = AutumnPalette.OnSecondary,
-    secondaryContainer = AutumnPalette.SecondaryContainer,
-    onSecondaryContainer = AutumnPalette.OnSecondaryContainer,
-    tertiary = AutumnPalette.Secondary,
-    onTertiary = AutumnPalette.OnSecondary,
-    tertiaryContainer = AutumnPalette.SecondaryContainer,
-    onTertiaryContainer = AutumnPalette.OnSecondaryContainer,
-    background = AutumnPalette.Background,
-    onBackground = AutumnPalette.TextPrimary,
-    surface = AutumnPalette.Surface,
-    onSurface = AutumnPalette.TextPrimary,
-    surfaceVariant = AutumnPalette.SurfaceElevated,
-    onSurfaceVariant = AutumnPalette.TextSecondary,
-    outline = AutumnPalette.Outline,
-    outlineVariant = AutumnPalette.Divider,
-    error = AutumnPalette.Error,
-    onError = AutumnPalette.OnError
-)
-
+/**
+ * PixelPal Theme: Exactly two curated themes (Obsidian Dark and Paper Light).
+ * No muddy dynamic wallpaper tinting. Pure, quiet, deliberate chrome.
+ */
 @Composable
 fun PixelPalTheme(
     theme: String = "dark",
     content: @Composable () -> Unit
 ) {
-    val context = LocalContext.current
-    val systemTheme = theme.equals("system", ignoreCase = true)
-    val systemDark = isSystemInDarkThemeCompat()
-    // Dynamic color (wallpaper-derived) requires Android 12+.
-    val useDynamic = systemTheme && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val colorScheme = when {
-        useDynamic && systemDark -> dynamicDarkColorScheme(context)
-        useDynamic -> dynamicLightColorScheme(context)
-        // Pre-Android 12 "system": dynamic color is unavailable, so fall back to
-        // PixelPal's own dark/light palettes following the OS dark-mode setting
-        // (before this, "system" silently rendered as Dark on pre-31 devices).
-        systemTheme && systemDark -> DarkColorScheme
-        systemTheme -> LightColorScheme
-        else -> when (theme.lowercase()) {
-            "light" -> LightColorScheme
-            "spring" -> SpringColorScheme
-            "autumn" -> AutumnColorScheme
-            else -> DarkColorScheme
-        }
+    val systemDark = isSystemInDarkTheme()
+    val colorScheme = when (theme.lowercase()) {
+        "light" -> LightColorScheme
+        "dark" -> DarkColorScheme
+        else -> if (systemDark) DarkColorScheme else LightColorScheme
     }
 
     MaterialTheme(
@@ -141,9 +78,4 @@ fun PixelPalTheme(
         shapes = PixelPalShapes,
         content = content
     )
-}
-
-@Composable
-private fun isSystemInDarkThemeCompat(): Boolean {
-    return androidx.compose.foundation.isSystemInDarkTheme()
 }

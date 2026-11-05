@@ -84,7 +84,8 @@ class ReminderViewModel @Inject constructor(
         minute: Int,
         soundUri: String?,
         category: ReminderCategory = ReminderCategory.CUSTOM,
-        sound: ReminderSound? = null
+        sound: ReminderSound? = null,
+        recurrence: String = "ONCE"
     ) {
         viewModelScope.launch {
             val companionId = getActiveCompanionUseCase.activeCompanion.first()?.id
@@ -94,6 +95,14 @@ class ReminderViewModel @Inject constructor(
                 soundUri != null -> soundUri
                 else -> null
             }
+            // Month-end series keep the day they were created on; without it a
+            // 31st reminder drifts to the 28th after the first short month.
+            val anchorDay = if (recurrence == "MONTHLY") {
+                java.util.Calendar.getInstance().apply { timeInMillis = triggerTime }
+                    .get(java.util.Calendar.DAY_OF_MONTH)
+            } else {
+                null
+            }
             val reminder = Reminder(
                 title = title,
                 message = message?.trim()?.takeIf { it.isNotEmpty() },
@@ -102,6 +111,8 @@ class ReminderViewModel @Inject constructor(
                 minute = minute,
                 soundUri = storedSoundUri,
                 category = category.id,
+                recurrence = recurrence,
+                recurrenceDayOfMonth = anchorDay,
                 companionId = companionId
             )
             createReminderUseCase(reminder)

@@ -28,10 +28,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,16 +43,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
+import com.pixelpal.app.presentation.components.GlassCard
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
 
 /** A subtask draft on the New Task screen, id-keyed so removal keeps edits stable. */
-private class DraftSubtask(val key: Int) {
-    var title by mutableStateOf("")
-}
-
 /**
  * Dedicated task editor: title, optional description and any number of
  * subtask drafts. Nothing is written until "Create Task" is tapped.
@@ -60,33 +60,39 @@ fun NewTaskScreen(
     navController: NavController,
     viewModel: TasksViewModel = hiltViewModel()
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var dueAt by remember { mutableStateOf<Long?>(null) }
-    val drafts = remember { mutableStateListOf<DraftSubtask>() }
-    var nextKey by remember { mutableIntStateOf(1) }
+    var title by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var dueAt by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Draft subtasks survive rotation / process death: a half-written task with
+    // five subtasks used to vanish when the phone turned.
+    val drafts = rememberSaveable(
+        saver = listSaver(save = { it.toList() }, restore = { it.toMutableStateList() })
+    ) { mutableStateListOf<String>() }
 
     fun addDraft() {
-        drafts.add(DraftSubtask(key = nextKey))
-        nextKey += 1
+        drafts.add("")
     }
 
     Scaffold { padding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
         ) {
-            AppTopBar(title = "New Task", onBack = { navController.popBackStack() })
-
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(top = Spacing.sm, bottom = Spacing.md)
+                    .fillMaxSize()
+                    .imePadding()
             ) {
+                AppTopBar(title = "New Task", onBack = { navController.popBackStack() })
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.screenHorizontal)
+                        .padding(top = Spacing.sm, bottom = Spacing.md)
+                ) {
                 AppTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -114,12 +120,7 @@ fun NewTaskScreen(
 
                 SectionHeader(title = "Subtasks")
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(Radius.large),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
-                ) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
                         if (drafts.isEmpty()) {
                             Text(
@@ -142,12 +143,12 @@ fun NewTaskScreen(
                             ) {
                                 Checkbox(checked = false, onCheckedChange = null)
                                 AppTextField(
-                                    value = draft.title,
-                                    onValueChange = { draft.title = it },
+                                    value = draft,
+                                    onValueChange = { drafts[index] = it },
                                     label = "Subtask ${index + 1}",
                                     modifier = Modifier.weight(1f)
                                 )
-                                IconButton(onClick = { drafts.remove(draft) }) {
+                                IconButton(onClick = { drafts.removeAt(index) }) {
                                     Icon(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Remove subtask",
@@ -177,7 +178,7 @@ fun NewTaskScreen(
                         viewModel.createTask(
                             title = title,
                             description = description.takeIf { it.isNotBlank() },
-                            subtaskTitles = drafts.map { it.title },
+                            subtaskTitles = drafts,
                             dueAt = dueAt
                         )
                         navController.popBackStack()
@@ -187,6 +188,7 @@ fun NewTaskScreen(
         }
     }
 }
+}
 
 /** The "+ Add subtask" affordance — quiet, bordered, gold text. */
 @Composable
@@ -194,13 +196,10 @@ private fun AddSubtaskButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+    GlassCard(
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.medium),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier.padding(vertical = 12.dp),

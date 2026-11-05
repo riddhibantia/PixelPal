@@ -40,9 +40,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +53,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,7 +66,11 @@ import com.pixelpal.app.domain.model.ReminderCategory
 import com.pixelpal.app.domain.model.ReminderSound
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
+import com.pixelpal.app.presentation.components.GlassCard
+import com.pixelpal.app.presentation.components.GlassChip
+import com.pixelpal.app.presentation.components.GlassSegmentedRow
 import com.pixelpal.app.presentation.components.GroupDivider
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.components.SettingsGroup
@@ -84,20 +86,29 @@ import java.util.TimeZone
 
 private enum class TimeMode { QUICK, CLOCK, DATE_TIME }
 
+/** Recurrence offered in the UI; ids match ReminderEntity.recurrence. */
+private enum class RepeatOption(val id: String, val label: String) {
+    ONCE("ONCE", "Once"),
+    DAILY("DAILY", "Daily"),
+    WEEKLY("WEEKLY", "Weekly"),
+    MONTHLY("MONTHLY", "Monthly")
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CreateReminderScreen(
     navController: NavController,
     viewModel: ReminderViewModel = hiltViewModel()
 ) {
-    var title by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf(ReminderCategory.CUSTOM) }
-    var saveBlocked by remember { mutableStateOf(false) }
+    var title by rememberSaveable { mutableStateOf("") }
+    var message by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf(ReminderCategory.CUSTOM) }
+    var saveBlocked by rememberSaveable { mutableStateOf(false) }
+    var repeat by rememberSaveable { mutableStateOf(RepeatOption.ONCE) }
     val context = LocalContext.current
 
-    var selectedMode by remember { mutableStateOf(TimeMode.QUICK) }
-    var selectedQuickMinutes by remember { mutableStateOf(60L) }
+    var selectedMode by rememberSaveable { mutableStateOf(TimeMode.QUICK) }
+    var selectedQuickMinutes by rememberSaveable { mutableStateOf(60L) }
 
     val currentTime = Calendar.getInstance()
     val timePickerState = rememberTimePickerState(
@@ -106,19 +117,19 @@ fun CreateReminderScreen(
         is24Hour = false
     )
 
-    var useClockPicker by remember { mutableStateOf(true) }
+    var useClockPicker by rememberSaveable { mutableStateOf(true) }
 
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(
         initialSelectedDateMillis = System.currentTimeMillis()
     )
 
     // User-picked ringtone; null = "not chosen" so the category's sound hint
     // decides (see ReminderCategory.soundHint / ReminderNotificationHelper).
-    var pickedSoundUri by remember { mutableStateOf<String?>(null) }
-    var pickedSoundName by remember { mutableStateOf<String?>(null) }
+    var pickedSoundUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pickedSoundName by rememberSaveable { mutableStateOf<String?>(null) }
     // Explicit logical override (currently only "Silent").
-    var explicitSound by remember { mutableStateOf<ReminderSound?>(null) }
+    var explicitSound by rememberSaveable { mutableStateOf<ReminderSound?>(null) }
 
     val soundSummary = when {
         explicitSound == ReminderSound.NONE -> "Silent"
@@ -217,7 +228,8 @@ fun CreateReminderScreen(
                 minute = cal.get(Calendar.MINUTE),
                 soundUri = pickedSoundUri,
                 category = category,
-                sound = explicitSound
+                sound = explicitSound,
+                recurrence = repeat.id
             )
         }
     }
@@ -256,21 +268,22 @@ fun CreateReminderScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
-    ) {
-        AppTopBar(title = "New Reminder", onBack = { navController.popBackStack() })
-
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.screenHorizontal)
-                .padding(bottom = Spacing.xl)
-                .navigationBarsPadding()
+                .imePadding()
         ) {
+            AppTopBar(title = "New Reminder", onBack = { navController.popBackStack() })
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screenHorizontal)
+                    .padding(bottom = Spacing.xl)
+                    .navigationBarsPadding()
+            ) {
             // ── WHAT ──
             SectionHeader(title = "What")
             AppTextField(
@@ -301,17 +314,11 @@ fun CreateReminderScreen(
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 ReminderCategory.ALL.forEach { option ->
-                    FilterChip(
+                    GlassChip(
+                        label = option.displayName,
                         selected = category == option,
                         onClick = { category = option },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = option.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        label = { Text(option.displayName) }
+                        leadingIcon = option.icon
                     )
                 }
             }
@@ -324,29 +331,22 @@ fun CreateReminderScreen(
 
             // ── WHEN ──
             SectionHeader(title = "When")
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                SegmentedButton(
-                    selected = selectedMode == TimeMode.QUICK,
-                    onClick = { selectedMode = TimeMode.QUICK },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
-                ) {
-                    Text("Quick")
-                }
-                SegmentedButton(
-                    selected = selectedMode == TimeMode.CLOCK,
-                    onClick = { selectedMode = TimeMode.CLOCK },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
-                ) {
-                    Text("Clock")
-                }
-                SegmentedButton(
-                    selected = selectedMode == TimeMode.DATE_TIME,
-                    onClick = { selectedMode = TimeMode.DATE_TIME },
-                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
-                ) {
-                    Text("Date & Time")
-                }
-            }
+            GlassSegmentedRow(
+                options = listOf("Quick", "Clock", "Date & Time"),
+                selectedIndex = when (selectedMode) {
+                    TimeMode.QUICK -> 0
+                    TimeMode.CLOCK -> 1
+                    TimeMode.DATE_TIME -> 2
+                },
+                onSelected = { index ->
+                    selectedMode = when (index) {
+                        0 -> TimeMode.QUICK
+                        1 -> TimeMode.CLOCK
+                        else -> TimeMode.DATE_TIME
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(Spacing.md))
 
@@ -373,10 +373,10 @@ fun CreateReminderScreen(
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                     ) {
                         quickOptions.forEach { (minutes, label) ->
-                            FilterChip(
+                            GlassChip(
+                                label = label,
                                 selected = selectedQuickMinutes == minutes,
-                                onClick = { selectedQuickMinutes = minutes },
-                                label = { Text(label) }
+                                onClick = { selectedQuickMinutes = minutes }
                             )
                         }
                     }
@@ -411,28 +411,29 @@ fun CreateReminderScreen(
                 }
 
                 TimeMode.DATE_TIME -> {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.medium))
-                            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(Radius.medium))
-                            .clickable { showDatePicker = true }
-                            .padding(horizontal = Spacing.md, vertical = Spacing.md),
-                        verticalAlignment = Alignment.CenterVertically
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(Radius.medium),
+                        onClick = { showDatePicker = true }
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Event,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.md))
-                        Text(
-                            text = datePickerState.selectedDateMillis?.let {
-                                dateFormatter.format(Date(it + TimeZone.getDefault().getOffset(it)))
-                            } ?: "Select date",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Event,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Text(
+                                text = datePickerState.selectedDateMillis?.let {
+                                    dateFormatter.format(Date(it + TimeZone.getDefault().getOffset(it)))
+                                } ?: "Select date",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
 
                     if (showDatePicker) {
@@ -458,6 +459,34 @@ fun CreateReminderScreen(
                 }
             }
 
+            // ── REPEAT ──
+            SectionHeader(title = "Repeat")
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+            ) {
+                RepeatOption.entries.forEach { option ->
+                    GlassChip(
+                        label = option.label,
+                        selected = repeat == option,
+                        onClick = { repeat = option }
+                    )
+                }
+            }
+            if (repeat != RepeatOption.ONCE) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = when (repeat) {
+                        RepeatOption.DAILY -> "Fires every day at this time."
+                        RepeatOption.WEEKLY -> "Fires every week on this weekday."
+                        else -> "Fires every month on this day. Short months use their last day."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             // ── NOTIFICATION ──
             SectionHeader(title = "Notification")
             SettingsGroup {
@@ -481,23 +510,17 @@ fun CreateReminderScreen(
             // Genuinely silent is its own choice; on API 26+ it also routes the
             // notification through a silent channel (see ReminderNotificationHelper).
             Spacer(modifier = Modifier.height(Spacing.sm))
-            FilterChip(
+            GlassChip(
+                label = "Silent — no sound at all",
                 selected = explicitSound == ReminderSound.NONE,
+                leadingIcon = Icons.Default.NotificationsOff,
                 onClick = {
                     explicitSound = if (explicitSound == ReminderSound.NONE) null else ReminderSound.NONE
                     if (explicitSound == ReminderSound.NONE) {
                         pickedSoundUri = null
                         pickedSoundName = null
                     }
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.NotificationsOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                },
-                label = { Text("Silent — no sound at all") }
+                }
             )
 
             if (saveBlocked) {
@@ -527,6 +550,7 @@ fun CreateReminderScreen(
             )
         }
     }
+}
 }
 
 private const val MAX_MESSAGE_LENGTH = 200

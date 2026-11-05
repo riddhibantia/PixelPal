@@ -115,20 +115,27 @@ class HomeWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_home_reminder, android.view.View.GONE)
             }
 
-            // Agent
+            // Agent — the bridge's observed sessions, not the legacy config row.
             var agentStatus: String? = null
-            if (companionId != null) {
+            run {
                 val cursor = db.openHelper.readableDatabase.query(
-                    "SELECT currentStatus, connectionStatus FROM agent_connection WHERE companionId = $companionId LIMIT 1"
+                    "SELECT status, agentName, source, project, pendingApprovalId FROM agent_sessions " +
+                        "ORDER BY CASE status WHEN 'WAITING_FOR_INPUT' THEN 0 WHEN 'ERROR' THEN 1 " +
+                        "WHEN 'WORKING' THEN 2 ELSE 3 END, lastEventAt DESC LIMIT 1"
                 )
                 if (cursor.moveToFirst()) {
                     val status = cursor.getString(0)
-                    val conn = cursor.getString(1)
+                    val name = cursor.getString(1)?.takeIf { it.isNotBlank() }
+                        ?: cursor.getString(2).orEmpty()
+                    val project = cursor.getString(3).orEmpty()
+                    val pending = cursor.getString(4)
+                    val label = project.ifBlank { name }
                     agentStatus = when {
-                        conn == "ERROR" -> "● Agent needs attention"
-                        status == "WORKING" -> "● Working"
-                        status == "CONNECTED" || status == "ONLINE" -> "● Connected"
-                        else -> null
+                        !pending.isNullOrBlank() -> "● $name needs approval"
+                        status == "WAITING_FOR_INPUT" -> "● $name needs approval"
+                        status == "ERROR" -> "● $name failed"
+                        status == "WORKING" -> if (label.isBlank()) "● Working" else "● $label"
+                        else -> "● $label idle"
                     }
                 }
                 cursor.close()

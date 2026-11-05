@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup (Android 11 and below).
+
+  Only the Room database is backed up. `pixelpal_preferences.preferences_pb` is
+  deliberately EXCLUDED: it holds the bridge pairing key, the relay id and the
+  Gemini key override, and those must never leave the device inside a Google
+  backup. Losing the theme / overlay position on a restore is the cheaper trade.
+-->
 <full-backup-content>
-    <include domain="sharedpref" path="."/>
     <include domain="database" path="."/>
-    <include domain="file" path="."/>
 </full-backup-content>

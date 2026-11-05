@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ backup + device transfer.
+
+  Same rule as backup_rules.xml: the database travels, the preferences file
+  does not. It contains the bridge key, relay id and Gemini key override.
+-->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="database" path="pixelpal_database"/>
-        <include domain="sharedpref" path="pixelpal_preferences.preferences_pb"/>
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="pixelpal_database"/>
-        <include domain="sharedpref" path="pixelpal_preferences.preferences_pb"/>
     </device-transfer>
 </data-extraction-rules>

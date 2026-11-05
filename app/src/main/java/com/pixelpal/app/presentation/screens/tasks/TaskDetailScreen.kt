@@ -4,8 +4,11 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,21 +16,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
+import com.pixelpal.app.presentation.theme.PixelPalGradients
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -57,6 +66,7 @@ import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.ConfirmationDialog
 import com.pixelpal.app.presentation.components.DestructiveButton
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.LoadingState
 import com.pixelpal.app.presentation.components.PrimaryButton
 import com.pixelpal.app.presentation.components.SectionHeader
@@ -100,27 +110,23 @@ fun TaskDetailScreen(
     var newSubtask by remember { mutableStateOf("") }
 
     Scaffold { padding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            TopAppBar(
-                title = { Text("Task", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(top = Spacing.xs, bottom = Spacing.md)
+                modifier = Modifier.fillMaxSize()
             ) {
+                AppTopBar(title = "Task", onBack = { navController.popBackStack() })
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Spacing.screenHorizontal)
+                        .padding(top = Spacing.xs, bottom = Spacing.md)
+                ) {
                 // ── Editable task heading ──
                 AppTextField(
                     value = editedTitle,
@@ -165,17 +171,44 @@ fun TaskDetailScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 // ── Main task completion ──
-                Surface(
+                GlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(Radius.large),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                    onClick = { viewModel.toggleTask(task) }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xs),
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = task.isDone, onCheckedChange = { viewModel.toggleTask(task) })
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (task.isDone) {
+                                        Modifier.background(PixelPalGradients.primaryCard)
+                                    } else {
+                                        Modifier
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .border(
+                                                1.5.dp,
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                                                CircleShape
+                                            )
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (task.isDone) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Done",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(Spacing.md))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (task.isDone) "Completed" else "Mark task complete",
@@ -207,12 +240,7 @@ fun TaskDetailScreen(
                 // ── Subtasks ──
                 SectionHeader(title = "Subtasks")
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(Radius.large),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
-                ) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(vertical = Spacing.xs)) {
                         if (state.subtasks.isEmpty()) {
                             Text(
@@ -307,6 +335,7 @@ fun TaskDetailScreen(
             }
         }
     }
+}
 
     if (showDeleteDialog) {
         ConfirmationDialog(
@@ -336,12 +365,7 @@ private fun PhotoProofSection(
     }
     SectionHeader(title = "Photo proof")
     Spacer(modifier = Modifier.height(Spacing.sm))
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
-    ) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(Spacing.md)) {
             if (photoUri.isNotBlank()) {
                 AsyncImage(
@@ -365,22 +389,21 @@ private fun PhotoProofSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { launcher.launch("image/*") },
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(Radius.medium),
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                    onClick = { launcher.launch("image/*") }
                 ) {
                     Row(
-                        modifier = Modifier.padding(vertical = 14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Image, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.padding(horizontal = 4.dp))
-                        Text("Attach photo", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Attach photo", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -408,7 +431,37 @@ private fun SubtaskRow(
             .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Checkbox(checked = subtask.isDone, onCheckedChange = { onToggle() })
+        Box(
+            modifier = Modifier
+                .padding(start = Spacing.xs)
+                .size(22.dp)
+                .clip(CircleShape)
+                .then(
+                    if (subtask.isDone) {
+                        Modifier.background(PixelPalGradients.primaryCard)
+                    } else {
+                        Modifier
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(
+                                1.5.dp,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                                CircleShape
+                            )
+                    }
+                )
+                .clickable { onToggle() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (subtask.isDone) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Done",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(Spacing.xs))
         OutlinedTextField(
             value = text,
             onValueChange = { text = it },

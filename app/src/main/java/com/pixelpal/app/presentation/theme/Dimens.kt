@@ -22,8 +22,10 @@ object Spacing {
 object Radius {
     val small = 8.dp
     val medium = 12.dp
-    val large = 16.dp
-    val xlarge = 24.dp
+    val large = 20.dp
+    val xlarge = 26.dp
+    val dock = 36.dp
+    val pill = 999.dp
 }
 
 object Sizing {
@@ -38,4 +40,9 @@ object Sizing {
 
     /** Standard button height. */
     val button = 52.dp
+
+    /** Floating dock dimensions. */
+    val dockHeight = 68.dp
+    val dockPadding = 16.dp
 }
+

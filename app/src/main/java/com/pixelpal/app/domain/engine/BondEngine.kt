@@ -55,14 +55,33 @@ class BondEngine @Inject constructor(
     }
 
     suspend fun applyDecay() {
+        val today = java.time.LocalDate.now()
         bondRepository.getAllDirect().forEach { bond ->
-            val daysInactive = (System.currentTimeMillis() - bond.lastInteractionTime) / DAY_IN_MILLIS
-            val newLevel = if (daysInactive >= 1) (bond.level - 1).coerceAtLeast(0) else bond.level
+            // Calendar days, not (now - then) / 86_400_000: a phone that was off
+            // for a month used to lose a single level, and DST days are not 24 h.
+            val lastDate = java.time.Instant.ofEpochMilli(bond.lastInteractionTime)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+            val daysInactive = java.time.temporal.ChronoUnit.DAYS
+                .between(lastDate, today)
+                .coerceAtLeast(0L)
+                .toInt()
+
+            // Advance the cursor by whole days so a retry of this worker in the
+            // same day cannot subtract the same days twice. The time-of-day is
+            // preserved; nothing in the UI reads this field.
+            val advancedInteraction = if (daysInactive > 0) {
+                bond.lastInteractionTime + daysInactive * DAY_IN_MILLIS
+            } else {
+                bond.lastInteractionTime
+            }
+
             bondRepository.updateBond(
                 bond.copy(
-                    level = newLevel,
+                    level = (bond.level - daysInactive).coerceAtLeast(0),
                     tapsToday = 0,
-                    feedsToday = 0
+                    feedsToday = 0,
+                    lastInteractionTime = advancedInteraction
                 )
             )
         }

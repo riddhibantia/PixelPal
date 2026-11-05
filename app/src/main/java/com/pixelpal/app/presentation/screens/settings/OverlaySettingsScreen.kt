@@ -17,6 +17,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GroupDivider
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.components.SettingsGroup
 import com.pixelpal.app.presentation.components.SettingsRow
@@ -34,13 +35,14 @@ fun OverlaySettingsScreen(
 ) {
     val overlayEnabled by viewModel.overlayEnabled.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = Spacing.lg)
-    ) {
-        AppTopBar(title = "Screen Companion Overlay", onBack = { navController.popBackStack() })
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = Spacing.lg)
+        ) {
+            AppTopBar(title = "Screen Companion Overlay", onBack = { navController.popBackStack() })
 
         Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
@@ -82,4 +84,5 @@ fun OverlaySettingsScreen(
             }
         }
     }
+}
 }

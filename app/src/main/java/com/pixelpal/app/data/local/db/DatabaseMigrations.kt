@@ -514,4 +514,18 @@ object DatabaseMigrations {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_agent_sessions_companionId` ON `agent_sessions` (`companionId`)")
         }
     }
+
+    /**
+     * 15 → 16: monthly reminders remember the day they were created on.
+     *
+     * Rolling `Calendar.add(MONTH, 1)` from Feb 28 lands on Mar 28, so a series
+     * created on the 31st silently moved to the 28th forever. The anchor column
+     * lets `nextTriggerTime` clamp to the month's last day and then return to
+     * the original day.
+     */
+    val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `reminders` ADD COLUMN `recurrenceDayOfMonth` INTEGER")
+        }
+    }
 }

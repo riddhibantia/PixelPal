@@ -35,6 +35,7 @@ import androidx.navigation.NavController
 import androidx.core.content.ContextCompat
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.GroupDivider
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.components.SettingsGroup
 import com.pixelpal.app.presentation.components.SettingsRow
@@ -87,54 +88,56 @@ fun PermissionsScreen(
         notificationGrantedState = granted
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = Spacing.lg)
-    ) {
-        AppTopBar(title = "Permissions", onBack = { navController.popBackStack() })
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = Spacing.lg)
+        ) {
+            AppTopBar(title = "Permissions", onBack = { navController.popBackStack() })
 
-        Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
+            Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
-            SectionHeader(title = "Current Status")
-            SettingsGroup {
-                PermissionStatusRow(
-                    title = "Screen Overlay",
-                    description = "Needed for Pixel to appear over other apps",
-                    icon = Icons.Default.Pets,
-                    granted = overlayGranted,
-                    onRequest = {
-                        (context as? Activity)?.let { PermissionHelper.requestOverlayPermission(it) }
-                    }
-                )
-                GroupDivider()
-                PermissionStatusRow(
-                    title = "Notifications",
-                    description = "Needed for reminders to alert you",
-                    icon = Icons.Default.Notifications,
-                    granted = notificationGrantedState,
-                    onRequest = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                SectionHeader(title = "Current Status")
+                SettingsGroup {
+                    PermissionStatusRow(
+                        title = "Screen Overlay",
+                        description = "Needed for Pixel to appear over other apps",
+                        icon = Icons.Default.Pets,
+                        granted = overlayGranted,
+                        onRequest = {
+                            (context as? Activity)?.let { PermissionHelper.requestOverlayPermission(it) }
                         }
-                    },
-                    showAction = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                )
-                GroupDivider()
-                PermissionStatusRow(
-                    title = "Exact Alarms",
-                    description = "Needed for reminders to fire at the exact time",
-                    icon = Icons.Default.Alarm,
-                    granted = alarmGranted,
-                    onRequest = {
-                        (context as? Activity)?.let { PermissionHelper.requestExactAlarmPermission(it) }
-                    },
-                    showAction = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                )
-            }
+                    )
+                    GroupDivider()
+                    PermissionStatusRow(
+                        title = "Notifications",
+                        description = "Needed for reminders to alert you",
+                        icon = Icons.Default.Notifications,
+                        granted = notificationGrantedState,
+                        onRequest = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        showAction = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    )
+                    GroupDivider()
+                    PermissionStatusRow(
+                        title = "Exact Alarms",
+                        description = "Needed for reminders to fire at the exact time",
+                        icon = Icons.Default.Alarm,
+                        granted = alarmGranted,
+                        onRequest = {
+                            (context as? Activity)?.let { PermissionHelper.requestExactAlarmPermission(it) }
+                        },
+                        showAction = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
         }
     }
 }

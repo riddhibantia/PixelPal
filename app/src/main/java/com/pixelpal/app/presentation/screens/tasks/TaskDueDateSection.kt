@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.SecondaryButton
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
@@ -72,11 +73,9 @@ fun DueDateSection(
     )
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Surface(
+        GlassCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radius.large),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+            shape = RoundedCornerShape(Radius.large)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xs),

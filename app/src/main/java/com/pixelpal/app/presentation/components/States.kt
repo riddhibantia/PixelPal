@@ -47,12 +47,12 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (showPet) {
-            LottiePetView(
+            PetStage(
                 petType = petType,
                 animationState = petState,
-                size = 96.dp
+                petSize = 130.dp
             )
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
         if (icon != null && !showPet) {
             Surface(

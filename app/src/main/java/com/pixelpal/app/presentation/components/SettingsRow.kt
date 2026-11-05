@@ -75,11 +75,10 @@ fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(
-                imageVector = icon,
+            IconTile(
+                icon = icon,
                 contentDescription = null,
-                tint = contentColor.copy(alpha = if (destructive) 1f else 0.85f),
-                modifier = Modifier.size(Sizing.icon)
+                tint = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.width(Spacing.md))
         }

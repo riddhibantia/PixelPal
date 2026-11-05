@@ -14,12 +14,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Checkbox
@@ -44,6 +48,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -53,10 +59,13 @@ import com.pixelpal.app.animation.AnimationState
 import com.pixelpal.app.domain.model.Task
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.EmptyState
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.LoadingState
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PixelPalSnackbarHost
 import com.pixelpal.app.presentation.components.SnackbarEvent
 import com.pixelpal.app.presentation.navigation.Screen
+import com.pixelpal.app.presentation.theme.PixelPalGradients
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
 
@@ -106,21 +115,32 @@ fun TasksScreen(
                 onClick = { navController.navigate(Screen.NewTask.route) },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
-                shape = RoundedCornerShape(Radius.large)
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 3.dp),
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "New Task")
             }
         }
     ) { padding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            AppTopBar(title = "Task Manager")
+            Column(modifier = Modifier.fillMaxSize()) {
+                val pendingCount = uiState.items.count { !it.task.isDone }
+                val completedCount = uiState.items.count { it.task.isDone }
+                AppTopBar(
+                    title = "Tasks",
+                    subtitle = when {
+                        uiState.items.isEmpty() -> null
+                        pendingCount == 0 -> "All caught up! Great job 🎉"
+                        else -> "$pendingCount pending · $completedCount completed"
+                    }
+                )
 
-            when {
+                when {
                 uiState.loading -> LoadingState()
                 uiState.items.isEmpty() -> Box(
                     modifier = Modifier
@@ -130,16 +150,18 @@ fun TasksScreen(
                 ) {
                     EmptyState(
                         title = "No tasks yet",
-                        message = "Tap + to add your first task. Break it down into sub-points if you like.",
+                        message = "Pixel is napping until your first task.",
                         petType = companion?.effectiveSpecies ?: "cat",
-                        petState = AnimationState.THINKING
+                        petState = AnimationState.SLEEP
                     )
                 }
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
-                        horizontal = Spacing.screenHorizontal,
-                        vertical = Spacing.sm
+                        start = Spacing.screenHorizontal,
+                        end = Spacing.screenHorizontal,
+                        top = Spacing.sm,
+                        bottom = 100.dp
                     ),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
@@ -178,17 +200,16 @@ fun TasksScreen(
         }
     }
 }
+}
 
 @Composable
 private fun WidgetOptInRow(
     enabled: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
-    androidx.compose.material3.Surface(
+    GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(Radius.large)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
@@ -274,28 +295,55 @@ private fun TaskRow(
     val subtasks = item.subtasks
     val doneCount = subtasks.count { it.isDone }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpen),
+    GlassCard(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+        onClick = onOpen
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = Spacing.xs),
+            modifier = Modifier.padding(horizontal = Spacing.md, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(checked = task.isDone, onCheckedChange = { onToggle() })
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .then(
+                        if (task.isDone) {
+                            Modifier.background(PixelPalGradients.primaryCard)
+                        } else {
+                            Modifier
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(
+                                    1.5.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                                    CircleShape
+                                )
+                        }
+                    )
+                    .clickable(onClick = onToggle),
+                contentAlignment = Alignment.Center
+            ) {
+                if (task.isDone) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Completed",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(Spacing.md))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = if (task.isDone) FontWeight.Normal else FontWeight.SemiBold,
                     textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
                     color = if (task.isDone) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -317,15 +365,15 @@ private fun TaskRow(
                     progress = { doneCount / subtasks.size.toFloat() },
                     modifier = Modifier
                         .width(44.dp)
-                        .padding(end = Spacing.xs)
+                        .padding(horizontal = Spacing.xs)
                 )
             }
 
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Open task",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = Spacing.xs)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.size(20.dp)
             )
         }
     }

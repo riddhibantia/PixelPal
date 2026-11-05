@@ -1,28 +1,36 @@
 package com.pixelpal.app.presentation.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.pixelpal.app.presentation.theme.PixelPalGradients
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Sizing
 
 /**
- * PixelPal button hierarchy.
+ * PixelPal button hierarchy matching the frosted glassmorphism mockups.
  *
- * PrimaryButton   — gold filled; the one main action per screen (Save, Create).
- * SecondaryButton — subtle outlined; secondary actions.
- * DestructiveButton — red text styling; destructive actions only.
- *
- * Do not use giant buttons everywhere — primary actions should stand out.
+ * PrimaryButton   — rich luminous purple gradient pill with soft shadow.
+ * SecondaryButton — frosted translucent glass button.
+ * DestructiveButton — red text styling for destructive actions.
  */
 
 @Composable
@@ -32,24 +40,28 @@ fun PrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Sizing.button),
-        shape = RoundedCornerShape(Radius.medium),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-        )
+            .height(52.dp)
+            .shadow(
+                elevation = if (enabled) 8.dp else 0.dp,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = Color(0xFF8B6CF6).copy(alpha = 0.40f)
+            )
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (enabled) Modifier.background(PixelPalGradients.primaryCard)
+                else Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -61,21 +73,25 @@ fun SecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        enabled = enabled,
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = Sizing.button),
-        shape = RoundedCornerShape(Radius.medium),
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = MaterialTheme.colorScheme.onSurface
-        )
+            .height(52.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+            .border(
+                1.dp,
+                Color(0xFF8B6CF6).copy(alpha = 0.25f),
+                RoundedCornerShape(16.dp)
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

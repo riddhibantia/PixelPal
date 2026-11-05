@@ -41,7 +41,9 @@ import com.pixelpal.app.domain.model.SpeciesStyle
 import com.pixelpal.app.presentation.components.AppTextField
 import com.pixelpal.app.presentation.components.AppTopBar
 import com.pixelpal.app.presentation.components.BaseCompanionAvatar
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.PetRenderer
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import com.pixelpal.app.presentation.components.PixelPalBottomBar
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.components.ThemeCard
@@ -71,30 +73,40 @@ fun CustomizeScreen(
             PixelPalBottomBar(navController = navController, selected = Screen.Customize)
         }
     ) { innerPadding ->
-        Column(
+        PixelPalAtmosphere(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = Spacing.lg)
         ) {
-            AppTopBar(title = "Customize Companion")
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = Spacing.lg)
+            ) {
+                AppTopBar(title = "Customize Companion")
 
             Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
                 SectionHeader(title = "Your Companion")
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(Radius.large),
-                    color = MaterialTheme.colorScheme.surface
-                ) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(220.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Soft violet seat — keeps white-bodied pets readable
+                        // on the white card.
+                        Box(
+                            modifier = Modifier
+                                .size(190.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                        )
                         androidx.compose.runtime.key(species) {
                             BaseCompanionAvatar(
                                 companion = companion ?: com.pixelpal.app.domain.model.Companion(
@@ -171,6 +183,7 @@ fun CustomizeScreen(
         }
     }
 }
+}
 
 private fun speciesLabel(value: String): String =
     value.replaceFirstChar { it.uppercase() }
@@ -209,7 +222,7 @@ private fun OptionCard(
             modifier = Modifier
                 .size(60.dp)
                 .background(
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
                     RoundedCornerShape(Radius.small)
                 ),
             contentAlignment = Alignment.Center

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pixelpal.app.data.local.datastore.PreferencesManager
+import com.pixelpal.app.domain.model.Companion
+import com.pixelpal.app.domain.usecase.companion.GetActiveCompanionUseCase
 import com.pixelpal.app.overlay.OverlayService
 import com.pixelpal.app.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val preferencesManager: PreferencesManager,
+    getActiveCompanionUseCase: GetActiveCompanionUseCase,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -30,6 +33,10 @@ class SettingsViewModel @Inject constructor(
 
     val currentTheme: StateFlow<String> = preferencesManager.currentTheme
         .stateIn(viewModelScope, SharingStarted.Lazily, "dark")
+
+    /** The pet IS the profile — the settings header renders it, not an avatar. */
+    val companion: StateFlow<Companion?> = getActiveCompanionUseCase.activeCompanion
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     /** Single overlay: master switch directly drives the foreground service. */
     fun toggleOverlay() {

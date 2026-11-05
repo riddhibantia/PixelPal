@@ -53,10 +53,9 @@ fun ReminderCard(
     val category = ReminderCategory.fromId(reminder.category)
     val categoryTint = categoryTint(category)
 
-    Surface(
+    GlassCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        color = MaterialTheme.colorScheme.surface
+        shape = RoundedCornerShape(Radius.large)
     ) {
         Row(
             modifier = Modifier
@@ -67,9 +66,9 @@ fun ReminderCard(
             // Category badge: icon tinted per category, doubles as the row's
             // visual anchor so categories are distinguishable at a glance.
             Surface(
-                shape = RoundedCornerShape(Radius.medium),
+                shape = RoundedCornerShape(12.dp),
                 color = categoryTint.copy(alpha = 0.14f),
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -103,8 +102,8 @@ fun ReminderCard(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(Radius.small),
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -113,15 +112,15 @@ fun ReminderCard(
                             Icon(
                                 imageVector = Icons.Default.Schedule,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(14.dp)
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(13.dp)
                             )
-                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = timeStr,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -135,6 +134,13 @@ fun ReminderCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = categoryTint
                     )
+                    recurrenceLabel(reminder)?.let { label ->
+                        Text(
+                            text = "· $label",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -170,6 +176,14 @@ fun ReminderCard(
             }
         }
     }
+}
+
+/** Repeat badge text for recurring reminders; null for one-shots. */
+private fun recurrenceLabel(reminder: Reminder): String? = when (reminder.recurrence) {
+    "DAILY" -> "Daily"
+    "WEEKLY" -> "Weekly"
+    "MONTHLY" -> "Monthly"
+    else -> null
 }
 
 private fun dayLabelFor(triggerTime: Long): String {

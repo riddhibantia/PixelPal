@@ -8,6 +8,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.input.KeyboardType
 import com.pixelpal.app.presentation.theme.Radius
 
@@ -50,13 +52,13 @@ fun AppTextField(
         singleLine = singleLine,
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = keyboardType),
         trailingIcon = trailingIcon,
-        shape = RoundedCornerShape(Radius.medium),
+        shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
             errorBorderColor = MaterialTheme.colorScheme.error,
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
             focusedTextColor = MaterialTheme.colorScheme.onSurface,
             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
             cursorColor = MaterialTheme.colorScheme.primary,

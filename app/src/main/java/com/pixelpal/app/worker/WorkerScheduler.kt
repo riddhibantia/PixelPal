@@ -84,11 +84,37 @@ class WorkerScheduler @Inject constructor(
         WorkManager.getInstance(context).cancelUniqueWork(agentWorkName(companionId))
     }
 
+    /**
+     * Keeps the multi-agent bridge polled while the app process is dead.
+     * WorkManager's floor is 15 minutes; the live process covers the rest.
+     */
+    fun scheduleBridgePolling() {
+        val request = PeriodicWorkRequestBuilder<AgentBridgeWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            BRIDGE_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    fun cancelBridgePolling() {
+        WorkManager.getInstance(context).cancelUniqueWork(BRIDGE_WORK_NAME)
+    }
+
     private fun agentWorkName(companionId: Long) = Constants.AGENT_WORK_PREFIX + companionId
 
     companion object {
         private const val BOND_DECAY_WORK_NAME = "pixelpal_bond_decay"
         private const val PERSONALITY_WORK_NAME = "pixelpal_personality"
         private const val FIRESTORE_SYNC_WORK_NAME = "pixelpal_firestore_sync"
+
+        /** Fallback poll for the multi-agent bridge when the process is dead. */
+        const val BRIDGE_WORK_NAME = "pixelpal_bridge_poll"
     }
 }

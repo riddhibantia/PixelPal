@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -20,14 +21,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Layers
-import androidx.compose.material.icons.filled.Mail
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Pets
-import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
+import com.pixelpal.app.presentation.components.PixelPalAtmosphere
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -47,8 +49,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.pixelpal.app.BuildConfig
 import com.pixelpal.app.presentation.components.AppTopBar
+import com.pixelpal.app.presentation.components.GlassCard
 import com.pixelpal.app.presentation.components.GroupDivider
-import com.pixelpal.app.presentation.components.PixelAvatar
+import com.pixelpal.app.animation.AnimationState
+import com.pixelpal.app.presentation.components.PetRenderer
 import com.pixelpal.app.presentation.components.SectionHeader
 import com.pixelpal.app.presentation.components.SettingsGroup
 import com.pixelpal.app.presentation.components.SettingsRow
@@ -70,7 +74,6 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val userName by viewModel.userName.collectAsState()
-    val avatarSeed by viewModel.avatarSeed.collectAsState()
     val currentTheme by viewModel.currentTheme.collectAsState()
     var showThemeSheet by remember { mutableStateOf(false) }
 
@@ -95,122 +98,137 @@ fun SettingsScreen(
         context.startActivity(Intent.createChooser(intent, "Send feedback"))
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = Spacing.lg)
-        ) {
-            AppTopBar(title = "Settings")
+    PixelPalAtmosphere(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = Spacing.lg)
+            ) {
+                AppTopBar(title = "Settings")
 
-            Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
+                Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
-                // ── PROFILE ──
-                Surface(
-                    shape = RoundedCornerShape(Radius.large),
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClickLabel = "Edit profile") {
-                            navController.navigate(Screen.Profile.route)
-                        }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(Spacing.md),
-                        verticalAlignment = Alignment.CenterVertically
+                    // ── PROFILE ──
+                    GlassCard(
+                        shape = RoundedCornerShape(Radius.large),
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { navController.navigate(Screen.Profile.route) }
                     ) {
-                        PixelAvatar(seed = avatarSeed, size = 56.dp)
-                        Spacer(modifier = Modifier.width(Spacing.md))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = userName.ifBlank { "Your Profile" },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Personal account",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Row(
+                            modifier = Modifier.padding(Spacing.md),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // The pet IS the profile — seated on the violet tile
+                            // every other leading icon uses.
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                        androidx.compose.foundation.shape.CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val settingsCompanion by viewModel.companion.collectAsState()
+                                PetRenderer(
+                                    petType = settingsCompanion?.effectiveSpecies ?: "cat",
+                                    animationState = AnimationState.IDLE,
+                                    size = 40.dp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Spacing.md))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = userName.ifBlank { "Your Profile" },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Personal account",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+
+                    // ── GENERAL ──
+                    SectionHeader(title = "General")
+                    SettingsGroup {
+                        SettingsRow(
+                            title = "Notifications",
+                            description = "Manage reminder notifications",
+                            icon = Icons.Default.NotificationsActive,
+                            onClick = { openNotificationSettings() }
+                        )
+                        GroupDivider()
+                        SettingsRow(
+                            title = "Appearance",
+                            value = currentTheme.replaceFirstChar { it.uppercase() },
+                            icon = Icons.Default.Palette,
+                            onClick = { showThemeSheet = true }
+                        )
+                    }
+
+                    // ── COMPANION ──
+                    SectionHeader(title = "Companion")
+                    SettingsGroup {
+                        SettingsRow(
+                            title = "Screen Companion Overlay",
+                            description = "Show Pixel on top of other apps",
+                            icon = Icons.Default.Pets,
+                            onClick = { navController.navigate(Screen.OverlaySettings.route) }
+                        )
+                        GroupDivider()
+                        SettingsRow(
+                            title = "Background Activity",
+                            description = "Keep Pixel alive in the background",
+                            icon = Icons.Default.Bolt,
+                            onClick = { navController.navigate(Screen.OverlaySettings.route) }
+                        )
+                    }
+
+                    // ── PRIVACY & DATA ──
+                    SectionHeader(title = "Privacy & Data")
+                    SettingsGroup {
+                        SettingsRow(
+                            title = "Permissions",
+                            description = "Overlay, notifications and alarms",
+                            icon = Icons.Default.Shield,
+                            onClick = { navController.navigate(Screen.Permissions.route) }
+                        )
+                    }
+
+                    // ── SUPPORT ──
+                    SectionHeader(title = "Support")
+                    SettingsGroup {
+                        SettingsRow(
+                            title = "Help & Feedback",
+                            icon = Icons.AutoMirrored.Filled.HelpOutline,
+                            onClick = { openFeedbackEmail() }
+                        )
+                        GroupDivider()
+                        SettingsRow(
+                            title = "About PixelPal",
+                            value = "v${BuildConfig.VERSION_NAME}",
+                            icon = Icons.Default.Info,
+                            onClick = { navController.navigate(Screen.About.route) }
                         )
                     }
                 }
-
-                // ── GENERAL ──
-                SectionHeader(title = "General")
-                SettingsGroup {
-                    SettingsRow(
-                        title = "Notifications",
-                        description = "Manage reminder notifications",
-                        icon = Icons.Default.Notifications,
-                        onClick = { openNotificationSettings() }
-                    )
-                    GroupDivider()
-                    SettingsRow(
-                        title = "Appearance",
-                        value = currentTheme.replaceFirstChar { it.uppercase() },
-                        icon = Icons.Default.Palette,
-                        onClick = { showThemeSheet = true }
-                    )
-                }
-
-                // ── COMPANION ──
-                SectionHeader(title = "Companion")
-                SettingsGroup {
-                    SettingsRow(
-                        title = "Screen Companion Overlay",
-                        description = "Show Pixel on top of other apps",
-                        icon = Icons.Default.Pets,
-                        onClick = { navController.navigate(Screen.OverlaySettings.route) }
-                    )
-                    GroupDivider()
-                    SettingsRow(
-                        title = "Background Activity",
-                        description = "Keep Pixel alive in the background",
-                        icon = Icons.Default.Layers,
-                        onClick = { navController.navigate(Screen.OverlaySettings.route) }
-                    )
-                }
-
-                // ── PRIVACY & DATA ──
-                SectionHeader(title = "Privacy & Data")
-                SettingsGroup {
-                    SettingsRow(
-                        title = "Permissions",
-                        description = "Overlay, notifications and alarms",
-                        icon = Icons.Default.Security,
-                        onClick = { navController.navigate(Screen.Permissions.route) }
-                    )
-                }
-
-                // ── SUPPORT ──
-                SectionHeader(title = "Support")
-                SettingsGroup {
-                    SettingsRow(
-                        title = "Help & Feedback",
-                        icon = Icons.Default.Mail,
-                        onClick = { openFeedbackEmail() }
-                    )
-                    GroupDivider()
-                    SettingsRow(
-                        title = "About PixelPal",
-                        value = "v${BuildConfig.VERSION_NAME}",
-                        icon = Icons.Default.Info,
-                        onClick = { navController.navigate(Screen.About.route) }
-                    )
-                }
             }
-        }
 
-        PixelPalBottomBar(navController = navController, selected = Screen.Settings)
+            PixelPalBottomBar(navController = navController, selected = Screen.Settings)
+        }
     }
 
     if (showThemeSheet) {

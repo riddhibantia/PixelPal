@@ -36,12 +36,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixelpal.app.R
-import com.pixelpal.app.presentation.theme.AutumnPalette
 import com.pixelpal.app.presentation.theme.DarkPalette
 import com.pixelpal.app.presentation.theme.LightPalette
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Sizing
-import com.pixelpal.app.presentation.theme.SpringPalette
 import com.pixelpal.app.presentation.theme.Spacing
 
 /**
@@ -73,34 +71,9 @@ const val SYSTEM_THEME_ID = "system"
  */
 @Composable
 fun themeOptions(): List<ThemeOption> {
-    val systemOption = if (supportsDynamicColor()) {
-        ThemeOption(
-            id = SYSTEM_THEME_ID,
-            name = stringResource(R.string.theme_option_system_name),
-            background = DarkPalette.Surface,
-            surface = DarkPalette.Primary,
-            accent = LightPalette.Primary,
-            descriptionRes = R.string.theme_option_system_description
-        )
-    } else {
-        // Pre-Android 12: no wallpaper colors, so preview the palette "system"
-        // actually resolves to right now (system dark -> Dark, else Light).
-        // (Palettes are objects, not a common supertype — branch explicitly.)
-        val systemIsDark = isSystemInDarkTheme()
-        ThemeOption(
-            id = SYSTEM_THEME_ID,
-            name = stringResource(R.string.theme_option_system_name),
-            background = if (systemIsDark) DarkPalette.Background else LightPalette.Background,
-            surface = if (systemIsDark) DarkPalette.Surface else LightPalette.Surface,
-            accent = if (systemIsDark) DarkPalette.Primary else LightPalette.Primary
-        )
-    }
     return listOf(
-        systemOption,
         ThemeOption("dark", stringResource(R.string.theme_option_dark_name), DarkPalette.Background, DarkPalette.Surface, DarkPalette.Primary),
-        ThemeOption("light", stringResource(R.string.theme_option_light_name), LightPalette.Background, LightPalette.Surface, LightPalette.Primary),
-        ThemeOption("spring", stringResource(R.string.theme_option_spring_name), SpringPalette.Background, SpringPalette.Surface, SpringPalette.Primary),
-        ThemeOption("autumn", stringResource(R.string.theme_option_autumn_name), AutumnPalette.Background, AutumnPalette.Surface, AutumnPalette.Primary)
+        ThemeOption("light", stringResource(R.string.theme_option_light_name), LightPalette.Background, LightPalette.Surface, LightPalette.Primary)
     )
 }
 
@@ -253,25 +226,26 @@ fun ThemeCard(
             .semantics { contentDescription = cardDescription },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Stacked palette preview
+        // Stacked palette preview — rings use outline so white swatches stay
+        // visible on white cards in light mode.
         Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .background(option.background, CircleShape)
-                    .border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface), CircleShape)
+                    .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline), CircleShape)
             )
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .background(option.surface, CircleShape)
-                    .border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface), CircleShape)
+                    .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline), CircleShape)
             )
             Box(
                 modifier = Modifier
                     .size(24.dp)
                     .background(option.accent, CircleShape)
-                    .border(BorderStroke(1.5.dp, MaterialTheme.colorScheme.surface), CircleShape)
+                    .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline), CircleShape)
             )
         }
         Spacer(modifier = Modifier.height(Spacing.sm))

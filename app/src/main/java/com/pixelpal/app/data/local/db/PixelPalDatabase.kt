@@ -33,7 +33,7 @@ import com.pixelpal.app.data.local.db.entity.TaskEntity
         AgentSessionEntity::class,
         ActivityEventEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 abstract class PixelPalDatabase : RoomDatabase() {
