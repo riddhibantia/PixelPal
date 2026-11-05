@@ -443,6 +443,18 @@ Hermes ── read-only ~/.hermes/state.db ─────────┘
 
 ## Gotchas (code-verified; audit additions marked ✱)
 
+- **CI R8 needs the 4GB heap** — `gradle.properties` pins
+  `-Xmx4096m`: at 2GB `minifyReleaseWithR8` throws
+  `ConcurrentModificationException` on CI (v1.3.1's first run died there).
+  Debug builds never notice; only release-on-CI does.
+- **Two GitHub identities on this repo** — remote is `riddhibantia/PixelPal`
+  but the active `gh` account is `shaikhakramshakil` (read-only here). Pushes
+  need the riddhibantia token-header trick; **draft releases are invisible to
+  shaikhakramshakil's `gh api`**, so after a release workflow runs, verify
+  drafts with riddhibantia's token (`gh auth token --user riddhibantia`).
+  softprops also leaves the release as an `untagged-…` **draft**: someone with
+  write access must flip `draft=false` for it to go live (done once for
+  v1.3.1).
 - **`companion object {}` inside a class with a `companion` property shadows it**
   — never declare a companion object in classes holding a `companion` field
   (twice caused silent type chaos).
