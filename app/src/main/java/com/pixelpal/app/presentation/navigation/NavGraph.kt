@@ -56,13 +56,14 @@ sealed class Screen(val route: String) {
     }
 }
 
-private val mainTabRoutes = setOf(
+private val tabOrder = listOf(
     Screen.Home.route,
     Screen.Tasks.route,
     Screen.ConnectedAgents.route,
     Screen.Reminders.route,
     Screen.Settings.route
 )
+private val mainTabRoutes = tabOrder.toSet()
 
 @Composable
 fun PixelPalNavGraph(
@@ -73,36 +74,48 @@ fun PixelPalNavGraph(
         navController = navController,
         startDestination = startDestination,
         enterTransition = {
-            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
-            if (isTabSwitch) {
-                fadeIn(animationSpec = tween(220, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+            val fromIdx = tabOrder.indexOf(initialState.destination.route)
+            val toIdx = tabOrder.indexOf(targetState.destination.route)
+            if (fromIdx >= 0 && toIdx >= 0) {
+                val isForward = toIdx >= fromIdx
+                slideInHorizontally(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { if (isForward) it else -it } +
+                    fadeIn(animationSpec = tween(280))
             } else {
                 slideInHorizontally(animationSpec = tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { (it * 0.25f).toInt() } +
                     fadeIn(animationSpec = tween(320))
             }
         },
         exitTransition = {
-            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
-            if (isTabSwitch) {
-                fadeOut(animationSpec = tween(150, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+            val fromIdx = tabOrder.indexOf(initialState.destination.route)
+            val toIdx = tabOrder.indexOf(targetState.destination.route)
+            if (fromIdx >= 0 && toIdx >= 0) {
+                val isForward = toIdx >= fromIdx
+                slideOutHorizontally(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { if (isForward) -it else it } +
+                    fadeOut(animationSpec = tween(200))
             } else {
                 slideOutHorizontally(animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -(it * 0.25f).toInt() } +
                     fadeOut(animationSpec = tween(220))
             }
         },
         popEnterTransition = {
-            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
-            if (isTabSwitch) {
-                fadeIn(animationSpec = tween(220, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+            val fromIdx = tabOrder.indexOf(initialState.destination.route)
+            val toIdx = tabOrder.indexOf(targetState.destination.route)
+            if (fromIdx >= 0 && toIdx >= 0) {
+                val isForward = toIdx >= fromIdx
+                slideInHorizontally(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { if (isForward) it else -it } +
+                    fadeIn(animationSpec = tween(280))
             } else {
                 slideInHorizontally(animationSpec = tween(320, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { -(it * 0.25f).toInt() } +
                     fadeIn(animationSpec = tween(320))
             }
         },
         popExitTransition = {
-            val isTabSwitch = initialState.destination.route in mainTabRoutes && targetState.destination.route in mainTabRoutes
-            if (isTabSwitch) {
-                fadeOut(animationSpec = tween(150, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+            val fromIdx = tabOrder.indexOf(initialState.destination.route)
+            val toIdx = tabOrder.indexOf(targetState.destination.route)
+            if (fromIdx >= 0 && toIdx >= 0) {
+                val isForward = toIdx >= fromIdx
+                slideOutHorizontally(animationSpec = tween(280, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { if (isForward) -it else it } +
+                    fadeOut(animationSpec = tween(200))
             } else {
                 slideOutHorizontally(animationSpec = tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { (it * 0.25f).toInt() } +
                     fadeOut(animationSpec = tween(220))

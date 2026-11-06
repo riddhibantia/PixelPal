@@ -40,11 +40,11 @@ class DynamicIslandView(
     // Neutral dark palette — aligned with the app's DarkPalette
     private val islandBgTop = Color.parseColor("#17171C")    // Surface
     private val islandBgBottom = Color.parseColor("#0F0F13")  // Background
-    private val islandBorder = Color.parseColor("#F6C453")    // Primary gold
+    private val islandBorder = Color.parseColor("#4D8B6CF6")    // Primary gold
     private val textPrimary = Color.parseColor("#F4F4F5")    // White text
     private val textMuted = Color.parseColor("#A1A1AA")      // Secondary text
-    private val accentGreen = Color.parseColor("#F6C453")    // Primary gold (pulsing dot)
-    private val accentYellow = Color.parseColor("#F6C453")   // Primary gold (time label)
+    private val accentGreen = Color.parseColor("#8B6CF6")    // Primary gold (pulsing dot)
+    private val accentYellow = Color.parseColor("#8B6CF6")   // Primary gold (time label)
 
     private val handler = Handler(Looper.getMainLooper())
     private var compactRunnable: Runnable? = null

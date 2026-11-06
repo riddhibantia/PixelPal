@@ -177,17 +177,59 @@ def install_launchd(port: int = 8787) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _is_pid_running(pid: int) -> bool:
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not handle:
+                return False
+            exit_code = ctypes.c_ulong()
+            success = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return bool(success and exit_code.value == STILL_ACTIVE)
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ValueError, ProcessLookupError, OSError):
+        return False
+
+
+def _kill_pid(pid: int) -> None:
+    if sys.platform == "win32":
+        import signal
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except (OSError, SystemError):
+            pass
+    else:
+        try:
+            os.kill(pid, 15)
+        except (ValueError, ProcessLookupError, OSError):
+            pass
+
+
 def install_detached(port: int = 8787) -> str:
     """No service manager: start a plain background process and say so."""
     PIDFILE.parent.mkdir(parents=True, exist_ok=True)
     log = PIDFILE.parent / "bridge.log"
+    creationflags = 0
+    start_new_session = True
+    if sys.platform == "win32":
+        creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        start_new_session = False
     with open(log, "ab") as handle:
         process = subprocess.Popen(
             [_python(), "-m", "pixelpal_bridge.cli", "serve", "--port", str(port)],
             stdout=handle,
             stderr=handle,
             stdin=subprocess.DEVNULL,
-            start_new_session=True,
+            start_new_session=start_new_session,
+            creationflags=creationflags,
         )
     PIDFILE.write_text(str(process.pid))
     return (
@@ -237,7 +279,7 @@ def uninstall() -> bool:
     if PIDFILE.exists():
         try:
             pid = int(PIDFILE.read_text().strip())
-            os.kill(pid, 15)
+            _kill_pid(pid)
         except (ValueError, ProcessLookupError, OSError):
             pass
         PIDFILE.unlink()
@@ -259,8 +301,9 @@ def status() -> str:
     if PIDFILE.exists():
         try:
             pid = int(PIDFILE.read_text().strip())
-            os.kill(pid, 0)
-            return f"detached: running (pid {pid})"
+            if _is_pid_running(pid):
+                return f"detached: running (pid {pid})"
+            return "detached: stale pidfile"
         except (ValueError, ProcessLookupError, OSError):
             return "detached: stale pidfile"
     return "not installed"

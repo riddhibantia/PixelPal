@@ -135,9 +135,14 @@ def _print_pairing_qr(uri: str) -> None:
         return
     colour = sys.stdout.isatty()
     for line in lines:
-        # 30;47 = black on white, so the code keeps the polarity scanners need
-        # instead of depending on the terminal's own foreground/background.
-        print(f"\033[30;47m{line}\033[0m" if colour else line)
+        try:
+            print(f"\033[30;47m{line}\033[0m" if colour else line)
+        except Exception:
+            try:
+                sys.stdout.buffer.write((line + "\n").encode("utf-8"))
+                sys.stdout.flush()
+            except Exception:
+                pass
 
 
 def cmd_serve(args) -> int:
@@ -551,6 +556,12 @@ def cmd_simulate(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+            sys.stderr.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
     parser = argparse.ArgumentParser(
         prog="pixelpal-bridge",
         description="Connect terminal coding agents to PixelPal.",

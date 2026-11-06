@@ -20,6 +20,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.pixelpal.app.presentation.components.PrimaryButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -66,7 +74,16 @@ fun CustomizeScreen(
     val companion by viewModel.companion.collectAsState()
     val currentTheme by viewModel.currentTheme.collectAsState()
 
-    val species = companion?.effectiveSpecies ?: "cat"
+    var petName by remember { mutableStateOf("") }
+    LaunchedEffect(companion?.name) {
+        companion?.name?.let {
+            if (it.isNotBlank() && petName.isBlank()) {
+                petName = it
+            }
+        }
+    }
+
+    val species = companion?.effectiveSpecies ?: "cat" 
     val color = companion?.color ?: "orange"
     val pattern = companion?.pattern ?: "plain"
 
@@ -86,7 +103,27 @@ fun CustomizeScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = Spacing.lg)
             ) {
-                AppTopBar(title = stringResource(R.string.customize_title))
+                AppTopBar(
+                    title = stringResource(R.string.customize_title),
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                viewModel.savePetName(petName) {
+                                    navController.navigate(Screen.Home.route) {
+                                        popUpTo(Screen.Home.route) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = stringResource(R.string.customize_action_done),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                )
 
             Column(modifier = Modifier.padding(horizontal = Spacing.screenHorizontal)) {
 
@@ -125,8 +162,13 @@ fun CustomizeScreen(
                 Spacer(modifier = Modifier.height(Spacing.md))
 
                 AppTextField(
-                    value = companion?.name ?: "",
-                    onValueChange = { if (it.length <= 20) viewModel.updatePetName(it) },
+                    value = petName,
+                    onValueChange = {
+                        if (it.length <= 20) {
+                            petName = it
+                            viewModel.updatePetName(it)
+                        }
+                    },
                     label = stringResource(R.string.customize_name_label),
                     placeholder = stringResource(R.string.customize_name_placeholder)
                 )
@@ -180,6 +222,21 @@ fun CustomizeScreen(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(Spacing.xl))
+
+                PrimaryButton(
+                    text = stringResource(R.string.customize_action_done),
+                    onClick = {
+                        viewModel.savePetName(petName) {
+                            navController.navigate(Screen.Home.route) {
+                                popUpTo(Screen.Home.route) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }

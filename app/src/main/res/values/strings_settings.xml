@@ -100,5 +100,7 @@
     <string name="customize_transform_note">Transforming your companion never affects your bond, tasks, reminders, or agent connection.</string>
     <string name="customize_section_species">Species</string>
     <string name="customize_section_theme">App Appearance</string>
+    <string name="customize_action_done">Done</string>
+    <string name="customize_action_save">Save &amp; Finish</string>
 
 </resources>

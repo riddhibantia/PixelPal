@@ -18,8 +18,8 @@
 
     <!-- Greeting / header -->
     <string name="home_default_pet_name">Pixel</string>
-    <string name="home_default_user_name">Akram</string>
-    <string name="home_greeting_hello">Hello, %1$s 👋</string>
+    <string name="home_default_user_name">friend</string>
+    <string name="home_greeting_hello">Hello, %1$s</string>
     <string name="home_tagline">Your AI companion for a calmer,&#10;more productive day.</string>
     <string name="home_cd_customize_companion">Customize Companion</string>
     <string name="home_cd_activity_center">Activity Center</string>

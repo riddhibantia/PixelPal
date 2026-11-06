@@ -17,6 +17,9 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import android.widget.Toast
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,6 +72,7 @@ fun ProfileScreen(
     var showDiscardDialog by remember { mutableStateOf(false) }
     var attemptedSave by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Load stored profile once, directly from DataStore (avoids StateFlow's
     // initial-value race where the form would start blank).
@@ -127,14 +131,30 @@ fun ProfileScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
-                IconButton(onClick = {
-                    avatarSeed = viewModel.nextAvatarSeed(currentSeed)
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = stringResource(R.string.settings_profile_avatar_content_description),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.clickable {
+                        avatarSeed = viewModel.nextAvatarSeed(currentSeed)
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.settings_profile_avatar_content_description),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Change Avatar",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
 
                 SectionHeader(title = stringResource(R.string.settings_profile_section_personal))
@@ -272,6 +292,7 @@ fun ProfileScreen(
                     ) {
                         focusManager.clearFocus()
                         viewModel.saveProfile(currentName, currentEmail, currentSeed)
+                        Toast.makeText(context, "Profile saved!", Toast.LENGTH_SHORT).show()
                         navController.popBackStack()
                     }
                 }

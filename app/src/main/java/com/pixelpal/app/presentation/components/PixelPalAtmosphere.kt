@@ -20,8 +20,8 @@ import androidx.compose.ui.unit.dp
  * Universal ambient backdrop for PixelPal screens.
  *
  * Imbues both Dark and Light themes with an organic, atmospheric violet glow
- * from the top-right (matching the approved design mockup), eliminating dead
- * flat voids and providing glassmorphic depth.
+ * from the top-right and a soft secondary glow from the bottom-left, eliminating
+ * dead flat voids and providing lush glassmorphic depth.
  */
 @Composable
 fun PixelPalAtmosphere(
@@ -30,16 +30,32 @@ fun PixelPalAtmosphere(
 ) {
     val isLight = MaterialTheme.colorScheme.background.luminance() > 0.5f
 
-    val glowColor = if (isLight) {
+    // Soft atmospheric top-right violet glow
+    val topGlowColor = if (isLight) {
         Color(0xFF8B6CF6).copy(alpha = 0.16f)
     } else {
-        Color(0xFF8B6CF6).copy(alpha = 0.14f)
+        Color(0xFF8B6CF6).copy(alpha = 0.22f)
     }
 
-    val glowBrush = Brush.radialGradient(
+    val topGlowBrush = Brush.radialGradient(
         colors = listOf(
-            glowColor,
-            glowColor.copy(alpha = 0.06f),
+            topGlowColor,
+            topGlowColor.copy(alpha = 0.08f),
+            Color.Transparent
+        )
+    )
+
+    // Soft atmospheric bottom-left indigo ambient glow
+    val bottomGlowColor = if (isLight) {
+        Color(0xFF38BDF8).copy(alpha = 0.08f)
+    } else {
+        Color(0xFF6738EB).copy(alpha = 0.16f)
+    }
+
+    val bottomGlowBrush = Brush.radialGradient(
+        colors = listOf(
+            bottomGlowColor,
+            bottomGlowColor.copy(alpha = 0.06f),
             Color.Transparent
         )
     )
@@ -53,9 +69,18 @@ fun PixelPalAtmosphere(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 60.dp, y = (-40).dp)
-                .size(320.dp)
-                .background(brush = glowBrush, shape = CircleShape)
+                .offset(x = 80.dp, y = (-40).dp)
+                .size(380.dp)
+                .background(brush = topGlowBrush, shape = CircleShape)
+        )
+
+        // Secondary subtle ambient glow at bottom-left
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = (-60).dp, y = 80.dp)
+                .size(340.dp)
+                .background(brush = bottomGlowBrush, shape = CircleShape)
         )
 
         // Content

@@ -30,6 +30,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -300,84 +301,98 @@ private fun TaskRow(
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(Radius.large),
-        onClick = onOpen
+        shape = RoundedCornerShape(Radius.large)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = Spacing.md, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .then(
-                        if (task.isDone) {
-                            Modifier.background(PixelPalGradients.primaryCard)
-                        } else {
-                            Modifier
-                                .background(MaterialTheme.colorScheme.surface)
-                                .border(
-                                    1.5.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                                    CircleShape
-                                )
-                        }
-                    )
-                    .clickable(onClick = onToggle),
-                contentAlignment = Alignment.Center
+            // Dedicated touch target for task completion circle
+            IconButton(
+                onClick = {
+                    onToggle()
+                },
+                modifier = Modifier.size(48.dp)
             ) {
-                if (task.isDone) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = stringResource(R.string.tasks_row_completed_content_description),
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(Spacing.md))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (task.isDone) FontWeight.Normal else FontWeight.SemiBold,
-                    textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
-                    color = if (task.isDone) {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    maxLines = 2
-                )
-                if (subtasks.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = stringResource(R.string.tasks_subtask_count, doneCount, subtasks.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                TaskDueLabel(task = task)
-            }
-
-            if (subtasks.isNotEmpty()) {
-                LinearProgressIndicator(
-                    progress = { doneCount / subtasks.size.toFloat() },
+                Box(
                     modifier = Modifier
-                        .width(44.dp)
-                        .padding(horizontal = Spacing.xs)
-                )
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .then(
+                            if (task.isDone) {
+                                Modifier.background(PixelPalGradients.primaryCard)
+                            } else {
+                                Modifier
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(
+                                        1.5.dp,
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
+                                        CircleShape
+                                    )
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (task.isDone) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = stringResource(R.string.tasks_row_completed_content_description),
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
             }
 
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = stringResource(R.string.tasks_row_open_content_description),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.size(20.dp)
-            )
+            // Clickable content area opens task detail
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(Radius.medium))
+                    .clickable(onClick = onOpen)
+                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = task.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (task.isDone) FontWeight.Normal else FontWeight.SemiBold,
+                        textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
+                        color = if (task.isDone) {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        maxLines = 2
+                    )
+                    if (subtasks.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.tasks_subtask_count, doneCount, subtasks.size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TaskDueLabel(task = task)
+                }
+
+                if (subtasks.isNotEmpty()) {
+                    LinearProgressIndicator(
+                        progress = { doneCount / subtasks.size.toFloat() },
+                        modifier = Modifier
+                            .width(44.dp)
+                            .padding(horizontal = Spacing.xs)
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = stringResource(R.string.tasks_row_open_content_description),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

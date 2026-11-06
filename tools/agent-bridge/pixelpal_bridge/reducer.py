@@ -262,6 +262,22 @@ class AgentRegistry:
         self.sessions[key] = updated
         return updated
 
+    def remove(self, source: str, session_id: str) -> bool:
+        raw_id = session_id.split(":")[-1] if ":" in session_id else session_id
+        for sid in (session_id, raw_id, session_id or "default"):
+            key = (source, sid)
+            if key in self.sessions:
+                del self.sessions[key]
+                return True
+        for k in list(self.sessions.keys()):
+            if k[0] == source and (not session_id or k[1] == session_id or k[1] == raw_id or k[1] == "default"):
+                del self.sessions[k]
+                return True
+            if k[1] == session_id or k[1] == raw_id or f"{k[0]}:{k[1]}" == session_id or k[0] == session_id:
+                del self.sessions[k]
+                return True
+        return False
+
     def upsert_envelope(self, envelope: dict, now: float | None = None) -> AgentState | None:
         """
         Merge a polled adapter's envelope (opencode, Hermes).

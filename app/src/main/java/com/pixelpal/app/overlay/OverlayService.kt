@@ -42,6 +42,7 @@ class OverlayService : Service() {
     @Inject lateinit var preferencesManager: PreferencesManager
     @Inject lateinit var companionRepository: CompanionRepository
     @Inject lateinit var agentConnectionRepository: com.pixelpal.app.domain.repository.AgentConnectionRepository
+    @Inject lateinit var agentSessionDao: com.pixelpal.app.data.local.db.dao.AgentSessionDao
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -100,15 +101,37 @@ class OverlayService : Service() {
                         // The engine's tap-reaction bubble is intentionally NOT
                         // fired — it would overwrite this one (single bubble per pet).
                         scope.launch {
-                            val c = agentConnectionRepository.getConnectionDirect(cid)
-                            val text = when {
-                                c == null || c.endpointUrl.isBlank() -> "No agent connected yet"
-                                else -> buildString {
-                                    append(c.currentStatus.displayName)
-                                    c.currentTask?.let { append(": "); append(it.take(40)) }
-                                    c.progress?.let { append(" ("); append(it); append("%)") }
-                                    if (c.currentTask == null) {
-                                        c.lastMessage?.let { append(" — "); append(it.take(40)) }
+                            val bridgeSessions = agentSessionDao.getAllDirect()
+                            val text = if (bridgeSessions.isNotEmpty()) {
+                                val top = bridgeSessions.first()
+                                val agentName = top.agentName.ifBlank { top.source }
+                                val statusText = when (top.status) {
+                                    "WAITING_FOR_INPUT" -> "Waiting for input"
+                                    "WORKING" -> "Working"
+                                    "IDLE" -> "Idle"
+                                    "ERROR" -> "Needs attention"
+                                    "COMPLETED" -> "Completed"
+                                    else -> top.status
+                                }
+                                val taskOrMsg = top.currentTask ?: top.message
+                                buildString {
+                                    append("$agentName: $statusText")
+                                    if (taskOrMsg.isNotBlank() && taskOrMsg != top.status) {
+                                        append(" — ")
+                                        append(taskOrMsg.take(45))
+                                    }
+                                }
+                            } else {
+                                val c = agentConnectionRepository.getConnectionDirect(cid)
+                                when {
+                                    c == null || c.endpointUrl.isBlank() -> "No agent connected yet"
+                                    else -> buildString {
+                                        append(c.currentStatus.displayName)
+                                        c.currentTask?.let { append(": "); append(it.take(40)) }
+                                        c.progress?.let { append(" ("); append(it); append("%)") }
+                                        if (c.currentTask == null) {
+                                            c.lastMessage?.let { append(" — "); append(it.take(40)) }
+                                        }
                                     }
                                 }
                             }

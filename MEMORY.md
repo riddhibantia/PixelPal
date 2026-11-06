@@ -590,3 +590,23 @@ age strings — all blocked by `stringResource` being composable-only).
   page, permission state refreshes on return from Settings, and step dots expose
   48dp touch targets with selected-step semantics.
 
+
+## 2g. Home Screen Proportions, Bridge Windows Lifecycle & Activity Grouping Pass (2026-11-06)
+
+- **Home Screen Visual Proportions & Centered Hero Mascot**:
+  - Mascot scaled up to a prominent 160dp Lottie view with an expanded 220dp soft radial ambient glow, establishing it as the hero centerpiece.
+  - Aligned full-width cards (Live Agent, 1d Streak, Today's Task) to sleek, uniform heights (~58-64dp) matching the Quick Stats (Tasks Left & Reminders) cards, using padding(horizontal = Spacing.md, vertical = 10.dp) and standardized 36dp accent badges with 20dp icons.
+  - Reduced vertical spacers to a clean 14dp rhythm, ensuring the Today tasks section is completely visible above the bottom navigation bar without initial scrolling.
+  - Added interactive Companion Chat Dialog on hero tap with prompt suggestions.
+- **Task Completion Touch Target**:
+  - Refactored TaskRow with dedicated 48dp IconButton touch target and circular ripple, preventing tap-target misses.
+- **1-Day Streak Card & Chart Baseline Fix**:
+  - Fixed WeeklyBarItem with bottom-aligned container and level horizontal baseline for day labels ('Mon'..'Sun').
+  - Calculated bar intensities dynamically from real ctivity_events within the current calendar week.
+- **Activity Center Instagram-Style Date Grouping**:
+  - Chronologically partitioned activity notifications into 'Today', 'Yesterday', 'This week', 'This month', and 'Earlier'.
+- **Bridge Windows Daemon & Session Dismissal**:
+  - Replaced POSIX signal checks with Win32 OpenProcess/GetExitCodeProcess and signal.SIGTERM in service.py.
+  - Added DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP flags on Windows to persist daemon across terminal exits.
+  - Added X-PixelPal-Key authentication header to AgentSessionRepository.dismissSession() to prevent 401 Unauthorized errors on dismiss.
+  - Verified 118/118 bridge unit tests pass; real agent (opencode) actively tracked.

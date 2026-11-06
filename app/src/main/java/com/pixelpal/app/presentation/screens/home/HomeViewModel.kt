@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -234,17 +235,75 @@ class HomeViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodaySlice())
 
-    val weeklyActivity: StateFlow<com.pixelpal.app.domain.model.WeeklyActivity> = bondFlow.map { bond ->
+    val weeklyActivity: StateFlow<com.pixelpal.app.domain.model.WeeklyActivity> = combine(
+        bondFlow,
+        activityEventRepository.getCenterEvents(100)
+    ) { bond, events ->
         val calendar = Calendar.getInstance()
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
         val streak = bond?.streakDays ?: 0
-        val days = listOf(
-            com.pixelpal.app.domain.model.DayActivity("Mon", if (streak > 0 && dayOfWeek >= Calendar.MONDAY) 0.55f else 0.25f, isToday = dayOfWeek == Calendar.MONDAY, isActive = streak > 0 && dayOfWeek >= Calendar.MONDAY),
-            com.pixelpal.app.domain.model.DayActivity("Tue", if (streak > 0 && dayOfWeek >= Calendar.TUESDAY) 0.90f else 0.25f, isToday = dayOfWeek == Calendar.TUESDAY, isActive = streak > 0 && dayOfWeek >= Calendar.TUESDAY),
-            com.pixelpal.app.domain.model.DayActivity("Wed", if (streak > 0 && dayOfWeek >= Calendar.WEDNESDAY) 0.65f else 0.25f, isToday = dayOfWeek == Calendar.WEDNESDAY, isActive = streak > 0 && dayOfWeek >= Calendar.WEDNESDAY),
-            com.pixelpal.app.domain.model.DayActivity("Thu", if (streak > 0 && dayOfWeek >= Calendar.THURSDAY) 0.80f else 0.25f, isToday = dayOfWeek == Calendar.THURSDAY, isActive = streak > 0 && dayOfWeek >= Calendar.THURSDAY),
-            com.pixelpal.app.domain.model.DayActivity("Fri", if (streak > 0 && dayOfWeek >= Calendar.FRIDAY) 0.70f else 0.25f, isToday = dayOfWeek == Calendar.FRIDAY, isActive = streak > 0 && dayOfWeek >= Calendar.FRIDAY)
-        )
+        val tapsToday = bond?.tapsToday ?: 0
+
+        // Map Calendar day of week to 0..6 (Mon=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6)
+        val todayIndex = when (dayOfWeek) {
+            Calendar.MONDAY -> 0
+            Calendar.TUESDAY -> 1
+            Calendar.WEDNESDAY -> 2
+            Calendar.THURSDAY -> 3
+            Calendar.FRIDAY -> 4
+            Calendar.SATURDAY -> 5
+            else -> 6 // Calendar.SUNDAY
+        }
+
+        val mondayCal = Calendar.getInstance().apply {
+            firstDayOfWeek = Calendar.MONDAY
+            set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val mondayMillis = mondayCal.timeInMillis
+        val oneDayMillis = TimeUnit.DAYS.toMillis(1)
+
+        val countsPerDay = IntArray(7)
+        for (event in events) {
+            val diff = event.createdAt - mondayMillis
+            if (diff >= 0) {
+                val dayIdx = (diff / oneDayMillis).toInt()
+                if (dayIdx in 0..6) {
+                    countsPerDay[dayIdx]++
+                }
+            }
+        }
+
+        val dayLabels = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+        val baseHeights = listOf(0.65f, 0.85f, 0.70f, 0.90f, 0.80f, 0.60f, 0.50f)
+
+        val effectiveStreak = if (streak > 0) streak else if (tapsToday > 0) 1 else 0
+        val streakStart = (todayIndex - effectiveStreak + 1).coerceAtLeast(0)
+
+        val days = dayLabels.mapIndexed { idx, label ->
+            val isToday = (idx == todayIndex)
+            val inStreak = effectiveStreak > 0 && idx in streakStart..todayIndex
+            val realCount = countsPerDay[idx]
+            val hasActivity = inStreak || realCount > 0 || (isToday && (tapsToday > 0 || streak > 0))
+
+            val intensity = when {
+                realCount > 0 -> (0.45f + (realCount * 0.15f)).coerceAtMost(0.95f)
+                isToday && inStreak -> 0.88f
+                inStreak -> baseHeights[idx % baseHeights.size]
+                isToday -> 0.40f
+                else -> 0.22f
+            }
+
+            com.pixelpal.app.domain.model.DayActivity(
+                dayLabel = label,
+                intensity = intensity,
+                isToday = isToday,
+                isActive = hasActivity
+            )
+        }
         com.pixelpal.app.domain.model.WeeklyActivity(days)
     }.distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pixelpal.app.domain.model.WeeklyActivity())

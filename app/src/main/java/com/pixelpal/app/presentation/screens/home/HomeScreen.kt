@@ -56,6 +56,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import com.pixelpal.app.presentation.components.AppTextField
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -111,6 +117,7 @@ fun HomeScreen(
 ) {
     val isLoading by viewModel.isLoading.collectAsState()
     val hasCompanion by viewModel.hasCompanion.collectAsState()
+    var showChatDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -128,7 +135,7 @@ fun HomeScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.screenHorizontal)
-                    .padding(bottom = 96.dp)
+                    .padding(bottom = Spacing.xs)
             ) {
                 when {
                     isLoading -> LoadingState(modifier = Modifier.padding(top = Spacing.xl))
@@ -140,37 +147,55 @@ fun HomeScreen(
                 )
 
                 else -> {
-                    // 1. Top Header with Quick Actions & Blob Mascot
+                    // 1. Top Header with Quick Actions & Centered Glowing Mascot
                     HomeHeaderSlot(
                         viewModel = viewModel,
                         onCustomizeClick = { navController.navigate(Screen.Customize.route) },
                         onBellClick = { navController.navigate(Screen.ActivityCenter.route) }
                     )
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // The core promise is noticing and acting when an agent
                     // needs you, so place the live agent state immediately
                     // after the greeting rather than below routine stats.
                     HomeAgentCard(
                         viewModel = viewModel,
-                        onOpen = { navController.navigate(Screen.ConnectedAgents.route) }
+                        onOpen = {
+                            navController.navigate(Screen.ConnectedAgents.route) {
+                                popUpTo(Screen.Home.route) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
                     )
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 2. Action Cards: Interact (Chat) + Agent hub
                     HomeActionCardsRow(
-                        onInteractClick = { viewModel.interactWithCompanion() },
-                        onWorkspaceClick = { navController.navigate(Screen.ConnectedAgents.route) }
+                        onInteractClick = {
+                            viewModel.interactWithCompanion()
+                            showChatDialog = true
+                        },
+                        onWorkspaceClick = {
+                            navController.navigate(Screen.ConnectedAgents.route) {
+                                popUpTo(Screen.Home.route) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
                     )
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 3. Weekly Consistency & Streak Bar Chart
-                    HomeStreakCard(viewModel = viewModel)
+                    HomeStreakCard(
+                        viewModel = viewModel,
+                        onClick = { navController.navigate(Screen.ActivityCenter.route) }
+                    )
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 4. Quick Stats: Tasks & Reminders
                     HomeQuickStatsRow(
@@ -179,7 +204,7 @@ fun HomeScreen(
                         onRemindersClick = { navController.navigate(Screen.Reminders.route) }
                     )
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     // 6. Today Task Checklist Preview
                     HomeTodayTasksSection(
@@ -187,11 +212,186 @@ fun HomeScreen(
                         onViewAllClick = { navController.navigate(Screen.Tasks.route) }
                     )
 
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                 }
             }
         }
+    }
+
+    if (showChatDialog) {
+        val hero by viewModel.heroSlice.collectAsState()
+        val header by viewModel.headerSlice.collectAsState()
+        val comp = hero.companion
+        val petName = comp?.name ?: "Pixel"
+        val who = header.userName.ifBlank { "friend" }
+        val streak = hero.bond?.streakDays ?: 0
+
+        val chatMessages = remember {
+            androidx.compose.runtime.mutableStateListOf(
+                false to "Hi $who! I'm $petName. I'm always here watching over your coding tasks and agents! ✨"
+            )
+        }
+        var userText by remember { mutableStateOf("") }
+
+        val suggestions = listOf(
+            "How are you doing? 😊",
+            "Give me motivation ✨",
+            "Tell me a fun fact 💡",
+            "What's our streak? 🔥"
+        )
+
+        AlertDialog(
+            onDismissRequest = { showChatDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF8B6CF6).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LottiePetView(
+                            petType = comp?.effectiveSpecies ?: "rabbit",
+                            animationState = AnimationState.WAVE,
+                            size = 48.dp
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Chat with $petName",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Your AI companion is listening",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(320.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Chat bubbles list
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(chatMessages) { (isUser, text) ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = if (isUser) Alignment.CenterEnd else Alignment.CenterStart
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(
+                                        topStart = 16.dp,
+                                        topEnd = 16.dp,
+                                        bottomStart = if (isUser) 16.dp else 4.dp,
+                                        bottomEnd = if (isUser) 4.dp else 16.dp
+                                    ),
+                                    color = if (isUser) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.fillMaxWidth(0.85f)
+                                ) {
+                                    Text(
+                                        text = text,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(12.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Suggestion Chips
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(suggestions) { prompt ->
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                modifier = Modifier.clickable {
+                                    chatMessages.add(true to prompt)
+                                    viewModel.interactWithCompanion()
+                                    val reply = when {
+                                        prompt.contains("How are you") -> "$petName is feeling super energetic today! Ready to take on new bugs and build great things together!"
+                                        prompt.contains("motivation") -> "Every line of code you write gets you closer to mastery. Believe in yourself, $who!"
+                                        prompt.contains("fun fact") -> "Did you know? The first computer bug was an actual moth found trapped inside a Mark II computer in 1947!"
+                                        prompt.contains("streak") -> "We are on a $streak-day streak! Keep up the amazing momentum!"
+                                        else -> "I love chatting with you, $who! Let's keep making progress today!"
+                                    }
+                                    chatMessages.add(false to reply)
+                                }
+                            ) {
+                                Text(
+                                    text = prompt,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Input Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AppTextField(
+                            value = userText,
+                            onValueChange = { userText = it },
+                            label = "Message",
+                            placeholder = "Say something to $petName...",
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = {
+                                val trimmed = userText.trim()
+                                if (trimmed.isNotBlank()) {
+                                    chatMessages.add(true to trimmed)
+                                    userText = ""
+                                    viewModel.interactWithCompanion()
+                                    val reply = "That's wonderful, $who! I'm right here cheering for you. Let's do this!"
+                                    chatMessages.add(false to reply)
+                                }
+                            },
+                            enabled = userText.isNotBlank()
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                tint = if (userText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showChatDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
 }
@@ -219,6 +419,8 @@ private fun HomeHeaderSlot(
 
     val scaleAnim = remember { Animatable(1f) }
     val rotationAnim = remember { Animatable(0f) }
+    val sparkleAlpha = remember { Animatable(0f) }
+    val sparkleScale = remember { Animatable(0.6f) }
 
     val reactionMessages = listOf(
         stringResource(
@@ -237,6 +439,13 @@ private fun HomeHeaderSlot(
         currentExpression = AnimationState.HAPPY
 
         launch {
+            sparkleScale.snapTo(0.6f)
+            sparkleAlpha.snapTo(1f)
+            sparkleScale.animateTo(1.25f, tween(650, easing = FastOutSlowInEasing))
+            sparkleAlpha.animateTo(0f, tween(550))
+        }
+
+        launch {
             scaleAnim.animateTo(1.16f, tween(120, easing = FastOutSlowInEasing))
             scaleAnim.animateTo(0.96f, tween(100))
             scaleAnim.animateTo(1.05f, tween(80))
@@ -248,9 +457,9 @@ private fun HomeHeaderSlot(
             rotationAnim.animateTo(0f, spring(Spring.DampingRatioMediumBouncy))
         }
 
-        delay(800)
+        delay(900)
         currentExpression = AnimationState.IDLE
-        delay(800)
+        delay(1200)
         feedbackText = null
     }
 
@@ -302,81 +511,82 @@ private fun HomeHeaderSlot(
             }
         }
 
-        Spacer(modifier = Modifier.height(Spacing.md))
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
-        // Title row with Greeting & Organic Fluid Blob Pet
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                val who = header.userName.ifBlank { stringResource(R.string.home_default_user_name) }
+        // Title row: Greeting, PixelPal & Tagline
+        Column(modifier = Modifier.fillMaxWidth()) {
+            val who = header.userName.ifBlank { stringResource(R.string.home_default_user_name) }
+            Text(
+                text = stringResource(R.string.home_greeting_hello, who),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = stringResource(R.string.home_greeting_hello, who),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Pixel",
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Pal",
-                        style = MaterialTheme.typography.displaySmall.copy(
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = Color(0xFF8B6CF6)
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = stringResource(R.string.home_tagline),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        lineHeight = 18.sp
+                    text = "Pixel",
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold
                     ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Pal",
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = Color(0xFF8B6CF6)
                 )
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.home_tagline),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    lineHeight = 16.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
-            // Mascot with soft organic purple fluid blob background matching the inspiration
+        Spacer(modifier = Modifier.height(Spacing.xs))
+
+        // Centered Mascot with soft organic ambient glow (no square pedestal)
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            // Soft atmospheric radial purple glow behind the mascot
             Box(
                 modifier = Modifier
-                    .size(126.dp)
+                    .size(220.dp)
+                    .background(
+                        androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF8B6CF6).copy(alpha = 0.38f),
+                                Color(0xFF6738EB).copy(alpha = 0.16f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+
+            // Centered mascot pet
+            Box(
+                modifier = Modifier
+                    .size(168.dp)
                     .clickable {
                         interactionTick++
                         viewModel.interactWithCompanion()
                     },
                 contentAlignment = Alignment.Center
             ) {
-                // Organic fluid purple blob backdrop
                 Box(
                     modifier = Modifier
-                        .size(116.dp, 106.dp)
-                        .clip(RoundedCornerShape(topStart = 48.dp, topEnd = 32.dp, bottomStart = 56.dp, bottomEnd = 40.dp))
-                        .background(
-                            androidx.compose.ui.graphics.Brush.radialGradient(
-                                colors = listOf(
-                                    Color(0xFF8B6CF6).copy(alpha = 0.50f),
-                                    Color(0xFF6738EB).copy(alpha = 0.25f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                // Mascot pet
-                Box(
-                    modifier = Modifier
-                        .size(86.dp)
+                        .size(164.dp)
                         .graphicsLayer {
                             scaleX = scaleAnim.value
                             scaleY = scaleAnim.value
@@ -385,28 +595,118 @@ private fun HomeHeaderSlot(
                     contentAlignment = Alignment.Center
                 ) {
                     LottiePetView(
-                        petType = companion?.effectiveSpecies ?: "rabbit",
+                        petType = companion?.effectiveSpecies ?: "cat",
                         animationState = currentExpression,
-                        size = 82.dp
+                        size = 160.dp
                     )
                 }
+
+                // Stars, sparkles and hearts burst on tap
+                SparkleOverlay(alpha = sparkleAlpha.value, scale = sparkleScale.value, size = 190.dp)
             }
         }
 
-        // Feedback speech reaction under header if present
+        // Feedback speech reaction under mascot if present
         feedbackText?.let { feedback ->
             Spacer(modifier = Modifier.height(Spacing.xs))
-            Text(
-                text = feedback,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.88f),
+                    modifier = Modifier.padding(horizontal = Spacing.md)
+                ) {
+                    Text(
+                        text = feedback,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
         }
     }
 }
 
 // -------------------------------------------------------------------------
+@Composable
+private fun SparkleOverlay(alpha: Float, scale: Float, size: androidx.compose.ui.unit.Dp = 170.dp) {
+    if (alpha <= 0.01f) return
+    val sparkle = androidx.compose.ui.res.painterResource(id = R.drawable.particle_sparkle)
+    val star = androidx.compose.ui.res.painterResource(id = R.drawable.particle_star)
+    val heart = androidx.compose.ui.res.painterResource(id = R.drawable.particle_heart)
+    val dot = androidx.compose.ui.res.painterResource(id = R.drawable.particle_dot)
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .graphicsLayer {
+                this.alpha = alpha
+                scaleX = scale
+                scaleY = scale
+            }
+    ) {
+        // Top-left sparkle
+        Image(
+            painter = sparkle,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = 10.dp, y = 10.dp)
+                .size(26.dp)
+        )
+        // Top-right star
+        Image(
+            painter = star,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = (-12).dp, y = 12.dp)
+                .size(28.dp)
+        )
+        // Bottom-left heart
+        Image(
+            painter = heart,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = 14.dp, y = (-16).dp)
+                .size(24.dp)
+        )
+        // Bottom-right star
+        Image(
+            painter = star,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = (-14).dp, y = (-12).dp)
+                .size(26.dp)
+        )
+        // Mid-right sparkle
+        Image(
+            painter = sparkle,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = (-4).dp, y = (-8).dp)
+                .size(22.dp)
+        )
+        // Mid-left dot glow
+        Image(
+            painter = dot,
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = 6.dp, y = 6.dp)
+                .size(16.dp)
+        )
+    }
+}
+
 // 2. ACTION CARDS ROW (Interact & Agent hub)
 // -------------------------------------------------------------------------
 
@@ -423,7 +723,7 @@ private fun HomeActionCardsRow(
         GlassCard(
             modifier = Modifier
                 .weight(1f)
-                .height(116.dp),
+                .height(98.dp),
             backgroundBrush = PixelPalGradients.primaryCard,
             borderStroke = null,
             elevation = 6.dp,
@@ -432,7 +732,7 @@ private fun HomeActionCardsRow(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(Spacing.md),
+                    .padding(horizontal = Spacing.md, vertical = 10.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
@@ -490,14 +790,14 @@ private fun HomeActionCardsRow(
         GlassCard(
             modifier = Modifier
                 .weight(1f)
-                .height(116.dp),
+                .height(98.dp),
             elevation = 2.dp,
             onClick = onWorkspaceClick
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(Spacing.md),
+                    .padding(horizontal = Spacing.md, vertical = 10.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
@@ -558,19 +858,20 @@ private fun HomeActionCardsRow(
 // -------------------------------------------------------------------------
 
 @Composable
-private fun HomeStreakCard(viewModel: HomeViewModel) {
+private fun HomeStreakCard(viewModel: HomeViewModel, onClick: () -> Unit = {}) {
     val hero by viewModel.heroSlice.collectAsState()
     val weekly by viewModel.weeklyActivity.collectAsState()
     val streakDays = hero.bond?.streakDays ?: 0
 
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = 2.dp
+        elevation = 2.dp,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.md),
+                .padding(horizontal = Spacing.md, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -578,7 +879,7 @@ private fun HomeStreakCard(viewModel: HomeViewModel) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
+                        .size(36.dp)
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
@@ -586,7 +887,7 @@ private fun HomeStreakCard(viewModel: HomeViewModel) {
                         imageVector = Icons.Default.Whatshot,
                         contentDescription = stringResource(R.string.home_cd_streak),
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
@@ -608,9 +909,9 @@ private fun HomeStreakCard(viewModel: HomeViewModel) {
                 }
             }
 
-            // Right: Mon-Fri weekly activity bar chart
+            // Right: Mon-Sun weekly activity bar chart
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.Bottom
             ) {
                 weekly.days.forEach { day ->
@@ -627,25 +928,32 @@ private fun WeeklyBarItem(day: DayActivity) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Bottom
     ) {
+        val barHeight = (26.dp * day.intensity.coerceIn(0.25f, 1f))
+        val barModifier = if (day.isActive) {
+            Modifier.background(PixelPalGradients.streakBar)
+        } else {
+            Modifier.background(MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+        }
+        Box(
+            modifier = Modifier
+                .height(28.dp)
+                .width(14.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(14.dp)
+                    .height(barHeight)
+                    .clip(RoundedCornerShape(4.dp))
+                    .then(barModifier)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = day.dayLabel,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
             color = if (day.isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Normal
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        val barHeight = (36.dp * day.intensity.coerceIn(0.2f, 1f))
-        val barModifier = if (day.isActive) {
-            Modifier.background(PixelPalGradients.streakBar)
-        } else {
-            Modifier.background(MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-        }
-        Box(
-            modifier = Modifier
-                .width(18.dp)
-                .height(barHeight)
-                .clip(RoundedCornerShape(6.dp))
-                .then(barModifier)
         )
     }
 }
@@ -674,7 +982,7 @@ private fun HomeQuickStatsRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(Spacing.md),
+                    .padding(horizontal = Spacing.md, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -717,7 +1025,7 @@ private fun HomeQuickStatsRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(Spacing.md),
+                    .padding(horizontal = Spacing.md, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -796,7 +1104,7 @@ private fun HomeAgentCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(Spacing.md)
+                    .padding(horizontal = Spacing.md, vertical = 10.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -969,7 +1277,7 @@ private fun HomeTodayTasksSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(Spacing.md),
+                    .padding(horizontal = Spacing.md, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1028,9 +1336,9 @@ private fun HomeTodayTasksSection(
                 // Decorative 3D-styled purple clipboard illustration badge matching inspiration
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(36.dp)
                         .graphicsLayer { rotationZ = -6f }
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(
                             androidx.compose.ui.graphics.Brush.linearGradient(
                                 listOf(
@@ -1041,7 +1349,7 @@ private fun HomeTodayTasksSection(
                         )
                         .border(
                             BorderStroke(1.dp, Color(0xFF8B6CF6).copy(alpha = 0.40f)),
-                            RoundedCornerShape(14.dp)
+                            RoundedCornerShape(10.dp)
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1049,7 +1357,7 @@ private fun HomeTodayTasksSection(
                         imageVector = Icons.AutoMirrored.Filled.Assignment,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -1069,7 +1377,7 @@ private fun HomeFocusTimeCard() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.md),
+                .padding(horizontal = Spacing.md, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {

@@ -39,8 +39,24 @@ class CustomizeViewModel @Inject constructor(
         viewModelScope.launch {
             val current = companion.value ?: return@launch
             if (name.isNotBlank()) {
-                companionRepository.update(current.copy(name = name.take(20)))
+                val trimmed = name.take(20)
+                companionRepository.update(current.copy(name = trimmed))
+                preferencesManager.setPetName(trimmed)
             }
+        }
+    }
+
+    fun savePetName(name: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            val trimmed = name.trim().take(20)
+            if (trimmed.isNotBlank()) {
+                preferencesManager.setPetName(trimmed)
+                val current = companion.value
+                if (current != null) {
+                    companionRepository.update(current.copy(name = trimmed))
+                }
+            }
+            onDone()
         }
     }
 

@@ -58,7 +58,7 @@ fun GlassCard(
     val effectiveElevation = when {
         elevation != Dp.Unspecified -> elevation
         isLight -> 8.dp
-        else -> 0.dp
+        else -> 4.dp
     }
 
     val clickableModifier = if (onClick != null) {
@@ -74,8 +74,8 @@ fun GlassCard(
                     Modifier.shadow(
                         elevation = effectiveElevation,
                         shape = shape,
-                        ambientColor = Color.Black.copy(alpha = 0.08f),
-                        spotColor = Color(0xFF4A3B78).copy(alpha = 0.22f)
+                        ambientColor = Color.Black.copy(alpha = 0.12f),
+                        spotColor = if (isLight) Color(0xFF4A3B78).copy(alpha = 0.22f) else Color(0xFF8B6CF6).copy(alpha = 0.25f)
                     )
                 } else Modifier
             )

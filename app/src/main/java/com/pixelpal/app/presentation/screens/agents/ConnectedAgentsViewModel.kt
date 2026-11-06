@@ -11,6 +11,9 @@ import com.pixelpal.app.data.remote.bridge.BridgeApprovalNotifier
 import com.pixelpal.app.data.remote.GenericHttpAgentConnector
 import com.pixelpal.app.data.repository.AgentSessionRepository
 import com.pixelpal.app.domain.engine.ActiveCompanionManager
+import com.pixelpal.app.domain.model.Companion
+import com.pixelpal.app.domain.usecase.companion.TapCompanionUseCase
+import com.pixelpal.app.domain.engine.BondEngine
 import com.pixelpal.app.domain.repository.ActivityEventRepository
 import com.pixelpal.app.domain.model.ActivityType
 import com.pixelpal.app.domain.model.AgentState
@@ -19,6 +22,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
@@ -42,7 +46,9 @@ data class AgentRow(
     val pendingApprovalId: String?,
     val pendingApprovalAction: String?,
     val toolsCompleted: Int
-)
+) {
+    val sessionId: String get() = id.substringAfter(':')
+}
 
 data class ConnectedAgentsUiState(
     val rows: List<AgentRow> = emptyList(),
@@ -77,7 +83,9 @@ class ConnectedAgentsViewModel @Inject constructor(
     private val poller: AgentBridgePoller,
     private val notifier: BridgeApprovalNotifier,
     private val workerScheduler: com.pixelpal.app.worker.WorkerScheduler,
-    private val activityEvents: ActivityEventRepository
+    private val activityEvents: ActivityEventRepository,
+    private val bondEngine: BondEngine,
+    private val tapCompanionUseCase: TapCompanionUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ConnectedAgentsUiState(isRefreshing = true))
@@ -89,12 +97,27 @@ class ConnectedAgentsViewModel @Inject constructor(
      * a literal here shipped the default cat to every user regardless of the
      * species they picked during onboarding.
      */
+    val companion: StateFlow<com.pixelpal.app.domain.model.Companion?> = activeCompanion.activeCompanion
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            null
+        )
+
     val companionPetType: StateFlow<String> = activeCompanion.activeCompanion
-        .map { it?.petType ?: Constants.DEFAULT_PET_TYPE }
+        .map { it?.effectiveSpecies ?: Constants.DEFAULT_PET_TYPE }
         .stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
             Constants.DEFAULT_PET_TYPE
+        )
+
+    val streakDays: StateFlow<Int> = bondEngine.bond
+        .map { it.streakDays }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            0
         )
 
     private var companionId: Long = 0L
@@ -115,6 +138,12 @@ class ConnectedAgentsViewModel @Inject constructor(
             repository.sessions.collect { sessions ->
                 _state.value = _state.value.copy(rows = sessions.map { it.toRow() })
             }
+        }
+    }
+
+    fun interactWithCompanion() {
+        viewModelScope.launch {
+            tapCompanionUseCase()
         }
     }
 
@@ -165,22 +194,24 @@ class ConnectedAgentsViewModel @Inject constructor(
      * the address may be a LAN URL or a Tailscale one — both are plain URLs.
      */
     fun applyPairing(rawUri: String): Boolean {
-        val parsed = parsePairingUri(rawUri) ?: run {
+        val parsed = parsePairingUri(rawUri) ?: parseFallbackAddress(rawUri) ?: run {
             _state.value = _state.value.copy(
-                lastError = "That pairing code doesn't look right."
+                lastError = "That pairing code doesn't look right. Please check the address or QR code."
             )
             return false
         }
         viewModelScope.launch {
             _state.value = _state.value.copy(isPairing = true, lastError = null)
-            if (!transport.verifyPairing(parsed.url, parsed.key)) {
+            val effectiveKey = parsed.key.ifBlank { preferences.getAgentBridgeKey() }
+            val (ok, reason) = transport.verifyPairingDetailed(parsed.url, effectiveKey)
+            if (!ok) {
                 _state.value = _state.value.copy(
                     isPairing = false,
-                    lastError = "PixelPal couldn't reach that bridge. Keep setup running and check that your phone is on the same Wi-Fi or Tailscale network."
+                    lastError = "PixelPal couldn't reach that bridge at ${parsed.url}: ${reason ?: "Ensure the bridge is running on your laptop and both devices are on the same Wi-Fi or Tailscale network."}"
                 )
                 return@launch
             }
-            preferences.setAgentBridge(parsed.url, parsed.key, parsed.bridgeId)
+            preferences.setAgentBridge(parsed.url, effectiveKey, parsed.bridgeId)
             _state.value = _state.value.copy(
                 bridgeUrl = parsed.url,
                 isPaired = true,
@@ -208,6 +239,66 @@ class ConnectedAgentsViewModel @Inject constructor(
             preferences.clearAgentBridge()
             repository.clear()
             _state.value = ConnectedAgentsUiState()
+        }
+    }
+
+    fun dismissAgent(row: AgentRow) {
+        viewModelScope.launch {
+            repository.dismissSession(row.id, row.source, preferences.getAgentBridgeUrl())
+            _state.value = _state.value.copy(message = "Removed ${row.displayName}")
+            refresh()
+        }
+    }
+
+    private val _chatMessages = MutableStateFlow<List<AgentSessionRepository.AgentChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<AgentSessionRepository.AgentChatMessage>> = _chatMessages.asStateFlow()
+
+    private val _isSendingCommand = MutableStateFlow(false)
+    val isSendingCommand: StateFlow<Boolean> = _isSendingCommand.asStateFlow()
+
+    fun loadSessionMessages(row: AgentRow) {
+        viewModelScope.launch {
+            val msgs = repository.getSessionMessages(preferences.getAgentBridgeUrl(), row.sessionId)
+            if (msgs.isNotEmpty()) {
+                _chatMessages.value = msgs
+            }
+        }
+    }
+
+    fun sendCommandToAgent(row: AgentRow, command: String, onDone: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            _isSendingCommand.value = true
+            val trimmed = command.trim()
+            if (trimmed.isNotBlank() && !trimmed.equals("stop", ignoreCase = true) && !trimmed.equals("pause", ignoreCase = true)) {
+                _chatMessages.value = _chatMessages.value + AgentSessionRepository.AgentChatMessage(
+                    id = "temp_${System.currentTimeMillis()}",
+                    role = "user",
+                    text = trimmed,
+                    timestamp = System.currentTimeMillis()
+                )
+            }
+            val ok = repository.sendAgentCommand(preferences.getAgentBridgeUrl(), row.sessionId, trimmed)
+            _isSendingCommand.value = false
+            if (ok) {
+                _state.value = _state.value.copy(message = "Command sent: $trimmed")
+                activityEvents.record(
+                    companionId,
+                    ActivityType.AGENT_STATUS_CHANGED,
+                    "Sent command to ${row.displayName}",
+                    trimmed
+                )
+                onDone(true)
+                // Reload messages shortly after agent starts answering
+                kotlinx.coroutines.delay(1200)
+                val updated = repository.getSessionMessages(preferences.getAgentBridgeUrl(), row.sessionId)
+                if (updated.isNotEmpty()) {
+                    _chatMessages.value = updated
+                }
+                refresh()
+            } else {
+                _state.value = _state.value.copy(lastError = "Could not deliver command to ${row.displayName}. Check bridge status.")
+                onDone(false)
+            }
         }
     }
 
@@ -284,6 +375,42 @@ class ConnectedAgentsViewModel @Inject constructor(
             val port = params["port"] ?: "8787"
             val url = if (https) "https://$host" else "http://$host:$port"
             return Pairing(url = url, key = key, bridgeId = "$host:$port")
+        }
+
+        fun parseFallbackAddress(raw: String): Pairing? {
+            val trimmed = raw.trim()
+            if (trimmed.isBlank()) return null
+
+            val lower = trimmed.lowercase()
+            if (lower.startsWith("http://") || lower.startsWith("https://")) {
+                val uri = try { java.net.URI(trimmed) } catch (e: Exception) { null } ?: return null
+                val host = uri.host ?: return null
+                if (!isAllowedHost(host)) return null
+                val port = if (uri.port > 0) uri.port.toString() else if (lower.startsWith("https://")) "443" else "8787"
+                val query = uri.query.orEmpty()
+                val params = query.split('&').mapNotNull { pair ->
+                    val idx = pair.indexOf('=')
+                    if (idx <= 0) null else pair.substring(0, idx) to pair.substring(idx + 1)
+                }.toMap()
+                val key = params["key"].orEmpty()
+                val scheme = uri.scheme ?: "http"
+                val url = "$scheme://$host:$port"
+                return Pairing(url = url, key = key, bridgeId = "$host:$port")
+            }
+
+            val hostPortRegex = Regex("""^([a-zA-Z0-9.-]+)(?::(\d+))?$""")
+            val match = hostPortRegex.find(trimmed)
+            if (match != null) {
+                val host = match.groupValues[1]
+                val port = match.groupValues[2].ifBlank { "8787" }
+                if (isAllowedHost(host)) {
+                    val https = host.endsWith(".ts.net", ignoreCase = true)
+                    val url = if (https) "https://$host" else "http://$host:$port"
+                    return Pairing(url = url, key = "", bridgeId = "$host:$port")
+                }
+            }
+
+            return null
         }
 
         /** Why: see [parsePairingUri]. Kept separate so it is unit-testable. */

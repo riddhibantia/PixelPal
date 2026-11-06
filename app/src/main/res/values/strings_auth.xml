@@ -25,6 +25,13 @@
     <string name="auth_toggle_to_login">Have an account? Log In</string>
     <string name="auth_toggle_to_signup">New here? Create Account</string>
     <string name="auth_action_forgot_password">Forgot password?</string>
+    <string name="auth_user_name_label">Your Name</string>
+    <string name="auth_user_name_placeholder">How Pixel Pet should address you</string>
+    <string name="auth_reset_dialog_title">Reset Password</string>
+    <string name="auth_reset_dialog_desc">Enter your email address to receive a password reset link.</string>
+    <string name="auth_reset_dialog_spam_note">Tip: If you don\'t see the email, please check your Spam or Junk folder.</string>
+    <string name="auth_reset_dialog_send">Send Reset Link</string>
+    <string name="auth_reset_dialog_success">Password reset email sent! Check your inbox and spam folder.</string>
 
     <!-- ── OnboardingScreen ─────────────────────────────────────────────── -->
 
@@ -50,6 +57,8 @@
     <string name="onboarding_name_title">What\'s their name?</string>
     <string name="onboarding_name_body">Give your companion a name. Up to 20 characters.</string>
     <string name="onboarding_name_label">Companion name</string>
+    <string name="onboarding_user_name_label">Your name</string>
+    <string name="onboarding_user_name_placeholder">What should Pixel call you?</string>
     <string name="onboarding_name_counter">%1$d / 20</string>
     <string name="onboarding_name_ready">\"%1$s\" is ready to join you!</string>
 

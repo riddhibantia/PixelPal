@@ -13,11 +13,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.pixelpal.app.data.local.datastore.PreferencesManager
 import javax.inject.Inject
 
 data class AuthUiState(
     val email: String = "",
     val password: String = "",
+    val userName: String = "",
     val isSignUpMode: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -27,8 +29,22 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authManager: FirebaseAuthManager,
-    private val syncCoordinator: FirestoreSyncCoordinator
+    private val syncCoordinator: FirestoreSyncCoordinator,
+    private val preferencesManager: PreferencesManager
 ) : ViewModel() {
+
+    init {
+        viewModelScope.launch {
+            val existing = preferencesManager.getUserName()
+            if (existing.isNotBlank()) {
+                _uiState.update { it.copy(userName = existing) }
+            }
+        }
+    }
+
+    fun onUserNameChanged(value: String) {
+        _uiState.update { it.copy(userName = value) }
+    }
 
     val authState: StateFlow<AuthState> = authManager.authStateFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, AuthState.Idle)
@@ -92,6 +108,10 @@ class AuthViewModel @Inject constructor(
 
             result.fold(
                 onSuccess = { user ->
+                    val enteredUser = state.userName.trim()
+                    if (enteredUser.isNotBlank()) {
+                        preferencesManager.setUserName(enteredUser)
+                    }
                     // Auth done — now restore users/{uid} into Room BEFORE the
                     // UI navigates. Awaiting here (not fire-and-forget) closes
                     // the race where Home read an empty Room mid-restore.
@@ -119,6 +139,14 @@ class AuthViewModel @Inject constructor(
             val result = authManager.signInWithGoogle(activityContext)
             result.fold(
                 onSuccess = { user ->
+                    val enteredUser = _uiState.value.userName.trim()
+                    if (enteredUser.isNotBlank()) {
+                        preferencesManager.setUserName(enteredUser)
+                    } else if (!user.displayName.isNullOrBlank()) {
+                        if (preferencesManager.getUserName().isBlank()) {
+                            preferencesManager.setUserName(user.displayName!!)
+                        }
+                    }
                     timber.log.Timber.d("[AUTH] Google login successful uid=%s, restoring data", user.uid)
                     runPostAuthSync()
                     _uiState.update { it.copy(isLoading = false) }
@@ -145,6 +173,10 @@ class AuthViewModel @Inject constructor(
             val result = authManager.signInAnonymously()
             result.fold(
                 onSuccess = { user ->
+                    val enteredUser = _uiState.value.userName.trim()
+                    if (enteredUser.isNotBlank()) {
+                        preferencesManager.setUserName(enteredUser)
+                    }
                     timber.log.Timber.d("[AUTH] Guest login successful uid=%s", user.uid)
                     runPostAuthSync()
                     _uiState.update { it.copy(isLoading = false) }
@@ -200,10 +232,12 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch { runPostAuthSync() }
     }
 
-    fun sendPasswordReset() {
-        val email = _uiState.value.email
+    fun sendPasswordReset(customEmail: String? = null, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        val email = (customEmail ?: _uiState.value.email).trim()
         if (email.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Enter your email above to reset password") }
+            val msg = "Enter your email to reset password"
+            _uiState.update { it.copy(errorMessage = msg) }
+            onResult(false, msg)
             return
         }
 
@@ -212,20 +246,24 @@ class AuthViewModel @Inject constructor(
             val result = authManager.sendPasswordReset(email)
             result.fold(
                 onSuccess = {
+                    val msg = "Password reset email sent! Check your inbox and spam folder."
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            successMessage = "Password reset email sent!"
+                            successMessage = msg
                         )
                     }
+                    onResult(true, msg)
                 },
                 onFailure = { error ->
+                    val msg = error.localizedMessage ?: "Failed to send reset email"
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = error.localizedMessage ?: "Failed to send reset email"
+                            errorMessage = msg
                         )
                     }
+                    onResult(false, msg)
                 }
             )
         }

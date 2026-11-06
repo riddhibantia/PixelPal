@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -67,10 +67,7 @@ private val destinations = listOf(
 )
 
 /**
- * True floating frosted glass navigation pill.
- *
- * Elegantly suspended above the bottom with calibrated margin, evenly divided
- * into 5 symmetric columns with a smooth rounded active gradient pill.
+ * Floating frosted glass navigation pill with individual active tab indicators.
  */
 @Composable
 fun PixelPalBottomBar(
@@ -97,7 +94,7 @@ fun PixelPalBottomBar(
             .padding(bottom = 16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(64.dp)
@@ -114,81 +111,81 @@ fun PixelPalBottomBar(
                     CircleShape
                 )
                 .padding(horizontal = 8.dp, vertical = 6.dp),
-            contentAlignment = Alignment.Center
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                destinations.forEach { dest ->
-                    val isSelected = selected == dest.screen
-                    val label = stringResource(dest.labelRes)
-                    val scale by animateFloatAsState(
-                        targetValue = if (isSelected) 1.05f else 1.0f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                        label = "pillScale"
-                    )
-                    val iconTint by animateColorAsState(
-                        targetValue = if (isSelected) Color.White else inactiveIconColor,
-                        label = "pillIcon"
-                    )
+            destinations.forEach { dest ->
+                val isSelected = selected == dest.screen
+                val label = stringResource(dest.labelRes)
+                val scale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.05f else 1.0f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                    label = "pillScale"
+                )
+                val iconTint by animateColorAsState(
+                    targetValue = if (isSelected) Color.White else inactiveIconColor,
+                    label = "pillIcon"
+                )
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxSize()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClickLabel = label
-                            ) {
-                                if (!isSelected) {
-                                    // Whole-cell tap target (the icon pill alone is
-                                    // 44dp; taps on the rest of the cell used to be
-                                    // silently swallowed). Navigation semantics stay
-                                    // the original canonical tab-switch pattern.
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClickLabel = label
+                        ) {
+                            if (!isSelected) {
+                                if (dest.screen == Screen.Home) {
+                                    val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
+                                    if (!popped) {
+                                        navController.navigate(Screen.Home.route) {
+                                            popUpTo(Screen.Home.route) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                } else {
                                     navController.navigate(dest.screen.route) {
                                         popUpTo(Screen.Home.route) { saveState = true }
                                         launchSingleTop = true
                                         restoreState = true
                                     }
                                 }
-                            },
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 54.dp, height = 44.dp)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .then(
+                                if (isSelected) {
+                                    Modifier
+                                        .shadow(
+                                            elevation = 6.dp,
+                                            shape = RoundedCornerShape(22.dp),
+                                            ambientColor = Color.Transparent,
+                                            spotColor = Color(0xFF6738EB).copy(alpha = 0.45f)
+                                        )
+                                        .clip(RoundedCornerShape(22.dp))
+                                        .background(PixelPalGradients.primaryCard)
+                                } else {
+                                    Modifier
+                                }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        val pillModifier = if (isSelected) {
-                            Modifier
-                                .width(56.dp)
-                                .height(44.dp)
-                                .shadow(
-                                    elevation = 6.dp,
-                                    shape = RoundedCornerShape(22.dp),
-                                    ambientColor = Color.Transparent,
-                                    spotColor = Color(0xFF6738EB).copy(alpha = 0.45f)
-                                )
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(PixelPalGradients.primaryCard)
-                        } else {
-                            Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                        }
-
-                        Box(
-                            modifier = pillModifier
-                                .graphicsLayer {
-                                    scaleX = scale
-                                    scaleY = scale
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isSelected) dest.selectedIcon else dest.unselectedIcon,
-                                contentDescription = label,
-                                tint = iconTint,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = if (isSelected) dest.selectedIcon else dest.unselectedIcon,
+                            contentDescription = label,
+                            tint = iconTint,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                 }
             }

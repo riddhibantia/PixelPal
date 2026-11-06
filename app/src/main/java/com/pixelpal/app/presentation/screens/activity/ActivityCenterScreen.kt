@@ -54,6 +54,10 @@ import com.pixelpal.app.presentation.components.GlassChip
 import com.pixelpal.app.presentation.components.GroupDivider
 import com.pixelpal.app.presentation.theme.Radius
 import com.pixelpal.app.presentation.theme.Spacing
+import androidx.compose.runtime.remember
+import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 @Composable
@@ -123,6 +127,10 @@ fun ActivityCenterScreen(
 
             Spacer(modifier = Modifier.height(Spacing.md))
 
+            val groupedEvents = remember(events) {
+                events.groupBy { dateGroupFor(it.createdAt) }
+            }
+
             if (events.isEmpty()) {
                 EmptyState(
                     title = stringResource(R.string.activity_empty_title),
@@ -138,13 +146,25 @@ fun ActivityCenterScreen(
                         .padding(horizontal = Spacing.screenHorizontal)
                         .padding(bottom = Spacing.lg)
                 ) {
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(Spacing.md)) {
-                            events.forEachIndexed { index, event ->
-                                if (index > 0) {
-                                    GroupDivider()
+                    DateGroup.entries.forEach { group ->
+                        val items = groupedEvents[group]
+                        if (!items.isNullOrEmpty()) {
+                            Text(
+                                text = group.title,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.xs, start = 4.dp)
+                            )
+                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(Spacing.md)) {
+                                    items.forEachIndexed { index, event ->
+                                        if (index > 0) {
+                                            GroupDivider()
+                                        }
+                                        ActivityEventRow(event = event)
+                                    }
                                 }
-                                ActivityEventRow(event = event)
                             }
                         }
                     }
@@ -203,14 +223,60 @@ private fun eventIcon(type: ActivityType): ImageVector = when (type) {
     else -> Icons.Default.Pets
 }
 
+private enum class DateGroup(val title: String) {
+    TODAY("Today"),
+    YESTERDAY("Yesterday"),
+    THIS_WEEK("This week"),
+    THIS_MONTH("This month"),
+    EARLIER("Earlier")
+}
+
+private fun dateGroupFor(timestamp: Long): DateGroup {
+    val now = Calendar.getInstance()
+    val then = Calendar.getInstance().apply { timeInMillis = timestamp }
+
+    val nowYear = now.get(Calendar.YEAR)
+    val thenYear = then.get(Calendar.YEAR)
+    val nowDay = now.get(Calendar.DAY_OF_YEAR)
+    val thenDay = then.get(Calendar.DAY_OF_YEAR)
+
+    if (nowYear == thenYear) {
+        val daysDiff = nowDay - thenDay
+        return when {
+            daysDiff <= 0 -> DateGroup.TODAY
+            daysDiff == 1 -> DateGroup.YESTERDAY
+            daysDiff in 2..7 -> DateGroup.THIS_WEEK
+            daysDiff in 8..30 -> DateGroup.THIS_MONTH
+            else -> DateGroup.EARLIER
+        }
+    } else {
+        val diffMillis = (now.timeInMillis - then.timeInMillis).coerceAtLeast(0)
+        val diffDays = TimeUnit.MILLISECONDS.toDays(diffMillis)
+        return when {
+            diffDays <= 0L -> DateGroup.TODAY
+            diffDays == 1L -> DateGroup.YESTERDAY
+            diffDays in 2L..7L -> DateGroup.THIS_WEEK
+            diffDays in 8L..30L -> DateGroup.THIS_MONTH
+            else -> DateGroup.EARLIER
+        }
+    }
+}
+
 private fun relativeTimestamp(time: Long): String {
-    val diff = System.currentTimeMillis() - time
+    val diff = (System.currentTimeMillis() - time).coerceAtLeast(0)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(diff)
+    val hours = TimeUnit.MILLISECONDS.toHours(diff)
+    val days = TimeUnit.MILLISECONDS.toDays(diff)
     return when {
         minutes < 1 -> "Just now"
         minutes < 60 -> "${minutes}m ago"
-        TimeUnit.MILLISECONDS.toHours(diff) < 24 -> "${TimeUnit.MILLISECONDS.toHours(diff)}h ago"
-        TimeUnit.MILLISECONDS.toDays(diff) == 1L -> "Yesterday"
-        else -> "${TimeUnit.MILLISECONDS.toDays(diff)}d ago"
+        hours < 24 -> "${hours}h ago"
+        days == 1L -> "Yesterday"
+        days < 7L -> "${days}d ago"
+        else -> {
+            val cal = Calendar.getInstance().apply { timeInMillis = time }
+            val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
+            sdf.format(cal.time)
+        }
     }
 }

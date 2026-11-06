@@ -2,6 +2,7 @@ package com.pixelpal.app.data.remote.firebase
 
 import com.google.firebase.firestore.DocumentId
 import com.google.firebase.firestore.IgnoreExtraProperties
+import com.google.firebase.firestore.PropertyName
 import com.pixelpal.app.data.local.db.entity.ReminderEntity
 import com.pixelpal.app.data.local.db.entity.TaskEntity
 import com.pixelpal.app.domain.model.Bond
@@ -18,7 +19,7 @@ data class UserProfile(
     @DocumentId val userId: String = "",
     val email: String? = null,
     val displayName: String? = null,
-    val isAnonymous: Boolean = true,
+    @get:PropertyName("isAnonymous") @set:PropertyName("isAnonymous") var isAnonymous: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
     val lastActiveAt: Long = System.currentTimeMillis()
 )
@@ -39,7 +40,7 @@ data class FirestoreCompanion(
     val hatId: String? = null,
     val outfitId: String? = null,
     val accessoryId: String? = null,
-    val isFavorite: Boolean = false,
+    @get:PropertyName("isFavorite") @set:PropertyName("isFavorite") var isFavorite: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
 
@@ -82,7 +83,7 @@ data class FirestoreTask(
     @DocumentId val id: String = "",
     val title: String = "",
     val description: String? = null,
-    val isDone: Boolean = false,
+    @get:PropertyName("isDone") @set:PropertyName("isDone") var isDone: Boolean = false,
     val dueAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null,
@@ -204,7 +205,7 @@ data class FirestoreSubtask(
     @DocumentId val id: String = "",
     val parentCloudId: String = "",
     val title: String = "",
-    val isDone: Boolean = false,
+    @get:PropertyName("isDone") @set:PropertyName("isDone") var isDone: Boolean = false,
     val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val completedAt: Long? = null,

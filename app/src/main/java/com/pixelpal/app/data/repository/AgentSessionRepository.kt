@@ -108,16 +108,23 @@ class AgentSessionRepository @Inject constructor(
 
     /** One-shot fetch; null means "unreachable", an empty list means "no agents". */
     suspend fun fetchAgents(bridgeUrl: String, pairingKey: String? = null): List<WireAgent>? = withContext(Dispatchers.IO) {
-        val url = bridgeUrl.trimEnd('/') + "/agents"
+        val cleanBase = bridgeUrl.trimEnd('/')
+            .removeSuffix("/agents")
+            .removeSuffix("/status")
+            .removeSuffix("/")
+        val url = "$cleanBase/agents"
+        val key = pairingKey ?: preferences.getAgentBridgeKey()
         val request = Request.Builder()
             .url(url)
-            .header("X-PixelPal-Key", pairingKey ?: preferences.getAgentBridgeKey())
+            .apply {
+                if (key.isNotBlank()) header("X-PixelPal-Key", key)
+            }
             .get()
             .build()
         try {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Timber.w("Agent bridge returned HTTP ${response.code}")
+                    Timber.w("Agent bridge returned HTTP ${response.code} for $url")
                     return@withContext null
                 }
                 val body = response.body?.string().orEmpty()
@@ -125,8 +132,42 @@ class AgentSessionRepository @Inject constructor(
                 parsed.agents
             }
         } catch (e: Exception) {
-            Timber.d(e, "Agent bridge unreachable at $url")
+            Timber.e(e, "Agent bridge unreachable at $url")
             null
+        }
+    }
+
+    suspend fun verifyPairingWithReason(bridgeUrl: String, pairingKey: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+        val cleanBase = bridgeUrl.trimEnd('/')
+            .removeSuffix("/agents")
+            .removeSuffix("/status")
+            .removeSuffix("/")
+        val url = "$cleanBase/agents"
+        val key = pairingKey.ifBlank { preferences.getAgentBridgeKey() }
+        val request = Request.Builder()
+            .url(url)
+            .apply {
+                if (key.isNotBlank()) header("X-PixelPal-Key", key)
+            }
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val msg = when (response.code) {
+                        401 -> "Bridge rejected connection (HTTP 401 Unauthorized)."
+                        404 -> "Endpoint not found (HTTP 404)."
+                        else -> "Bridge returned HTTP ${response.code}"
+                    }
+                    Timber.w("Pairing check failed: $msg")
+                    return@withContext false to msg
+                }
+                true to null
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Pairing network error for $url")
+            val msg = e.localizedMessage ?: e.message ?: "Could not connect to $url"
+            false to msg
         }
     }
 
@@ -155,7 +196,104 @@ class AgentSessionRepository @Inject constructor(
 
     suspend fun clear() = withContext(Dispatchers.IO) { dao.deleteAll() }
 
+    suspend fun dismissSession(sessionId: String, source: String, bridgeUrl: String) = withContext(Dispatchers.IO) {
+        dao.deleteById(sessionId)
+        val rawSessionId = sessionId.substringAfter(':')
+        dao.deleteById("${source}:${rawSessionId}")
+        if (bridgeUrl.isBlank()) return@withContext
+        val cleanBase = bridgeUrl.trimEnd('/')
+            .removeSuffix("/agents")
+            .removeSuffix("/status")
+            .removeSuffix("/")
+        val url = "$cleanBase/sessions/dismiss"
+        val payload = """{"source":"$source","sessionId":"$rawSessionId"}"""
+        val req = Request.Builder()
+            .url(url)
+            .apply {
+                val key = preferences.getAgentBridgeKey()
+                if (key.isNotBlank()) header("X-PixelPal-Key", key)
+            }
+            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(req).execute().close()
+        } catch (e: Exception) {
+            Timber.d(e, "Failed to notify bridge of dismissed session")
+        }
+    }
+
+    suspend fun sendAgentCommand(bridgeUrl: String, sessionId: String, command: String): Boolean = withContext(Dispatchers.IO) {
+        if (bridgeUrl.isBlank()) return@withContext false
+        val cleanBase = bridgeUrl.trimEnd('/')
+            .removeSuffix("/agents")
+            .removeSuffix("/status")
+            .removeSuffix("/")
+        val rawSessionId = sessionId.substringAfter(':')
+        val url = "$cleanBase/"
+        val payload = """{"command":"$command","sessionId":"$rawSessionId"}"""
+        val req = Request.Builder()
+            .url(url)
+            .header("X-PixelPal-Key", preferences.getAgentBridgeKey())
+            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(req).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to send command to agent")
+            false
+        }
+    }
+
+    suspend fun getSessionMessages(bridgeUrl: String, sessionId: String): List<AgentChatMessage> = withContext(Dispatchers.IO) {
+        if (bridgeUrl.isBlank()) return@withContext emptyList()
+        val cleanBase = bridgeUrl.trimEnd('/')
+            .removeSuffix("/agents")
+            .removeSuffix("/status")
+            .removeSuffix("/")
+        val rawSessionId = sessionId.substringAfter(':')
+        val url = "$cleanBase/sessions/messages?sessionId=$rawSessionId"
+        val req = Request.Builder()
+            .url(url)
+            .apply {
+                val key = preferences.getAgentBridgeKey()
+                if (key.isNotBlank()) header("X-PixelPal-Key", key)
+            }
+            .get()
+            .build()
+        try {
+            client.newCall(req).execute().use { response ->
+                if (!response.isSuccessful) return@withContext emptyList()
+                val body = response.body?.string().orEmpty()
+                val parsed = json.decodeFromString<AgentMessagesResponse>(body)
+                parsed.messages
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to fetch session messages from bridge")
+            emptyList()
+        }
+    }
+
     // --- wire models ---------------------------------------------------
+
+    @Serializable
+    data class AgentChatMessage(
+        val id: String = "",
+        val role: String = "user",
+        val text: String = "",
+        val name: String = "",
+        val command: String = "",
+        val status: String = "",
+        val summary: String = "",
+        val output: String = "",
+        val timestamp: Long = 0L
+    )
+
+    @Serializable
+    data class AgentMessagesResponse(
+        val ok: Boolean = false,
+        val sessionId: String? = null,
+        val messages: List<AgentChatMessage> = emptyList()
+    )
 
     @Serializable
     data class WireAgentsResponse(

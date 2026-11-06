@@ -315,7 +315,7 @@ class FirestoreSyncCoordinator @Inject constructor(
                 }
                 if (local == null) {
                     taskDao.insert(row.toEntity(localId = 0, companionId = companionId))
-                } else {
+                } else if (SyncPolicy.shouldApplyRemote(effective, local.updatedAt)) {
                     taskDao.update(
                         row.toEntity(localId = local.id, companionId = local.companionId)
                             .copy(updatedAt = SyncPolicy.localTimestampAfterApply(effective, local.updatedAt))

@@ -35,6 +35,24 @@ interface AgentSessionDao {
     )
     fun observeAll(): Flow<List<AgentSessionEntity>>
 
+    @Query(
+        """
+        SELECT * FROM agent_sessions
+        ORDER BY
+            CASE status
+                WHEN 'WAITING_FOR_INPUT' THEN 0
+                WHEN 'ERROR' THEN 1
+                WHEN 'WORKING' THEN 2
+                WHEN 'COMPLETED' THEN 3
+                WHEN 'ONLINE' THEN 4
+                WHEN 'IDLE' THEN 5
+                ELSE 6
+            END,
+            lastEventAt DESC
+        """
+    )
+    suspend fun getAllDirect(): List<AgentSessionEntity>
+
     @Query("SELECT * FROM agent_sessions WHERE id = :id")
     suspend fun getById(id: String): AgentSessionEntity?
 
@@ -67,6 +85,9 @@ interface AgentSessionDao {
     /** The bridge reported no agents at all. */
     @Query("DELETE FROM agent_sessions WHERE bridgeId = :bridgeId")
     suspend fun deleteAllForBridge(bridgeId: String)
+
+    @Query("DELETE FROM agent_sessions WHERE id = :id")
+    suspend fun deleteById(id: String)
 
     @Query("DELETE FROM agent_sessions")
     suspend fun deleteAll()

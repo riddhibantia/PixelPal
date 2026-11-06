@@ -27,13 +27,13 @@ class SpeechBubbleOverlayView(context: Context) : FrameLayout(context) {
     private val handler = Handler(Looper.getMainLooper())
     private var typewriterRunnable: Runnable? = null
 
-    // Neutral dark palette — aligned with the app's DarkPalette
-    private val bubbleBg = Color.parseColor("#17171C")       // Surface
-    private val bubbleBorder = Color.parseColor("#F6C453")   // Primary gold
-    private val textPrimary = Color.parseColor("#F4F4F5")   // White text
-    private val textMuted = Color.parseColor("#A1A1AA")     // Secondary text
-    private val accentGreen = Color.parseColor("#6BCB77")   // PixelSuccess
-    private val accentYellow = Color.parseColor("#FFD166")  // PixelWarning
+    // Sleek Obsidian & Violet palette — aligned with the app's DarkPalette
+    private val bubbleBg = Color.parseColor("#1D1A2E")       // Surface
+    private val bubbleBorder = Color.parseColor("#4D8B6CF6") // Subtle violet border (30% alpha)
+    private val textPrimary = Color.parseColor("#FAF9FE")   // White text
+    private val textMuted = Color.parseColor("#A6A0B8")     // Secondary text
+    private val accentGreen = Color.parseColor("#2EA043")   // PixelSuccess
+    private val accentYellow = Color.parseColor("#8B6CF6")  // Primary violet
     private val accentRed = Color.parseColor("#FF6B6B")     // Error
 
     init {
@@ -42,17 +42,17 @@ class SpeechBubbleOverlayView(context: Context) : FrameLayout(context) {
 
         // Outer glow effect
         val outerGlow = GradientDrawable().apply {
-            setColor(Color.parseColor("#F6C453"))  // Primary gold
+            setColor(Color.parseColor("#1A8B6CF6"))  // Violet 10% alpha
             cornerRadius = 20 * density
-            setStroke((1 * density).toInt(), Color.parseColor("#1AF6C453"))  // Primary gold 10% alpha
+            setStroke((1 * density).toInt(), Color.parseColor("#338B6CF6"))  // Violet 20% alpha
         }
 
         // Main bubble background with gradient feel
         val backgroundDrawable = GradientDrawable().apply {
             gradientType = GradientDrawable.LINEAR_GRADIENT
             colors = intArrayOf(
-                Color.parseColor("#1E1E25"),  // SurfaceElevated
-                Color.parseColor("#17171C")   // Surface
+                Color.parseColor("#242134"),  // SurfaceElevated
+                Color.parseColor("#1D1A2E")   // Surface
             )
             orientation = GradientDrawable.Orientation.TOP_BOTTOM
             setStroke((1.5 * density).toInt(), bubbleBorder)

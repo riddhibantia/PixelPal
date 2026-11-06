@@ -24,6 +24,14 @@ object BridgeSetup {
         get() = "curl -fsSL ${BuildConfig.BRIDGE_INSTALL_URL} | bash\n" +
             "pixelpal-bridge setup"
 
+    /**
+     * Windows (PowerShell/CMD) command: installs pixelpal-bridge via pip,
+     * installs hooks and prints the pairing code/QR.
+     */
+    val installCommandWindows: String
+        get() = "pip install pixelpal-bridge\n" +
+            "pixelpal-bridge setup"
+
     /** Short host/label used by the clipboard label and talkback text. */
     const val CLIPBOARD_LABEL = "PixelPal bridge"
 }

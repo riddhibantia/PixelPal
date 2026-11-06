@@ -29,7 +29,8 @@ fun AppTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
-    subtitle: String? = null
+    subtitle: String? = null,
+    actions: @Composable (androidx.compose.foundation.layout.RowScope.() -> Unit)? = null
 ) {
     val isSecondary = onBack != null
 
@@ -79,6 +80,7 @@ fun AppTopBar(
                     )
                 }
             }
+            actions?.invoke(this)
         }
     }
 }

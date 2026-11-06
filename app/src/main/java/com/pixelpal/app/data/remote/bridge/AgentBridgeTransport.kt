@@ -52,6 +52,9 @@ class AgentBridgeTransport @Inject constructor(
     suspend fun verifyPairing(bridgeUrl: String, pairingKey: String): Boolean =
         repository.fetchAgents(bridgeUrl, pairingKey) != null
 
+    suspend fun verifyPairingDetailed(bridgeUrl: String, pairingKey: String): Pair<Boolean, String?> =
+        repository.verifyPairingWithReason(bridgeUrl, pairingKey)
+
     /** Send an approve/deny decision back to the bridge. */
     suspend fun respondToApproval(
         bridgeUrl: String,

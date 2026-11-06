@@ -195,7 +195,7 @@ fun SettingsScreen(
                             title = stringResource(R.string.settings_row_background_title),
                             description = stringResource(R.string.settings_row_background_description),
                             icon = Icons.Default.Bolt,
-                            onClick = { navController.navigate(Screen.OverlaySettings.route) }
+                            onClick = { navController.navigate(Screen.Permissions.route) }
                         )
                     }
 

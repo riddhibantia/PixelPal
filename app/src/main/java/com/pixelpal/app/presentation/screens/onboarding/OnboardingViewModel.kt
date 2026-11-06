@@ -18,11 +18,18 @@ class OnboardingViewModel @Inject constructor(
     private val _petName = MutableStateFlow("Pixel")
     val petName: StateFlow<String> = _petName.asStateFlow()
 
+    private val _userName = MutableStateFlow("")
+    val userName: StateFlow<String> = _userName.asStateFlow()
+
     private val _selectedPetType = MutableStateFlow("cat")
     val selectedPetType: StateFlow<String> = _selectedPetType.asStateFlow()
 
     fun updatePetName(name: String) {
         _petName.value = name
+    }
+
+    fun updateUserName(name: String) {
+        _userName.value = name
     }
 
     fun selectPetType(type: String) {
@@ -31,7 +38,11 @@ class OnboardingViewModel @Inject constructor(
 
     fun saveAndComplete(onComplete: () -> Unit) {
         viewModelScope.launch {
-            preferencesManager.setPetName(_petName.value)
+            preferencesManager.setPetName(_petName.value.ifBlank { "Pixel" })
+            val user = _userName.value.trim()
+            if (user.isNotBlank()) {
+                preferencesManager.setUserName(user)
+            }
             preferencesManager.setSelectedPetType(_selectedPetType.value)
             preferencesManager.setIsFirstLaunch(false)
             onComplete()

@@ -112,17 +112,40 @@ def make_handler(state: BridgeState):
             host = self.client_address[0] if self.client_address else ""
             return host in ("127.0.0.1", "::1", "localhost")
 
+        def _is_private_lan(self) -> bool:
+            host = self.client_address[0] if self.client_address else ""
+            if host.startswith("::ffff:"):
+                host = host[7:]
+            if host in ("127.0.0.1", "::1", "localhost"):
+                return True
+            try:
+                parts = [int(p) for p in host.split(".")]
+                if len(parts) == 4:
+                    if parts[0] == 127 or parts[0] == 10:
+                        return True
+                    if parts[0] == 192 and parts[1] == 168:
+                        return True
+                    if parts[0] == 172 and 16 <= parts[1] <= 31:
+                        return True
+                    if parts[0] == 100 and 64 <= parts[1] <= 127:  # Tailscale
+                        return True
+            except (ValueError, IndexError):
+                pass
+            return False
+
         def _authorised(self) -> bool:
             if not state.pairing_key:
                 return True
             if self._is_loopback():
                 return True  # local hooks never need the key
             presented = self.headers.get("X-PixelPal-Key", "") or ""
-            # Constant-time: a plain `==` leaks the key's prefix through timing.
-            return hmac.compare_digest(
+            # Constant-time check when key is provided
+            if presented and hmac.compare_digest(
                 presented.encode("utf-8"),
                 state.pairing_key.encode("utf-8"),
-            )
+            ):
+                return True
+            return False
 
         def _body(self) -> dict:
             try:
@@ -181,6 +204,23 @@ def make_handler(state: BridgeState):
                 self._json({"commands": cmds})
                 return
 
+            if path in ("/sessions/messages", "/messages"):
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(self.path)
+                qs = parse_qs(parsed.query)
+                session_id = (qs.get("sessionId", [None])[0] or qs.get("session_id", [None])[0] or "").split(":", 1)[-1]
+                if not session_id:
+                    with state.lock:
+                        for s in state.registry.sessions.values():
+                            session_id = s.session_id
+                            break
+                messages = []
+                if session_id:
+                    from .adapters import opencode as oc_adapter
+                    messages = oc_adapter.fetch_session_messages(session_id)
+                self._json({"ok": True, "sessionId": session_id, "messages": messages})
+                return
+
             self._json({"error": "not found"}, 404)
 
         def do_POST(self) -> None:  # noqa: N802
@@ -190,6 +230,14 @@ def make_handler(state: BridgeState):
 
             path = self.path.split("?")[0].rstrip("/") or "/"
             payload = self._body()
+
+            if path == "/sessions/dismiss":
+                source = str(payload.get("source") or "")
+                session_id = str(payload.get("sessionId") or "")
+                with state.lock:
+                    state.registry.remove(source, session_id)
+                self._json({"ok": True})
+                return
 
             if path == "/events":
                 try:
@@ -223,18 +271,54 @@ def make_handler(state: BridgeState):
                 self._json({"ok": True})
                 return
 
-            if path == "/":
+            if path in ("/", "/commands/send", "/sessions/prompt"):
                 # Back-compat with the original PixelPal approval contract.
                 approval_id = payload.get("approvalId")
                 if approval_id:
                     state.resolve(str(approval_id), str(payload.get("decision") or "deny"))
                     self._json({"ok": True, "action": "approval-recorded"})
                     return
-                command = str(payload.get("command") or "").strip()
+                command = str(payload.get("command") or payload.get("text") or payload.get("prompt") or "").strip()
+                session_id = str(payload.get("sessionId") or payload.get("session_id") or "").split(":", 1)[-1]
+                from .adapters import opencode as oc_adapter
+                if not session_id:
+                    with state.lock:
+                        for s in state.registry.sessions.values():
+                            session_id = s.session_id
+                            break
+                delivered = False
+                error_msg = None
+                cmd_lower = command.lower()
+                if cmd_lower in ("stop", "pause", "interrupt", "abort", "cancel"):
+                    if session_id:
+                        delivered = oc_adapter.interrupt(session_id)
+                    else:
+                        delivered = True
+                elif command:
+                    if session_id:
+                        try:
+                            oc_adapter.send_prompt(session_id, command)
+                            delivered = True
+                        except Exception as ex:
+                            error_msg = str(ex)
+                    else:
+                        error_msg = "No active agent session found"
+
                 with state.lock:
-                    state.commands.insert(0, {"at": time.time(), "command": command})
+                    state.commands.insert(0, {
+                        "at": time.time(),
+                        "command": command,
+                        "sessionId": session_id,
+                        "delivered": delivered,
+                        "error": error_msg,
+                    })
                     del state.commands[50:]
-                self._json({"ok": True, "action": "queued"})
+                self._json({
+                    "ok": delivered or not error_msg,
+                    "action": "delivered" if delivered else "queued",
+                    "sessionId": session_id,
+                    "error": error_msg,
+                })
                 return
 
             self._json({"error": "not found"}, 404)

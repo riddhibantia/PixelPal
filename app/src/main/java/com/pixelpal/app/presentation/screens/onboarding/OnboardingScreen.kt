@@ -110,6 +110,7 @@ fun OnboardingScreen(
     val activity = context as? Activity
 
     val petName by viewModel.petName.collectAsState()
+    val userName by viewModel.userName.collectAsState()
     val selectedPetType by viewModel.selectedPetType.collectAsState()
 
     Box(
@@ -194,8 +195,10 @@ fun OnboardingScreen(
                     )
                     2 -> PageNamePet(
                         petName = petName,
+                        userName = userName,
                         petType = selectedPetType,
-                        onNameChange = { viewModel.updatePetName(it) }
+                        onNameChange = { viewModel.updatePetName(it) },
+                        onUserNameChange = { viewModel.updateUserName(it) }
                     )
                     3 -> PageEnableOverlay(
                         petName = petName,
@@ -530,8 +533,10 @@ private fun PageChoosePet(selectedType: String, onSelect: (String) -> Unit) {
 @Composable
 private fun PageNamePet(
     petName: String,
+    userName: String,
     petType: String,
-    onNameChange: (String) -> Unit
+    onNameChange: (String) -> Unit,
+    onUserNameChange: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -601,6 +606,16 @@ private fun PageNamePet(
                 alpha = if (petName.length >= 18) 1f else 0.5f
             ),
             modifier = Modifier.align(Alignment.End)
+        )
+
+        Spacer(Modifier.height(Spacing.md))
+
+        AppTextField(
+            value = userName,
+            onValueChange = { if (it.length <= 20) onUserNameChange(it) },
+            label = stringResource(R.string.onboarding_user_name_label),
+            placeholder = stringResource(R.string.onboarding_user_name_placeholder),
+            modifier = Modifier.fillMaxWidth()
         )
 
         // Preview line

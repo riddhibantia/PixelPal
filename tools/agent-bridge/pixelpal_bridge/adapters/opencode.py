@@ -244,3 +244,121 @@ def uninstall() -> int:
         return 1
     except OSError:
         return 0
+
+
+def send_prompt(session_id: str, prompt: str, timeout: float = 12.0) -> dict:
+    """Send a prompt or command directly into an opencode session."""
+    url, password = _service_credentials()
+    headers = {"Content-Type": "application/json"}
+    if password:
+        auth = base64.b64encode(f"opencode:{password}".encode()).decode()
+        headers["Authorization"] = f"Basic {auth}"
+    payload = json.dumps({"text": prompt}).encode("utf-8")
+    req = urllib.request.Request(f"{url}/api/session/{session_id}/prompt", data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8") or "{}")
+
+
+def interrupt(session_id: str, timeout: float = 3.0) -> bool:
+    """Interrupt / stop the currently running opencode execution."""
+    url, password = _service_credentials()
+    headers = {}
+    if password:
+        auth = base64.b64encode(f"opencode:{password}".encode()).decode()
+        headers["Authorization"] = f"Basic {auth}"
+    req = urllib.request.Request(f"{url}/api/session/{session_id}/interrupt", data=b"", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return 200 <= resp.status < 300
+    except Exception:
+        return False
+
+
+def fetch_session_messages(session_id: str, limit: int = 20, timeout: float = 3.0) -> list[dict]:
+    """Fetch recent conversation messages and tool executions for an opencode session."""
+    url, password = _service_credentials()
+    headers = {}
+    if password:
+        auth = base64.b64encode(f"opencode:{password}".encode()).decode()
+        headers["Authorization"] = f"Basic {auth}"
+    req = urllib.request.Request(f"{url}/api/session/{session_id}/message?limit={limit}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read()
+        data = json.loads(raw or "{}")
+        raw_items = data.get("data", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+        messages = []
+        for item in reversed(raw_items):
+            mtype = item.get("type")
+            item_id = str(item.get("id") or "")
+            created_at = item.get("time", {}).get("created", 0) if isinstance(item.get("time"), dict) else 0
+            if mtype == "user":
+                text = item.get("text")
+                if not text and isinstance(item.get("payload"), dict):
+                    text = item.get("payload", {}).get("text")
+                if text:
+                    messages.append({
+                        "id": item_id,
+                        "role": "user",
+                        "text": str(text),
+                        "timestamp": created_at,
+                    })
+            elif mtype == "assistant":
+                contents = item.get("content") or []
+                if isinstance(contents, list):
+                    for c in contents:
+                        if not isinstance(c, dict):
+                            continue
+                        ctype = c.get("type")
+                        if ctype == "text" and c.get("text"):
+                            messages.append({
+                                "id": item_id + "-text",
+                                "role": "agent",
+                                "text": str(c["text"]),
+                                "timestamp": created_at,
+                            })
+                        elif ctype == "tool":
+                            inp = c.get("state", {}).get("input", {})
+                            cmd = inp.get("command") or inp.get("text") or inp.get("description") or ""
+                            tool_name = c.get("name", "tool")
+                            tool_status = c.get("state", {}).get("status", "completed")
+                            output_snippet = ""
+                            tool_content = c.get("state", {}).get("content", [])
+                            if isinstance(tool_content, list) and tool_content:
+                                for tc in tool_content:
+                                    if isinstance(tc, dict) and tc.get("text"):
+                                        output_snippet = str(tc["text"])[:200]
+                                        break
+                            # Build human-friendly concise summary (e.g. "Opened file.kt", "Running build...", "Done")
+                            path_arg = inp.get("path") or inp.get("file") or inp.get("filePath") or ""
+                            if path_arg:
+                                fn = Path(path_arg).name or path_arg
+                                summary = f"Opened {fn}"
+                            elif tool_name in ("shell", "bash", "terminal", "command"):
+                                is_done = tool_status in ("completed", "done", "success", "succeeded")
+                                cmd_str = cmd.strip()
+                                if "git" in cmd_str.lower():
+                                    summary = "Done (git)" if is_done else "Running git..."
+                                elif "gradle" in cmd_str.lower():
+                                    summary = "Done (gradle)" if is_done else "Running gradle..."
+                                elif is_done:
+                                    summary = "Done"
+                                else:
+                                    summary = "Running..."
+                            else:
+                                is_done = tool_status in ("completed", "done", "success", "succeeded")
+                                summary = f"Done ({tool_name})" if is_done else f"Running {tool_name}..."
+
+                            messages.append({
+                                "id": str(c.get("id") or item_id + "-tool"),
+                                "role": "tool",
+                                "name": tool_name,
+                                "command": cmd,
+                                "status": tool_status,
+                                "summary": summary,
+                                "output": output_snippet,
+                                "timestamp": created_at,
+                            })
+        return messages
+    except Exception:
+        return []

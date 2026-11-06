@@ -21,6 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,6 +85,7 @@ fun AuthScreen(
     val isSyncing by viewModel.isSyncing.collectAsState()
     val isDataReady by viewModel.isDataReady.collectAsState()
     val syncError by viewModel.syncError.collectAsState()
+    var showResetDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     // Navigate only after auth AND the post-login cloud restore finished —
     // never on auth alone, or Home renders an empty Room mid-restore.
@@ -133,7 +137,24 @@ fun AuthScreen(
                     modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)
                 )
 
-                Spacer(modifier = Modifier.height(Spacing.lg))
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                // User Name field — how the Pixel Pet should address the user
+                AppTextField(
+                    value = uiState.userName,
+                    onValueChange = viewModel::onUserNameChanged,
+                    label = stringResource(R.string.auth_user_name_label),
+                    placeholder = stringResource(R.string.auth_user_name_placeholder),
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.md))
 
                 // Google Sign-In first — the one-tap path.
                 val activityContext = LocalContext.current
@@ -301,7 +322,7 @@ fun AuthScreen(
                     }
 
                     if (!uiState.isSignUpMode) {
-                        TextButton(onClick = viewModel::sendPasswordReset) {
+                        TextButton(onClick = { showResetDialog = true }) {
                             Text(
                                 text = stringResource(R.string.auth_action_forgot_password),
                                 style = MaterialTheme.typography.bodySmall,
@@ -312,5 +333,93 @@ fun AuthScreen(
                 }
             }
         }
+    }
+
+    if (showResetDialog) {
+        var resetEmail by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(uiState.email) }
+        var resetSent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        var resetError by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+        var isSending by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isSending) showResetDialog = false },
+            title = {
+                Text(
+                    text = stringResource(R.string.auth_reset_dialog_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    if (resetSent) {
+                        Text(
+                            text = stringResource(R.string.auth_reset_dialog_success),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.auth_reset_dialog_desc),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        AppTextField(
+                            value = resetEmail,
+                            onValueChange = { resetEmail = it; resetError = null },
+                            label = stringResource(R.string.auth_email_label),
+                            placeholder = stringResource(R.string.auth_email_placeholder),
+                            keyboardType = KeyboardType.Email
+                        )
+                        Text(
+                            text = stringResource(R.string.auth_reset_dialog_spam_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (resetError != null) {
+                            Text(
+                                text = resetError ?: "",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (resetSent) {
+                    TextButton(onClick = { showResetDialog = false }) {
+                        Text("OK")
+                    }
+                } else {
+                    PrimaryButton(
+                        text = stringResource(R.string.auth_reset_dialog_send),
+                        onClick = {
+                            isSending = true
+                            resetError = null
+                            viewModel.sendPasswordReset(resetEmail) { success, msg ->
+                                isSending = false
+                                if (success) {
+                                    resetSent = true
+                                } else {
+                                    resetError = msg
+                                }
+                            }
+                        },
+                        enabled = !isSending && resetEmail.isNotBlank()
+                    )
+                }
+            },
+            dismissButton = {
+                if (!resetSent) {
+                    TextButton(
+                        onClick = { showResetDialog = false },
+                        enabled = !isSending
+                    ) {
+                        Text(stringResource(R.string.common_dialog_cancel))
+                    }
+                }
+            }
+        )
     }
 }
