@@ -4,7 +4,6 @@
 
 <p>
   <a href="https://github.com/riddhibantia/PixelPal/releases">📲 Download APK</a> •
-  <a href="https://riddhibantia.github.io/Pixel-Pal-/mini.html">🟢 Live Widget Demo</a>
 </p>
 
 <p>
