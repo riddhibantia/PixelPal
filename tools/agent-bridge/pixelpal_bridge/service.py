@@ -34,6 +34,18 @@ LAUNCHD_PLIST = LAUNCHD_DIR / f"com.pixelpal.{SERVICE_NAME}.plist"
 
 PIDFILE = Path.home() / ".config" / "pixelpal" / "bridge.pid"
 
+WINDOWS_STARTUP = (
+    Path(os.environ.get("APPDATA", ""))
+    / "Microsoft"
+    / "Windows"
+    / "Start Menu"
+    / "Programs"
+    / "Startup"
+    / f"{SERVICE_NAME}.vbs"
+    if sys.platform == "win32" and os.environ.get("APPDATA")
+    else None
+)
+
 
 def _python() -> str:
     """
@@ -238,9 +250,22 @@ def install_detached(port: int = 8787) -> str:
             env=env,
         )
     PIDFILE.write_text(str(process.pid))
+    if WINDOWS_STARTUP and WINDOWS_STARTUP.parent.exists():
+        py = _python()
+        root_dir = root or ""
+        vbs_content = (
+            f'Set WshShell = CreateObject("WScript.Shell")\n'
+            f'WshShell.CurrentDirectory = "{root_dir}"\n'
+            f'WshShell.Environment("PROCESS")("PYTHONPATH") = "{root_dir}"\n'
+            f'WshShell.Run """{py}"" -m pixelpal_bridge.cli serve --port {port}", 0, False\n'
+        )
+        try:
+            WINDOWS_STARTUP.write_text(vbs_content, encoding="utf-8")
+        except OSError:
+            pass
     return (
         f"background process pid {process.pid} (log: {log}) — "
-        "NOT started automatically after reboot"
+        + ("starts automatically on login via Windows Startup" if sys.platform == "win32" else "NOT started automatically after reboot")
     )
 
 
@@ -291,6 +316,13 @@ def uninstall() -> bool:
         PIDFILE.unlink()
         removed = True
 
+    if WINDOWS_STARTUP and WINDOWS_STARTUP.exists():
+        try:
+            WINDOWS_STARTUP.unlink()
+            removed = True
+        except OSError:
+            pass
+
     return removed
 
 
@@ -316,4 +348,9 @@ def status() -> str:
 
 
 def is_installed() -> bool:
-    return SYSTEMD_UNIT.exists() or LAUNCHD_PLIST.exists() or PIDFILE.exists()
+    return (
+        SYSTEMD_UNIT.exists()
+        or LAUNCHD_PLIST.exists()
+        or PIDFILE.exists()
+        or bool(WINDOWS_STARTUP and WINDOWS_STARTUP.exists())
+    )

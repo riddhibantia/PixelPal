@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -25,6 +26,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(service, "LAUNCHD_DIR", tmp_path / "launchd")
     monkeypatch.setattr(service, "LAUNCHD_PLIST", tmp_path / "launchd" / "com.pixelpal.plist")
     monkeypatch.setattr(service, "PIDFILE", tmp_path / "bridge.pid")
+    monkeypatch.setattr(service, "WINDOWS_STARTUP", tmp_path / "pixelpal-bridge.vbs")
     monkeypatch.setattr(service, "_run", lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""))
     return tmp_path
 
@@ -114,9 +116,10 @@ class TestDetachedFallback:
         monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: FakeProcess())
         description = service.install_detached(8787)
         assert service.PIDFILE.exists()
-        assert "NOT started automatically after reboot" in description, (
-            "the fallback must be honest about its limitation"
-        )
+        if sys.platform == "win32":
+            assert "starts automatically on login via Windows Startup" in description
+        else:
+            assert "NOT started automatically after reboot" in description
 
 
 class TestStatus:
