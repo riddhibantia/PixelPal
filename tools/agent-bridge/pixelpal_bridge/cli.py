@@ -116,7 +116,7 @@ def _tailscale_hostname() -> str | None:
     dns_name = (self_info.get("DNSName") or "").rstrip(".")
     if not dns_name or info.get("BackendState") != "Running":
         return None
-    return f"https://{dns_name}"
+    return dns_name
 
 
 def _print_pairing_qr(uri: str) -> None:
@@ -172,7 +172,7 @@ def cmd_serve(args) -> int:
     print(f"  auth      {'pairing key required' if key else 'open on LAN (run `pair` to secure)'}")
     tailnet = _tailscale_hostname()
     if tailnet:
-        print(f"  tailscale {tailnet}")
+        print(f"  tailscale http://{tailnet}:{port}")
     else:
         print("  tailnet   not available (install Tailscale to connect outside your Wi-Fi)")
     print()
@@ -330,21 +330,17 @@ def cmd_setup(args) -> int:
     # 5. How the phone connects -----------------------------------------
     print()
     lan = _lan_ip()
-    pair_host = (
-        tailnet.removeprefix("https://").removeprefix("http://").split("/")[0]
-        if tailnet else lan
-    )
+    pair_host = lan or tailnet or "127.0.0.1"
     key = config.get("pairingKey") or ""
     print("  In PixelPal, open the Agent tab → Scan pairing code, or paste this code.")
     print("  It includes the bridge address and pairing key:")
     print()
-    if pair_host:
-        pairing_uri = f"pixelpal://pair?host={pair_host}&port={port}&key={key}"
-    else:
-        pairing_uri = f"pixelpal://pair?host=YOUR-LAPTOP-IP&port={port}&key={key}"
+    pairing_uri = f"pixelpal://pair?host={pair_host}&port={port}&key={key}"
     print(f"    {pairing_uri}")
     _print_pairing_qr(pairing_uri)
     print()
+    if tailnet and lan:
+        print(f"  Tailscale address (if away from Wi-Fi): pixelpal://pair?host={tailnet}&port={port}&key={key}")
     print(f"  (Plain address, if you prefer: http://{lan or 'YOUR-LAPTOP-IP'}:{port})")
     print()
     if not tailnet:

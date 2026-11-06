@@ -133,6 +133,18 @@ class AgentSessionRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Timber.e(e, "Agent bridge unreachable at $url")
+            if (url.startsWith("https://", ignoreCase = true) && (e is javax.net.ssl.SSLException || e.cause is java.security.cert.CertificateException)) {
+                val fallbackUrl = "http://" + url.substring(8).substringBefore("/agents")
+                Timber.i("Retrying bridge over HTTP after TLS failure: $fallbackUrl")
+                val fallbackAgents = fetchAgents(fallbackUrl, key)
+                if (fallbackAgents != null) {
+                    val savedUrl = preferences.getAgentBridgeUrl()
+                    if (savedUrl.startsWith("https://", ignoreCase = true)) {
+                        preferences.setAgentBridge(fallbackUrl, key, preferences.getAgentBridgeId())
+                    }
+                }
+                return@withContext fallbackAgents
+            }
             null
         }
     }
@@ -166,6 +178,11 @@ class AgentSessionRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Timber.e(e, "Pairing network error for $url")
+            if (url.startsWith("https://", ignoreCase = true) && (e is javax.net.ssl.SSLException || e.cause is java.security.cert.CertificateException)) {
+                val fallbackUrl = "http://" + url.substring(8).substringBefore("/agents")
+                Timber.i("Retrying pairing verification over HTTP after TLS failure: $fallbackUrl")
+                return@withContext verifyPairingWithReason(fallbackUrl, key)
+            }
             val msg = e.localizedMessage ?: e.message ?: "Could not connect to $url"
             false to msg
         }

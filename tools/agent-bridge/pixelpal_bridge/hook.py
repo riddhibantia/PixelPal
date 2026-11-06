@@ -37,6 +37,8 @@ APPROVAL_TIMEOUT_SECONDS = float(os.environ.get("PIXELPAL_APPROVAL_TIMEOUT", "60
 def _bridge_addr() -> tuple[str, int]:
     """Bridge address from config, env override, or default."""
     host = os.environ.get("PIXELPAL_BRIDGE_HOST", "127.0.0.1")
+    if host in ("0.0.0.0", "::", ""):
+        host = "127.0.0.1"
     port = os.environ.get("PIXELPAL_BRIDGE_PORT")
     if port:
         try:
@@ -48,7 +50,10 @@ def _bridge_addr() -> tuple[str, int]:
     )
     try:
         cfg = json.loads(cfg_path.read_text())
-        return str(cfg.get("host", host)), int(cfg.get("port", 8787))
+        h = str(cfg.get("host", host))
+        if h in ("0.0.0.0", "::", ""):
+            h = "127.0.0.1"
+        return h, int(cfg.get("port", 8787))
     except (OSError, ValueError, json.JSONDecodeError):
         return host, 8787
 

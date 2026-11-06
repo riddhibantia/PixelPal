@@ -19,6 +19,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -54,6 +55,18 @@ def _service_credentials() -> tuple[str, str | None]:
 def _running_client_count() -> int:
     if "PYTEST_CURRENT_TEST" in os.environ:
         return 0
+    if sys.platform == "win32":
+        try:
+            out = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq opencode.exe", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                timeout=1.0,
+            )
+            count = sum(1 for line in out.stdout.splitlines() if "opencode.exe" in line.lower())
+            return max(1, count - 1) if count > 1 else (1 if count == 1 else 0)
+        except Exception:
+            return 0
     try:
         out = subprocess.run(
             ["pgrep", "-a", "-x", "opencode"],
@@ -185,8 +198,8 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
         is_running_client = idx < client_count
         if updated_at is not None:
             age = max(0, int(now - updated_at))
-            if is_running_client and age > STALE_DROP_SECONDS:
-                age = min(age, 60)
+            if is_running_client and age > 60:
+                age = 60
         elif mapped == "WORKING":
             age = 0
         elif is_running_client:

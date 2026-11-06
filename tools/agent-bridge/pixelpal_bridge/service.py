@@ -222,6 +222,10 @@ def install_detached(port: int = 8787) -> str:
     if sys.platform == "win32":
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         start_new_session = False
+    env = os.environ.copy()
+    root = _package_root() or str(Path(__file__).resolve().parent.parent)
+    if root:
+        env["PYTHONPATH"] = f"{root}{os.pathsep}{env.get('PYTHONPATH', '')}".rstrip(os.pathsep)
     with open(log, "ab") as handle:
         process = subprocess.Popen(
             [_python(), "-m", "pixelpal_bridge.cli", "serve", "--port", str(port)],
@@ -230,6 +234,8 @@ def install_detached(port: int = 8787) -> str:
             stdin=subprocess.DEVNULL,
             start_new_session=start_new_session,
             creationflags=creationflags,
+            cwd=root if root else None,
+            env=env,
         )
     PIDFILE.write_text(str(process.pid))
     return (

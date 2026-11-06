@@ -211,9 +211,14 @@ class ConnectedAgentsViewModel @Inject constructor(
                 )
                 return@launch
             }
-            preferences.setAgentBridge(parsed.url, effectiveKey, parsed.bridgeId)
+            val workingUrl = if (parsed.url.startsWith("https://", ignoreCase = true)) {
+                val httpCandidate = "http://" + parsed.url.substring(8)
+                if (transport.verifyPairing(httpCandidate, effectiveKey)) httpCandidate else parsed.url
+            } else parsed.url
+
+            preferences.setAgentBridge(workingUrl, effectiveKey, parsed.bridgeId)
             _state.value = _state.value.copy(
-                bridgeUrl = parsed.url,
+                bridgeUrl = workingUrl,
                 isPaired = true,
                 isBridgeReachable = true,
                 isPairing = false,
@@ -370,10 +375,11 @@ class ConnectedAgentsViewModel @Inject constructor(
             if (key.length < 8) return null
             if (!isAllowedHost(host)) return null
 
-            // A Tailscale host is reached over HTTPS; LAN hosts over plain HTTP.
-            val https = host.endsWith(".ts.net", ignoreCase = true)
-            val port = params["port"] ?: "8787"
-            val url = if (https) "https://$host" else "http://$host:$port"
+            // The bridge runs a plain HTTP daemon. Tailscale MagicDNS (*.ts.net) traffic
+            // is already encrypted by WireGuard at layer 3. Never force https unless explicitly requested.
+            val scheme = params["scheme"] ?: if (params["port"] == "443") "https" else "http"
+            val port = params["port"] ?: if (scheme == "https") "443" else "8787"
+            val url = if (scheme == "https" && port == "443") "https://$host" else "$scheme://$host:$port"
             return Pairing(url = url, key = key, bridgeId = "$host:$port")
         }
 
@@ -404,8 +410,7 @@ class ConnectedAgentsViewModel @Inject constructor(
                 val host = match.groupValues[1]
                 val port = match.groupValues[2].ifBlank { "8787" }
                 if (isAllowedHost(host)) {
-                    val https = host.endsWith(".ts.net", ignoreCase = true)
-                    val url = if (https) "https://$host" else "http://$host:$port"
+                    val url = "http://$host:$port"
                     return Pairing(url = url, key = "", bridgeId = "$host:$port")
                 }
             }
@@ -419,7 +424,7 @@ class ConnectedAgentsViewModel @Inject constructor(
             if (h.isBlank()) return false
             if (h == "localhost" || h == "10.0.2.2") return true
             if (h.endsWith(".local")) return true
-            if (h.endsWith(".ts.net")) return true
+            if (h.endsWith(".ts.net") || h.endsWith(".tailscale.net") || h.endsWith(".tailscale.com")) return true
 
             val octets = h.split('.')
                 .map { it.toIntOrNull() ?: return false }
