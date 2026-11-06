@@ -85,9 +85,11 @@ Polling runs through WorkManager (15/30/60/120 min) and an in-process poller (20
 ## 🐱 The Companion Experience
 
 - **Floating overlay pet** on top of any app — draggable, idle/blink/sleep/walk/jump/excited Lottie states, speech bubbles with live agent status, and a dynamic island for reminders. Long-press to feed; the bubble tucks away while PixelPal is foregrounded. Keyboard-aware positioning lifts the pet above your input method.
+- **Centered Hero Companion & Sleek Dashboard** — a prominent, centered glowing mascot hero with balanced, uniform cards, immediate interactive companion chat, and clean "Today" task visibility without scrolling.
 - **One active companion** by design — tasks, reminders, agent connection, personality, and bond are all *features of your one pet*, not separate profiles.
-- **Tasks & Reminders** — tasks with subtasks, descriptions, **due dates** (notifications + relative labels) and swipe-delete with Undo; reminders with one-off/daily/weekly/monthly recurrence (month-end clamping and DST handled), categories with icons, custom sounds or fully silent, and snooze. Full-screen alarms with Complete / Snooze actions.
-- **Bond & Personality** — a friendship level (cap 100) that grows through real interaction (task +2, reminder +3, first 3 taps/day +1), calendar-day decay, streaks with milestone celebrations, and a personality that adapts to how you use the app.
+- **Tasks & Reminders** — tasks with subtasks, descriptions, **due dates** (notifications + relative labels), high-precision 48dp touch targets for instant completion, and swipe-delete with Undo; reminders with one-off/daily/weekly/monthly recurrence (month-end clamping and DST handled), categories with icons, custom sounds or fully silent, and snooze. Full-screen alarms with Complete / Snooze actions.
+- **Bond & Personality** — a friendship level (cap 100) that grows through real interaction (task +2, reminder +3, first 3 taps/day +1), calendar-day decay, weekly consistency streak bar charts aligned to real calendar activity, and a personality that adapts to how you use the app.
+- **Activity Center** — Instagram-style chronological notification grouping ("Today", "Yesterday", "This week", "This month", and "Earlier") for tracking companion interactions, agent status transitions, and bond level-ups.
 - **7 species** (Cat, Dog, Bunny, Panda, Whale, Axolotl, Llama), each with a **full 12-state animated Lottie set**, plus themes (dark/light/system with dynamic color).
 - **Cloud sync** — optional Firebase Auth (email/password, Google, guest) with two-way Firestore sync (companion, bond, tasks, reminders, subtasks), tombstoned deletes, and last-write-wins conflict resolution. Signed out, everything stays local.
 - **Offline-first** — Room is the source of truth; Firestore's cache is capped at 100 MB.
@@ -202,7 +204,7 @@ Tracked honestly; the file-and-line audit lives in [MEMORY.md](MEMORY.md):
 **GitHub Actions is the only release path** — push a tag, CI builds and signs the APK, verifies the signature, bundles the bridge tarball + `SHA256SUMS`, and opens a **draft release**:
 
 ```bash
-git tag v1.3.0 && git push origin v1.3.0
+git tag v1.4.1 && git push origin v1.4.1
 ```
 
 Versioning is tag-driven (`vMAJOR.MINOR.PATCH` → versionCode `MAJOR*10000+MINOR*100+PATCH`). The keystore lives only in GitHub Secrets (plus an offline backup) — **losing it makes installed apps un-updatable**. The full checklist — the four secrets, `base64` encoding, verification steps — is in [RELEASING.md](RELEASING.md).
@@ -223,7 +225,7 @@ Local signed build (same properties CI uses):
 ```bash
 ./gradlew :app:testDebugUnitTest          # 82 JVM unit tests (engines, models, sync policy)
 ./gradlew :app:connectedDebugAndroidTest  # Room migration/DAO + navigation smoke (needs a device)
-cd tools/agent-bridge && python3 -m pytest pixelpal_bridge/tests/ -q   # 103 bridge tests
+cd tools/agent-bridge && python3 -m pytest pixelpal_bridge/tests/ -q   # 118 bridge tests
 ```
 
 ---
