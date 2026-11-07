@@ -135,111 +135,114 @@ class OverlayService : Service() {
             customConn.endpointUrl.isNotBlank() &&
             customConn.currentStatus != AgentState.DISCONNECTED
 
-        // 1. Check for actively working, error, or permission-seeking bridge sessions
-        val activeBridgeSession = bridgeSessions.firstOrNull { session ->
-            when (session.status) {
-                "WAITING_FOR_INPUT", "ERROR", "WORKING" -> true
-                "COMPLETED" -> (System.currentTimeMillis() - session.lastEventAt) < 10 * 60 * 1000L
-                else -> false
-            }
-        }
+        // 1. Priority check for bridge sessions: WAITING_FOR_INPUT > WORKING > ERROR > COMPLETED
+        val prioritySession = bridgeSessions.firstOrNull { it.status == "WAITING_FOR_INPUT" }
+            ?: bridgeSessions.firstOrNull { it.status == "WORKING" }
+            ?: bridgeSessions.firstOrNull { it.status == "ERROR" }
+            ?: bridgeSessions.firstOrNull { it.status == "COMPLETED" && (System.currentTimeMillis() - it.lastEventAt) < 10 * 60 * 1000L }
 
-        if (activeBridgeSession != null) {
-            val agentName = activeBridgeSession.agentName.ifBlank { activeBridgeSession.source }
-            return when (activeBridgeSession.status) {
+        if (prioritySession != null) {
+            val agentName = prioritySession.agentName.ifBlank { prioritySession.source }
+            return when (prioritySession.status) {
                 "WAITING_FOR_INPUT" -> {
-                    val action = activeBridgeSession.pendingApprovalAction?.takeIf { it.isNotBlank() }
-                        ?: activeBridgeSession.currentTask?.takeIf { it.isNotBlank() }
+                    val action = prioritySession.pendingApprovalAction?.takeIf { it.isNotBlank() }
+                        ?: prioritySession.currentTask?.takeIf { it.isNotBlank() }
                     if (action != null) {
-                        "⚠️ $agentName needs permission: ${action.take(35)}! Double-tap to review & approve."
+                        "$agentName needs permission: ${action.take(35)}. Double-tap to review and approve."
                     } else {
-                        "⚠️ $agentName is waiting for permission! Double-tap to review & approve."
+                        "$agentName is waiting for permission. Double-tap to review and approve."
                     }
                 }
                 "WORKING" -> {
-                    val task = activeBridgeSession.currentTask?.takeIf { it.isNotBlank() && it != "WORKING" }
-                        ?: activeBridgeSession.message.takeIf { it.isNotBlank() && it != "WORKING" }
-                    val progress = activeBridgeSession.progress?.let { " ($it%)" } ?: ""
-                    val tools = if (activeBridgeSession.toolsCompleted > 0) " • ${activeBridgeSession.toolsCompleted} tools done" else ""
+                    val task = prioritySession.currentTask?.takeIf { it.isNotBlank() && it != "WORKING" }
+                        ?: prioritySession.message.takeIf { it.isNotBlank() && it != "WORKING" }
+                    val progress = prioritySession.progress?.let { " ($it%)" } ?: ""
                     if (task != null) {
-                        "⚡ $agentName is working$progress: ${task.take(38)} (Double-tap to view)"
+                        "$agentName is working$progress: ${task.take(38)}. Double-tap to view."
                     } else {
-                        "⚡ $agentName is actively working$progress$tools! Double-tap to view."
+                        "$agentName is working on your task$progress. Double-tap to view."
                     }
                 }
                 "ERROR" -> {
-                    val msg = activeBridgeSession.message.takeIf { it.isNotBlank() && it != "ERROR" }
-                        ?: activeBridgeSession.currentTask
+                    val msg = prioritySession.message.takeIf { it.isNotBlank() && it != "ERROR" }
+                        ?: prioritySession.currentTask
                     if (msg != null) {
-                        "❌ $agentName needs attention: ${msg.take(35)}. Double-tap to check."
+                        "$agentName needs attention: ${msg.take(35)}. Double-tap to inspect."
                     } else {
-                        "❌ $agentName ran into an issue! Double-tap to inspect."
+                        "$agentName ran into an issue. Double-tap to inspect."
                     }
                 }
                 "COMPLETED" -> {
-                    val task = activeBridgeSession.currentTask?.takeIf { it.isNotBlank() && it != "COMPLETED" }
+                    val task = prioritySession.currentTask?.takeIf { it.isNotBlank() && it != "COMPLETED" }
                     if (task != null) {
-                        "🎉 $agentName finished: ${task.take(35)}! Double-tap to see what was done."
+                        "$agentName finished working: ${task.take(35)}. Double-tap to view."
                     } else {
-                        "🎉 $agentName completed the task! Double-tap to view details."
+                        "$agentName finished working. Double-tap to view."
                     }
                 }
-                else -> "$agentName: ${activeBridgeSession.status} (Double-tap to open)"
+                else -> "$agentName is ${prioritySession.status.lowercase()}. Double-tap to view."
             }
         }
 
         // 2. Check for active custom agent connection (Gemini / HTTP / WebSocket)
-        if (hasCustomConn && customConn != null) {
+        if (customConn != null && hasCustomConn) {
             when (customConn.currentStatus) {
                 AgentState.WAITING_FOR_INPUT -> {
                     val task = customConn.currentTask?.take(35) ?: "Action required"
-                    return "⚠️ Agent needs approval: $task! Double-tap to respond."
+                    return "Agent needs approval: $task. Double-tap to respond."
                 }
                 AgentState.WORKING -> {
                     val task = customConn.currentTask?.take(38) ?: "working on task"
                     val progress = customConn.progress?.let { " ($it%)" } ?: ""
-                    return "⚡ Agent is working$progress: $task (Double-tap to view)"
+                    return "Agent is working$progress: $task. Double-tap to view."
                 }
                 AgentState.ERROR -> {
                     val msg = customConn.lastMessage?.take(35) ?: "Attention required"
-                    return "❌ Agent error: $msg. Double-tap to inspect."
+                    return "Agent error: $msg. Double-tap to inspect."
                 }
                 AgentState.COMPLETED -> {
-                    return "🎉 Agent finished task! Double-tap to view details."
+                    return "Agent finished working. Double-tap to view."
                 }
                 AgentState.CONNECTING -> {
-                    return "Connecting to your agent… Double-tap to check status."
+                    return "Connecting to agent. Double-tap to check status."
                 }
                 AgentState.OFFLINE -> {
-                    return "Agent is offline right now. Double-tap to check settings."
+                    return "Agent is offline. Double-tap to check settings."
                 }
                 AgentState.IDLE, AgentState.ONLINE -> {
-                    // Handled in connected-but-idle state below
+                    return "Agent is ready when you are. Double-tap to open."
                 }
                 AgentState.DISCONNECTED -> Unit
             }
         }
 
-        // 3. Bridge or custom provider is connected, but NO agent is currently working (All idle / ready)
-        if (isBridgePaired || hasCustomConn) {
-            val companion = companionRepository.getByIdDirect(cid)
-            val petName = companion?.name ?: "PixelPal"
-            val idleGreetings = listOf(
-                "Bridge connected! No agents working right now. Double-tap to open PixelPal 🐾",
-                "All quiet on your laptop! Ready when you are ✨ Double-tap to chat with me.",
-                "Connected to your computer! Waiting for your next task 🚀 (Double-tap to open)",
-                "$petName is standing by! Double-tap to open chat or assign a task 💻"
+        // 3. When agent is connected but idle (ready for next task)
+        if (bridgeSessions.isNotEmpty()) {
+            val agentName = bridgeSessions.first().agentName.ifBlank { bridgeSessions.first().source }
+            val idleAgentMessages = listOf(
+                "$agentName is ready when you are. Double-tap to open.",
+                "Ready when you are. Double-tap to open PixelPal.",
+                "$agentName is standing by for your next task. Double-tap to open."
             )
-            return idleGreetings.random()
+            return idleAgentMessages.random()
+        }
+
+        if (isBridgePaired || hasCustomConn) {
+            val idleMessages = listOf(
+                "Ready when you are. Double-tap to open PixelPal.",
+                "Standing by for your agent. Ready when you are.",
+                "Ready when you are. Double-tap to chat or assign a task."
+            )
+            return idleMessages.random()
         }
 
         // 4. Not connected at all
-        val notConnectedGreetings = listOf(
-            "Hi! Want to connect your coding agent? 🐾 Double-tap to open PixelPal & pair!",
-            "No agent connected yet! Double-tap me to connect your workspace 🚀",
-            "Hi there! Ready to pair your coding agent? Double-tap to open PixelPal ✨"
+        val notConnectedMessages = listOf(
+            "Connect to your computer to get started. Double-tap to pair your agent.",
+            "No agent connected. Connect to your computer to get started. Double-tap to pair.",
+            "Ready to connect your coding agent. Double-tap to pair."
         )
-        return notConnectedGreetings.random()
+        return notConnectedMessages.random()
     }
 
     private fun notifyForeground(petNames: String) {
@@ -288,7 +291,7 @@ class OverlayService : Service() {
 
         return NotificationCompat.Builder(this, Constants.CHANNEL_COMPANION)
             .setContentTitle(petNames.ifBlank { "PixelPal" })
-            .setContentText("$petNames ${if (petNames.contains(',')) "are" else "is"} hanging out with you 🐱")
+            .setContentText("$petNames ${if (petNames.contains(',')) "are" else "is"} hanging out with you")
             .setSmallIcon(R.drawable.ic_stat_companion)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
