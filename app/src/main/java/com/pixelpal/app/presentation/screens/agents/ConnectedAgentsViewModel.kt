@@ -203,20 +203,40 @@ class ConnectedAgentsViewModel @Inject constructor(
         viewModelScope.launch {
             _state.value = _state.value.copy(isPairing = true, lastError = null)
             val effectiveKey = parsed.key.ifBlank { preferences.getAgentBridgeKey() }
+            var workingUrl: String? = null
             val (ok, reason) = transport.verifyPairingDetailed(parsed.url, effectiveKey)
-            if (!ok) {
+            if (ok) {
+                workingUrl = parsed.url
+            } else {
+                // If direct verify failed (e.g. port or scheme mismatch), probe candidate ports and HTTP
+                val uri = try { java.net.URI(parsed.url) } catch (e: Exception) { null }
+                val host = uri?.host ?: parsed.bridgeId.substringBefore(':')
+                val candidatePorts = listOf(8791, 8787, 8788, 8789, 8790, 8792)
+                for (cp in candidatePorts) {
+                    val candidateUrl = "http://$host:$cp"
+                    if (candidateUrl != parsed.url && transport.verifyPairing(candidateUrl, effectiveKey)) {
+                        workingUrl = candidateUrl
+                        break
+                    }
+                }
+            }
+
+            if (workingUrl == null) {
                 _state.value = _state.value.copy(
                     isPairing = false,
                     lastError = "PixelPal couldn't reach that bridge at ${parsed.url}: ${reason ?: "Ensure the bridge is running on your laptop and both devices are on the same Wi-Fi or Tailscale network."}"
                 )
                 return@launch
             }
-            val workingUrl = if (parsed.url.startsWith("https://", ignoreCase = true)) {
-                val httpCandidate = "http://" + parsed.url.substring(8)
-                if (transport.verifyPairing(httpCandidate, effectiveKey)) httpCandidate else parsed.url
-            } else parsed.url
 
-            preferences.setAgentBridge(workingUrl, effectiveKey, parsed.bridgeId)
+            val bridgeId = try {
+                val u = java.net.URI(workingUrl)
+                "${u.host}:${u.port}"
+            } catch (e: Exception) {
+                parsed.bridgeId
+            }
+
+            preferences.setAgentBridge(workingUrl, effectiveKey, bridgeId)
             _state.value = _state.value.copy(
                 bridgeUrl = workingUrl,
                 isPaired = true,
@@ -392,14 +412,16 @@ class ConnectedAgentsViewModel @Inject constructor(
                 val uri = try { java.net.URI(trimmed) } catch (e: Exception) { null } ?: return null
                 val host = uri.host ?: return null
                 if (!isAllowedHost(host)) return null
-                val port = if (uri.port > 0) uri.port.toString() else if (lower.startsWith("https://")) "443" else "8787"
+                val scheme = if (lower.startsWith("https://") && (host.endsWith(".ts.net") || host.endsWith(".tailscale.net") || host.endsWith(".local") || isPrivateLan(host))) {
+                    "http"
+                } else uri.scheme ?: "http"
+                val port = if (uri.port > 0 && uri.port != 443 && uri.port != 80) uri.port.toString() else "8787"
                 val query = uri.query.orEmpty()
                 val params = query.split('&').mapNotNull { pair ->
                     val idx = pair.indexOf('=')
                     if (idx <= 0) null else pair.substring(0, idx) to pair.substring(idx + 1)
                 }.toMap()
                 val key = params["key"].orEmpty()
-                val scheme = uri.scheme ?: "http"
                 val url = "$scheme://$host:$port"
                 return Pairing(url = url, key = key, bridgeId = "$host:$port")
             }
@@ -416,6 +438,14 @@ class ConnectedAgentsViewModel @Inject constructor(
             }
 
             return null
+        }
+
+        fun isPrivateLan(host: String): Boolean {
+            val h = host.trim().lowercase()
+            val octets = h.split('.').mapNotNull { it.toIntOrNull() }
+            if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+            val (a, b) = octets[0] to octets[1]
+            return a == 127 || a == 10 || (a == 192 && b == 168) || (a == 172 && b in 16..31) || (a == 100 && b in 64..127)
         }
 
         /** Why: see [parsePairingUri]. Kept separate so it is unit-testable. */

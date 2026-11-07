@@ -5,8 +5,12 @@ import com.pixelpal.app.data.local.db.dao.AgentSessionDao
 import com.pixelpal.app.data.local.db.entity.AgentSessionEntity
 import com.pixelpal.app.domain.model.AgentState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.util.concurrent.TimeUnit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -133,27 +137,44 @@ class AgentSessionRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Timber.e(e, "Agent bridge unreachable at $url")
-            if (url.startsWith("https://", ignoreCase = true) && (e is javax.net.ssl.SSLException || e.cause is java.security.cert.CertificateException)) {
-                val fallbackUrl = "http://" + url.substring(8).substringBefore("/agents")
+            if (url.startsWith("https://", ignoreCase = true)) {
+                val uri = try { java.net.URI(url) } catch (ignored: Exception) { null }
+                val host = uri?.host ?: url.substringAfter("://").substringBefore(':').substringBefore('/')
+                val port = if (uri?.port != null && uri.port > 0 && uri.port != 443) uri.port else 8787
+                val fallbackUrl = "http://$host:$port"
                 Timber.i("Retrying bridge over HTTP after TLS failure: $fallbackUrl")
                 val fallbackAgents = fetchAgents(fallbackUrl, key)
                 if (fallbackAgents != null) {
                     val savedUrl = preferences.getAgentBridgeUrl()
                     if (savedUrl.startsWith("https://", ignoreCase = true)) {
-                        preferences.setAgentBridge(fallbackUrl, key, preferences.getAgentBridgeId())
+                        preferences.setAgentBridge(fallbackUrl, key, "$host:$port")
                     }
+                    return@withContext fallbackAgents
                 }
-                return@withContext fallbackAgents
+            }
+
+            // Self-healing bridge discovery when IP or port changes (e.g. Wi-Fi router DHCP renewal)
+            val recovered = trySelfHealBridge(cleanBase, key)
+            if (recovered != null) {
+                return@withContext recovered
             }
             null
         }
     }
 
     suspend fun verifyPairingWithReason(bridgeUrl: String, pairingKey: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
-        val cleanBase = bridgeUrl.trimEnd('/')
+        var cleanBase = bridgeUrl.trimEnd('/')
             .removeSuffix("/agents")
             .removeSuffix("/status")
             .removeSuffix("/")
+        // Bridge daemon runs over plain HTTP (Tailscale is WireGuard layer-3 encrypted).
+        // Normalize any https to http and strip default https port 443.
+        if (cleanBase.startsWith("https://", ignoreCase = true)) {
+            val uri = try { java.net.URI(cleanBase) } catch (e: Exception) { null }
+            val host = uri?.host ?: cleanBase.substringAfter("://").substringBefore(':')
+            val port = if (uri?.port != null && uri.port > 0 && uri.port != 443) uri.port else 8787
+            cleanBase = "http://$host:$port"
+        }
         val url = "$cleanBase/agents"
         val key = pairingKey.ifBlank { preferences.getAgentBridgeKey() }
         val request = Request.Builder()
@@ -178,13 +199,90 @@ class AgentSessionRepository @Inject constructor(
             }
         } catch (e: Exception) {
             Timber.e(e, "Pairing network error for $url")
-            if (url.startsWith("https://", ignoreCase = true) && (e is javax.net.ssl.SSLException || e.cause is java.security.cert.CertificateException)) {
-                val fallbackUrl = "http://" + url.substring(8).substringBefore("/agents")
-                Timber.i("Retrying pairing verification over HTTP after TLS failure: $fallbackUrl")
-                return@withContext verifyPairingWithReason(fallbackUrl, key)
-            }
             val msg = e.localizedMessage ?: e.message ?: "Could not connect to $url"
             false to msg
+        }
+    }
+
+    private suspend fun trySelfHealBridge(failedBaseUrl: String, key: String): List<WireAgent>? = withContext(Dispatchers.IO) {
+        val uri = try { java.net.URI(failedBaseUrl) } catch (e: Exception) { null } ?: return@withContext null
+        val host = uri.host ?: return@withContext null
+        val port = if (uri.port > 0) uri.port else 8787
+
+        // 1. Probe common candidate ports on the same host (in case bridge was restarted on another port)
+        val candidatePorts = listOf(8791, 8787, 8788, 8789, 8790, 8792).filter { it != port }
+        for (candidatePort in candidatePorts) {
+            val candidateUrl = "http://$host:$candidatePort"
+            val agents = probeAgentsDirect(candidateUrl, key)
+            if (agents != null) {
+                Timber.i("Self-healed bridge: port changed from $port to $candidatePort on $host")
+                preferences.setAgentBridge(candidateUrl, key, "$host:$candidatePort")
+                return@withContext agents
+            }
+        }
+
+        // 2. If host is a private LAN IP (e.g. 192.168.1.18), router DHCP may have reassigned it
+        val octets = host.split('.').mapNotNull { it.toIntOrNull() }
+        if (octets.size == 4 && ((octets[0] == 192 && octets[1] == 168) || octets[0] == 10)) {
+            val prefix = "${octets[0]}.${octets[1]}.${octets[2]}"
+            val currentLast = octets[3]
+            val candidateLastOctets = (1..35).filter { it != currentLast }
+
+            val fastClient = client.newBuilder()
+                .connectTimeout(350, TimeUnit.MILLISECONDS)
+                .readTimeout(350, TimeUnit.MILLISECONDS)
+                .build()
+
+            val foundHost = coroutineScope {
+                candidateLastOctets.map { last ->
+                    async {
+                        val testHost = "$prefix.$last"
+                        val testUrl = "http://$testHost:$port/health"
+                        try {
+                            val req = Request.Builder()
+                                .url(testUrl)
+                                .apply { if (key.isNotBlank()) header("X-PixelPal-Key", key) }
+                                .get()
+                                .build()
+                            fastClient.newCall(req).execute().use { res ->
+                                if (res.isSuccessful || res.code == 401) testHost else null
+                            }
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                }.awaitAll().firstOrNull { it != null }
+            }
+
+            if (foundHost != null) {
+                val recoveredUrl = "http://$foundHost:$port"
+                val agents = probeAgentsDirect(recoveredUrl, key)
+                if (agents != null) {
+                    Timber.i("Self-healed bridge: IP reassigned from $host to $foundHost!")
+                    preferences.setAgentBridge(recoveredUrl, key, "$foundHost:$port")
+                    return@withContext agents
+                }
+            }
+        }
+
+        null
+    }
+
+    private fun probeAgentsDirect(baseUrl: String, key: String): List<WireAgent>? {
+        val url = "${baseUrl.trimEnd('/')}/agents"
+        val req = Request.Builder()
+            .url(url)
+            .apply { if (key.isNotBlank()) header("X-PixelPal-Key", key) }
+            .get()
+            .build()
+        return try {
+            client.newCall(req).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val body = response.body?.string().orEmpty()
+                json.decodeFromString<WireAgentsResponse>(body).agents
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 

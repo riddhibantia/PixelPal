@@ -848,7 +848,7 @@ private fun AgentRowCard(
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
-                    text = "${row.secondsSinceEvent}s ago",
+                    text = formatRelativeTime(row.secondsSinceEvent),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1314,3 +1314,12 @@ private fun AgentControlDialog(
         }
     }
 }
+
+internal fun formatRelativeTime(seconds: Long): String = when {
+    seconds < 5 -> "just now"
+    seconds < 60 -> "${seconds}s ago"
+    seconds < 3600 -> "${seconds / 60}m ago"
+    seconds < 86400 -> "${seconds / 3600}h ago"
+    else -> "${seconds / 86400}d ago"
+}
+
