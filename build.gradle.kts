@@ -9,7 +9,7 @@ buildscript {
         val hiltVersion = "2.51.1"
         val kotlinVersion = "2.0.0"
         val kspVersion = "2.0.0-1.0.24"
-        classpath("com.android.tools.build:gradle:8.5.0")
+        classpath("com.android.tools.build:gradle:8.6.1")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
         classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlinVersion")
         classpath("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:$kspVersion")
