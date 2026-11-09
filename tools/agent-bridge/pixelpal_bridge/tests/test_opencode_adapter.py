@@ -123,7 +123,7 @@ class TestOpenCodeAge:
         monkeypatch.setattr(
             opencode, "fetch_sessions",
             lambda port=None: [
-                _session("main", updated=int((now - 10) * 1000), directory="/p/repo"),
+                _session("main", updated=int((now - 10) * 1000), directory="/p/repo", status="busy"),
                 _session("sub1", updated=int((now - 5) * 1000), directory="/p/repo", parent_id="main"),
                 _session("sub2", updated=int((now - 2) * 1000), directory="/p/repo", parent_id="main"),
             ],

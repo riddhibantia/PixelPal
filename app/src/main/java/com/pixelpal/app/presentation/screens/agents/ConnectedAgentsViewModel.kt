@@ -19,6 +19,7 @@ import com.pixelpal.app.domain.model.ActivityType
 import com.pixelpal.app.domain.model.AgentState
 import com.pixelpal.app.util.Constants
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -149,7 +150,10 @@ class ConnectedAgentsViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(isRefreshing = true)
+            _state.value = _state.value.copy(
+                isRefreshing = true,
+                message = if (_state.value.message?.startsWith("Removed") == true) null else _state.value.message
+            )
             val paired = preferences.getAgentBridgeUrl().isNotBlank()
             if (!paired) {
                 _state.value = _state.value.copy(
@@ -276,6 +280,10 @@ class ConnectedAgentsViewModel @Inject constructor(
         viewModelScope.launch {
             repository.dismissSession(row.id, row.source, preferences.getAgentBridgeUrl())
             refresh()
+            delay(3000)
+            if (_state.value.message == "Removed ${row.displayName}") {
+                _state.value = _state.value.copy(message = null)
+            }
         }
     }
 

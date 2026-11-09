@@ -171,6 +171,12 @@ class PreferencesManager @Inject constructor(
     suspend fun getDismissedAgentSessions(): Set<String> =
         dataStore.data.first()[Keys.DISMISSED_AGENT_SESSIONS] ?: emptySet()
 
+    suspend fun setDismissedAgentSessions(sessions: Set<String>) {
+        dataStore.edit { preferences ->
+            preferences[Keys.DISMISSED_AGENT_SESSIONS] = sessions
+        }
+    }
+
     suspend fun addDismissedAgentSession(sessionId: String) {
         if (sessionId.isBlank()) return
         dataStore.edit { preferences ->

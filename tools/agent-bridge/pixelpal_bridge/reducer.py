@@ -249,14 +249,26 @@ class AgentRegistry:
     _seen: set[str] = field(default_factory=set)
     _dismissed: set[str] = field(default_factory=set)
 
-    def is_dismissed(self, source: str, session_id: str) -> bool:
+    def is_dismissed(self, source: str, session_id: str, status: str = "") -> bool:
         if not session_id:
+            return False
+        if status.upper() == "WORKING":
+            self.undismiss(source, session_id)
             return False
         raw_id = session_id.split(':')[-1] if ':' in session_id else session_id
         candidates = {session_id, raw_id, f"{source}:{session_id}", f"{source}:{raw_id}"}
         return any(c in self._dismissed for c in candidates if c)
 
+    def undismiss(self, source: str, session_id: str):
+        if not session_id:
+            return
+        raw_id = session_id.split(':')[-1] if ':' in session_id else session_id
+        for c in (session_id, raw_id, f"{source}:{session_id}", f"{source}:{raw_id}"):
+            self._dismissed.discard(c)
+
     def apply(self, event: AgentEvent) -> AgentState:
+        if event.session_id:
+            self.undismiss(event.source.value, event.session_id)
         key = (event.source.value, event.session_id or "default")
         if event.id:
             if event.id in self._seen:
@@ -307,7 +319,8 @@ class AgentRegistry:
         except ValueError:
             return None
         session_id = str(envelope.get("sessionId") or "default")
-        if self.is_dismissed(source.value, session_id):
+        status_val = str(envelope.get("status") or "")
+        if self.is_dismissed(source.value, session_id, status_val):
             return None
         key = (source.value, session_id)
         now = now or time.time()
@@ -367,7 +380,7 @@ class AgentRegistry:
             s for s in self.sessions.values()
             if s.status != "DISCONNECTED"
             and now - s.last_event_at < STALE_DROP_SECONDS
-            and not self.is_dismissed(s.source.value, s.session_id)
+            and not self.is_dismissed(s.source.value, s.session_id, s.status)
         ]
         return sorted(states, key=lambda s: (rank.get(s.status, 9), -s.last_event_at))
 

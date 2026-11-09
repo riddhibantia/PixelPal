@@ -194,8 +194,6 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
     discarded while the user is reading or idle.
     """
     all_sessions = [s for s in fetch_sessions(port) if isinstance(s, dict)]
-    # Filter out child sub-agents spawned by a parent agent
-    root_sessions = [s for s in all_sessions if not _is_subagent(s)]
 
     status_map = {
         "busy": "WORKING",
@@ -209,7 +207,7 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
     now = time.time()
 
     scored = []
-    for s in root_sessions:
+    for s in all_sessions:
         updated_at = _session_updated_at(s)
         status = str(s.get("status") or s.get("outcome") or "").lower()
         t = s.get("time") if isinstance(s.get("time"), dict) else {}
@@ -228,7 +226,7 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
 
     scored.sort(key=lambda x: x[0])
 
-    # Deduplicate: keep only the single newest/most active main root agent per repo
+    # Deduplicate: keep only the single newest/most active main agent per repo
     seen_repos: set[str] = set()
     deduped = []
     for priority, updated_at, mapped, status, s in scored:

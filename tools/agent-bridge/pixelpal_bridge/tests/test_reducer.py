@@ -262,10 +262,18 @@ class TestMultiAgentRegistry:
         assert len(reg.active(now=t0)) == 0
         assert reg.is_dismissed("opencode", "ses_dismiss_me") is True
 
-        # Subsequent poll tries to upsert it again
+        # Subsequent poll tries to upsert it again while IDLE - still suppressed
         res = reg.upsert_envelope(envelope, now=t0 + 5)
         assert res is None
         assert len(reg.active(now=t0 + 5)) == 0
+
+        # But if the agent becomes WORKING, it is revived and un-tombstoned!
+        working_env = dict(envelope)
+        working_env["status"] = "WORKING"
+        res_working = reg.upsert_envelope(working_env, now=t0 + 10)
+        assert res_working is not None
+        assert len(reg.active(now=t0 + 10)) == 1
+        assert reg.is_dismissed("opencode", "ses_dismiss_me") is False
 
 
 class TestEnvelopeContract:

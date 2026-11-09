@@ -78,14 +78,30 @@ class AgentSessionRepository @Inject constructor(
         companionId: Long
     ): Int = withContext(Dispatchers.IO) {
         val dismissed = preferences.getDismissedAgentSessions()
-        val filtered = if (dismissed.isEmpty()) {
+        val workingSids = agents.filter { it.status.equals("WORKING", ignoreCase = true) }
+            .flatMap { listOf(it.sessionId, it.sessionId.substringAfter(':'), "${it.source}:${it.sessionId.substringAfter(':')}") }
+            .toSet()
+
+        val activeDismissed = if (workingSids.isNotEmpty() && dismissed.any { it in workingSids }) {
+            val remaining = dismissed.filterNot { it in workingSids }.toSet()
+            preferences.setDismissedAgentSessions(remaining)
+            remaining
+        } else {
+            dismissed
+        }
+
+        val filtered = if (activeDismissed.isEmpty()) {
             agents
         } else {
             agents.filterNot { agent ->
-                val sid = agent.sessionId
-                val rawSid = sid.substringAfter(':')
-                val fullSid = "${agent.source}:$rawSid"
-                sid in dismissed || rawSid in dismissed || fullSid in dismissed
+                if (agent.status.equals("WORKING", ignoreCase = true)) {
+                    false
+                } else {
+                    val sid = agent.sessionId
+                    val rawSid = sid.substringAfter(':')
+                    val fullSid = "${agent.source}:$rawSid"
+                    sid in activeDismissed || rawSid in activeDismissed || fullSid in activeDismissed
+                }
             }
         }
 
