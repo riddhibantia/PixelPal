@@ -12,12 +12,14 @@ import time
 from pixelpal_bridge.reducer import STALE_DROP_SECONDS
 
 
-def _session(sid: str, *, updated=None, status=None, title="t") -> dict:
-    s = {"id": sid, "directory": "/p/app", "title": title}
+def _session(sid: str, *, updated=None, status=None, title="t", directory=None, parent_id=None) -> dict:
+    s = {"id": sid, "directory": directory or f"/p/{sid}", "title": title}
     if updated is not None:
         s["time"] = {"created": updated, "updated": updated}
     if status is not None:
         s["status"] = status
+    if parent_id is not None:
+        s["parentID"] = parent_id
     return s
 
 
@@ -112,3 +114,37 @@ class TestOpenCodeAge:
         assert len(envelopes) == 1
         assert envelopes[0]["sessionId"] == "live_terminal"
         assert envelopes[0]["lastEventAgeSeconds"] == 60
+
+    def test_subagent_sessions_are_filtered_out(self, monkeypatch):
+        from pixelpal_bridge.adapters import opencode
+
+        now = 1_700_000_000.0
+        monkeypatch.setattr(opencode.time, "time", lambda: now)
+        monkeypatch.setattr(
+            opencode, "fetch_sessions",
+            lambda port=None: [
+                _session("main", updated=int((now - 10) * 1000), directory="/p/repo"),
+                _session("sub1", updated=int((now - 5) * 1000), directory="/p/repo", parent_id="main"),
+                _session("sub2", updated=int((now - 2) * 1000), directory="/p/repo", parent_id="main"),
+            ],
+        )
+        envelopes = opencode.poll_envelopes()
+        assert len(envelopes) == 1
+        assert envelopes[0]["sessionId"] == "main"
+
+    def test_duplicate_repo_sessions_keep_only_newest_or_working(self, monkeypatch):
+        from pixelpal_bridge.adapters import opencode
+
+        now = 1_700_000_000.0
+        monkeypatch.setattr(opencode.time, "time", lambda: now)
+        monkeypatch.setattr(
+            opencode, "fetch_sessions",
+            lambda port=None: [
+                _session("old_idle", updated=int((now - 100) * 1000), directory="/p/myrepo"),
+                _session("new_working", updated=int((now - 50) * 1000), status="busy", directory="/p/myrepo"),
+            ],
+        )
+        envelopes = opencode.poll_envelopes()
+        assert len(envelopes) == 1
+        assert envelopes[0]["sessionId"] == "new_working"
+        assert envelopes[0]["status"] == "WORKING"

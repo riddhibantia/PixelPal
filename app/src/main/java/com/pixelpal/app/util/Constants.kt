@@ -30,6 +30,8 @@ object Constants {
 
     /** Bridge approvals already surfaced as notifications ("<companionId>|<approvalId>"). */
     const val KEY_NOTIFIED_BRIDGE_APPROVALS = "notified_bridge_approvals"
+    /** Dismissed agent session IDs that must not be revived or shown. */
+    const val KEY_DISMISSED_AGENT_SESSIONS = "dismissed_agent_sessions"
 
     // Notification channels
     const val CHANNEL_COMPANION = "companion_channel"

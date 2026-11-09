@@ -152,6 +152,30 @@ def _session_updated_at(session: dict) -> float | None:
     return None
 
 
+def _is_subagent(session: dict) -> bool:
+    """True when a session was spawned by a parent agent as a subtask."""
+    for key in ("parentID", "parentId", "parent_id", "parent"):
+        val = session.get(key)
+        if val is not None and val != "":
+            return True
+    return False
+
+
+def _repo_key(session: dict) -> str:
+    """Unique key per repository/project directory so we show at most one main agent per repo."""
+    loc = session.get("location") if isinstance(session.get("location"), dict) else {}
+    directory = loc.get("directory") or session.get("directory") or ""
+    if directory:
+        try:
+            return os.path.normcase(os.path.abspath(directory))
+        except Exception:
+            return directory.lower()
+    pid = session.get("projectID") or session.get("projectId") or ""
+    if pid:
+        return f"project:{pid}"
+    return str(session.get("id") or "default")
+
+
 def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
     """
     Convert opencode sessions into PixelPal envelopes.
@@ -159,13 +183,20 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
     opencode is polled (not pushed) because its server API is request/response;
     the polling interval is the bridge's responsibility.
 
+    Only root sessions are announced (sub-agents spawned under a parent are
+    filtered out), and at most one main agent per repository/project directory is
+    returned so the UI never displays multiple duplicate or child cards for one repo.
+
     Every envelope carries `lastEventAgeSeconds` derived from the session's
     own timestamp — without it the reducer re-stamps "now" on each poll and
     old sessions pose as live forever. If a terminal process is actively
     running on the system, its age is capped so the live terminal is not
     discarded while the user is reading or idle.
     """
-    sessions = [s for s in fetch_sessions(port) if isinstance(s, dict)]
+    all_sessions = [s for s in fetch_sessions(port) if isinstance(s, dict)]
+    # Filter out child sub-agents spawned by a parent agent
+    root_sessions = [s for s in all_sessions if not _is_subagent(s)]
+
     status_map = {
         "busy": "WORKING",
         "running": "WORKING",
@@ -176,16 +207,12 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
         "failed": "ERROR",
     }
     now = time.time()
-    ranked = sorted(
-        ((_session_updated_at(s), s) for s in sessions),
-        key=lambda pair: pair[0] or 0.0,
-        reverse=True,
-    )
-    client_count = _running_client_count()
-    envelopes = []
-    for idx, (updated_at, session) in enumerate(ranked[:MAX_SESSIONS]):
-        status = str(session.get("status") or session.get("outcome") or "").lower()
-        t = session.get("time") if isinstance(session.get("time"), dict) else {}
+
+    scored = []
+    for s in root_sessions:
+        updated_at = _session_updated_at(s)
+        status = str(s.get("status") or s.get("outcome") or "").lower()
+        t = s.get("time") if isinstance(s.get("time"), dict) else {}
         busy_time = t.get("busy") or 0
         idle_time = t.get("idle") or 0
         if busy_time > idle_time:
@@ -195,6 +222,25 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
         else:
             mapped = "IDLE"
 
+        # Prioritize active WORKING sessions first, then most recently updated
+        priority = (0 if mapped == "WORKING" else 1, -(updated_at or 0.0))
+        scored.append((priority, updated_at, mapped, status, s))
+
+    scored.sort(key=lambda x: x[0])
+
+    # Deduplicate: keep only the single newest/most active main root agent per repo
+    seen_repos: set[str] = set()
+    deduped = []
+    for priority, updated_at, mapped, status, s in scored:
+        rk = _repo_key(s)
+        if rk in seen_repos:
+            continue
+        seen_repos.add(rk)
+        deduped.append((updated_at, mapped, status, s))
+
+    client_count = _running_client_count()
+    envelopes = []
+    for idx, (updated_at, mapped, status, session) in enumerate(deduped[:MAX_SESSIONS]):
         is_running_client = idx < client_count
         if updated_at is not None:
             age = max(0, int(now - updated_at))

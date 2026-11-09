@@ -41,6 +41,7 @@ class PreferencesManager @Inject constructor(
 
         /** Bridge approvals already shown as notifications: "<companionId>|<approvalId>". */
         val NOTIFIED_BRIDGE_APPROVALS = stringSetPreferencesKey(Constants.KEY_NOTIFIED_BRIDGE_APPROVALS)
+        val DISMISSED_AGENT_SESSIONS = stringSetPreferencesKey(Constants.KEY_DISMISSED_AGENT_SESSIONS)
 
         /** Per-companion overlay positions: overlay_x_<id> / overlay_y_<id>. */
         fun overlayX(companionId: Long) = floatPreferencesKey("${Constants.KEY_OVERLAY_X}_$companionId")
@@ -167,6 +168,23 @@ class PreferencesManager @Inject constructor(
         dataStore.edit { it[Keys.NOTIFIED_BRIDGE_APPROVALS] = values }
     }
 
+    suspend fun getDismissedAgentSessions(): Set<String> =
+        dataStore.data.first()[Keys.DISMISSED_AGENT_SESSIONS] ?: emptySet()
+
+    suspend fun addDismissedAgentSession(sessionId: String) {
+        if (sessionId.isBlank()) return
+        dataStore.edit { preferences ->
+            val current = preferences[Keys.DISMISSED_AGENT_SESSIONS] ?: emptySet()
+            preferences[Keys.DISMISSED_AGENT_SESSIONS] = current + sessionId
+        }
+    }
+
+    suspend fun clearDismissedAgentSessions() {
+        dataStore.edit { preferences ->
+            preferences.remove(Keys.DISMISSED_AGENT_SESSIONS)
+        }
+    }
+
 
     /** Stores pairing info after a QR scan / manual entry. */
     suspend fun setAgentBridge(url: String, key: String, bridgeId: String) {
@@ -182,6 +200,7 @@ class PreferencesManager @Inject constructor(
             preferences.remove(Keys.AGENT_BRIDGE_URL)
             preferences.remove(Keys.AGENT_BRIDGE_KEY)
             preferences.remove(Keys.AGENT_BRIDGE_ID)
+            preferences.remove(Keys.DISMISSED_AGENT_SESSIONS)
         }
     }
 

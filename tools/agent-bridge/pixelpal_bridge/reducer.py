@@ -247,6 +247,14 @@ class AgentRegistry:
 
     sessions: dict[tuple[str, str], AgentState] = field(default_factory=dict)
     _seen: set[str] = field(default_factory=set)
+    _dismissed: set[str] = field(default_factory=set)
+
+    def is_dismissed(self, source: str, session_id: str) -> bool:
+        if not session_id:
+            return False
+        raw_id = session_id.split(':')[-1] if ':' in session_id else session_id
+        candidates = {session_id, raw_id, f"{source}:{session_id}", f"{source}:{raw_id}"}
+        return any(c in self._dismissed for c in candidates if c)
 
     def apply(self, event: AgentEvent) -> AgentState:
         key = (event.source.value, event.session_id or "default")
@@ -264,19 +272,27 @@ class AgentRegistry:
 
     def remove(self, source: str, session_id: str) -> bool:
         raw_id = session_id.split(":")[-1] if ":" in session_id else session_id
+        if session_id:
+            self._dismissed.add(session_id)
+        if raw_id:
+            self._dismissed.add(raw_id)
+        if source and raw_id:
+            self._dismissed.add(f"{source}:{raw_id}")
+            self._dismissed.add(f"{source}:{session_id}")
+        removed = False
         for sid in (session_id, raw_id, session_id or "default"):
             key = (source, sid)
             if key in self.sessions:
                 del self.sessions[key]
-                return True
+                removed = True
         for k in list(self.sessions.keys()):
             if k[0] == source and (not session_id or k[1] == session_id or k[1] == raw_id or k[1] == "default"):
                 del self.sessions[k]
-                return True
-            if k[1] == session_id or k[1] == raw_id or f"{k[0]}:{k[1]}" == session_id or k[0] == session_id:
+                removed = True
+            elif k[1] == session_id or k[1] == raw_id or f"{k[0]}:{k[1]}" == session_id or k[0] == session_id:
                 del self.sessions[k]
-                return True
-        return False
+                removed = True
+        return removed
 
     def upsert_envelope(self, envelope: dict, now: float | None = None) -> AgentState | None:
         """
@@ -291,6 +307,8 @@ class AgentRegistry:
         except ValueError:
             return None
         session_id = str(envelope.get("sessionId") or "default")
+        if self.is_dismissed(source.value, session_id):
+            return None
         key = (source.value, session_id)
         now = now or time.time()
         state = self.sessions.get(key) or AgentState(
@@ -347,7 +365,9 @@ class AgentRegistry:
         }
         states = [
             s for s in self.sessions.values()
-            if s.status != "DISCONNECTED" and now - s.last_event_at < STALE_DROP_SECONDS
+            if s.status != "DISCONNECTED"
+            and now - s.last_event_at < STALE_DROP_SECONDS
+            and not self.is_dismissed(s.source.value, s.session_id)
         ]
         return sorted(states, key=lambda s: (rank.get(s.status, 9), -s.last_event_at))
 

@@ -77,13 +77,25 @@ class AgentSessionRepository @Inject constructor(
         bridgeId: String,
         companionId: Long
     ): Int = withContext(Dispatchers.IO) {
-        if (agents.isEmpty()) {
+        val dismissed = preferences.getDismissedAgentSessions()
+        val filtered = if (dismissed.isEmpty()) {
+            agents
+        } else {
+            agents.filterNot { agent ->
+                val sid = agent.sessionId
+                val rawSid = sid.substringAfter(':')
+                val fullSid = "${agent.source}:$rawSid"
+                sid in dismissed || rawSid in dismissed || fullSid in dismissed
+            }
+        }
+
+        if (filtered.isEmpty()) {
             dao.deleteAllForBridge(bridgeId)
             return@withContext 0
         }
 
         val now = System.currentTimeMillis()
-        val entities = agents.map { it.toEntity(bridgeId, companionId, now) }
+        val entities = filtered.map { it.toEntity(bridgeId, companionId, now) }
         dao.upsertAll(entities)
         dao.deleteMissingForBridge(bridgeId, entities.map { it.id })
         entities.size
@@ -312,9 +324,14 @@ class AgentSessionRepository @Inject constructor(
     suspend fun clear() = withContext(Dispatchers.IO) { dao.deleteAll() }
 
     suspend fun dismissSession(sessionId: String, source: String, bridgeUrl: String) = withContext(Dispatchers.IO) {
-        dao.deleteById(sessionId)
         val rawSessionId = sessionId.substringAfter(':')
+        preferences.addDismissedAgentSession(sessionId)
+        preferences.addDismissedAgentSession(rawSessionId)
+        preferences.addDismissedAgentSession("$source:$rawSessionId")
+
+        dao.deleteById(sessionId)
         dao.deleteById("${source}:${rawSessionId}")
+        dao.deleteById(rawSessionId)
         if (bridgeUrl.isBlank()) return@withContext
         val cleanBase = bridgeUrl.trimEnd('/')
             .removeSuffix("/agents")

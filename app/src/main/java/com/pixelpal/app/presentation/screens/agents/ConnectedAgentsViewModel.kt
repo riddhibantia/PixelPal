@@ -268,9 +268,13 @@ class ConnectedAgentsViewModel @Inject constructor(
     }
 
     fun dismissAgent(row: AgentRow) {
+        val rawSid = row.sessionId.substringAfter(':')
+        _state.value = _state.value.copy(
+            rows = _state.value.rows.filterNot { it.id == row.id || it.sessionId == row.sessionId || it.sessionId == rawSid },
+            message = "Removed ${row.displayName}"
+        )
         viewModelScope.launch {
             repository.dismissSession(row.id, row.source, preferences.getAgentBridgeUrl())
-            _state.value = _state.value.copy(message = "Removed ${row.displayName}")
             refresh()
         }
     }

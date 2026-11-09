@@ -241,6 +241,32 @@ class TestMultiAgentRegistry:
         reg.tick(now=t0 + 7200)
         assert reg.get(AgentSource.CLAUDE_CODE, "gone") is None
 
+    def test_dismissed_session_is_tombstoned_and_not_revived_by_upsert(self, t0):
+        reg = AgentRegistry()
+        envelope = {
+            "source": "opencode",
+            "agentName": "opencode",
+            "sessionId": "ses_dismiss_me",
+            "project": "myproject",
+            "status": "IDLE",
+            "message": "ready",
+            "lastEventAgeSeconds": 10,
+        }
+        state = reg.upsert_envelope(envelope, now=t0)
+        assert state is not None
+        assert len(reg.active(now=t0)) == 1
+
+        # Dismiss the session
+        removed = reg.remove("opencode", "ses_dismiss_me")
+        assert removed is True
+        assert len(reg.active(now=t0)) == 0
+        assert reg.is_dismissed("opencode", "ses_dismiss_me") is True
+
+        # Subsequent poll tries to upsert it again
+        res = reg.upsert_envelope(envelope, now=t0 + 5)
+        assert res is None
+        assert len(reg.active(now=t0 + 5)) == 0
+
 
 class TestEnvelopeContract:
     def test_envelope_has_required_keys(self, t0):
