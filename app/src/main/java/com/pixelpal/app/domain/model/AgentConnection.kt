@@ -15,6 +15,7 @@ enum class AgentState(
     IDLE("IDLE", "Idle", false),
     WORKING("WORKING", "Working", false),
     WAITING_FOR_INPUT("WAITING_FOR_INPUT", "Waiting for input", true),
+    PAUSED("PAUSED", "Paused", false),
     COMPLETED("COMPLETED", "Completed", false),
     ERROR("ERROR", "Error", true),
     OFFLINE("OFFLINE", "Offline", true);
@@ -24,6 +25,7 @@ enum class AgentState(
             if (id.isBlank()) return DISCONNECTED
             if (id.equals("FAILED", ignoreCase = true)) return ERROR
             if (id.equals("STOPPED", ignoreCase = true)) return IDLE
+            if (id.equals("PAUSED", ignoreCase = true) || id.equals("INTERRUPTED", ignoreCase = true)) return PAUSED
             // Unknown non-blank values are config/server bugs — surface as ERROR
             // (needsAttention) instead of silently looking "not connected".
             return entries.find { it.id.equals(id, ignoreCase = true) } ?: ERROR

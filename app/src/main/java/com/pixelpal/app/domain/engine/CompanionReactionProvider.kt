@@ -89,6 +89,7 @@ class CompanionReactionProvider @Inject constructor(
             AgentState.OFFLINE -> listOf("Your agent is unreachable right now.", "Can't reach your agent's endpoint.")
             AgentState.CONNECTING -> listOf("Connecting to your agent…", "Reaching out to your coding agent.")
             AgentState.ONLINE -> listOf("Your agent is online.", "Connected to your coding agent.")
+            AgentState.PAUSED -> listOf("Your agent is currently paused.", "Agent paused — resume in terminal whenever you're ready.")
             AgentState.IDLE -> listOf("Your agent is idle and standing by.", "All quiet on the agent front.")
             AgentState.DISCONNECTED -> listOf("No agent connected yet. Set one up in the Agent tab!")
         }

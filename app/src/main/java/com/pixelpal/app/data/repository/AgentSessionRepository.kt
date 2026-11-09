@@ -78,7 +78,7 @@ class AgentSessionRepository @Inject constructor(
         companionId: Long
     ): Int = withContext(Dispatchers.IO) {
         val dismissed = preferences.getDismissedAgentSessions()
-        val workingSids = agents.filter { it.status.equals("WORKING", ignoreCase = true) }
+        val workingSids = agents.filter { it.status.equals("WORKING", ignoreCase = true) || it.status.equals("PAUSED", ignoreCase = true) }
             .flatMap { listOf(it.sessionId, it.sessionId.substringAfter(':'), "${it.source}:${it.sessionId.substringAfter(':')}") }
             .toSet()
 
@@ -94,7 +94,7 @@ class AgentSessionRepository @Inject constructor(
             agents
         } else {
             agents.filterNot { agent ->
-                if (agent.status.equals("WORKING", ignoreCase = true)) {
+                if (agent.status.equals("WORKING", ignoreCase = true) || agent.status.equals("PAUSED", ignoreCase = true)) {
                     false
                 } else {
                     val sid = agent.sessionId

@@ -154,6 +154,9 @@ class ConnectedAgentsViewModel @Inject constructor(
                 isRefreshing = true,
                 message = if (_state.value.message?.startsWith("Removed") == true) null else _state.value.message
             )
+            if (_state.value.rows.isEmpty()) {
+                preferences.clearDismissedAgentSessions()
+            }
             val paired = preferences.getAgentBridgeUrl().isNotBlank()
             if (!paired) {
                 _state.value = _state.value.copy(

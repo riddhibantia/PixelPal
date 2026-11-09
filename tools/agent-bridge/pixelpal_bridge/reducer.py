@@ -252,7 +252,7 @@ class AgentRegistry:
     def is_dismissed(self, source: str, session_id: str, status: str = "") -> bool:
         if not session_id:
             return False
-        if status.upper() == "WORKING":
+        if status.upper() in ("WORKING", "PAUSED"):
             self.undismiss(source, session_id)
             return False
         raw_id = session_id.split(':')[-1] if ':' in session_id else session_id
@@ -371,10 +371,11 @@ class AgentRegistry:
             "WAITING_FOR_INPUT": 0,
             "ERROR": 1,
             "WORKING": 2,
-            "COMPLETED": 3,
-            "ONLINE": 4,
-            "IDLE": 5,
-            "DISCONNECTED": 6,
+            "PAUSED": 3,
+            "COMPLETED": 4,
+            "ONLINE": 5,
+            "IDLE": 6,
+            "DISCONNECTED": 7,
         }
         states = [
             s for s in self.sessions.values()

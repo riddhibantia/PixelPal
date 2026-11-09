@@ -168,6 +168,8 @@ fun ConnectedAgentsScreen(
                             append(" connected")
                             if (state.workingCount > 0) append(" • ${state.workingCount} working")
                             if (state.waitingCount > 0) append(" • ${state.waitingCount} need input")
+                            val pausedCount = state.rows.count { it.status == AgentState.PAUSED }
+                            if (pausedCount > 0) append(" • $pausedCount paused")
                         }
                     },
                     actions = {
@@ -829,6 +831,7 @@ private fun AgentRowCard(
                             when (row.status) {
                                 AgentState.WORKING -> MaterialTheme.colorScheme.primary
                                 AgentState.WAITING_FOR_INPUT -> MaterialTheme.colorScheme.error
+                                AgentState.PAUSED -> Color(0xFFF59E0B)
                                 else -> MaterialTheme.colorScheme.outline
                             }
                         )
@@ -875,12 +878,14 @@ private fun AgentRowCard(
             }
 
             row.task?.let { task ->
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = task,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (task != row.message) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = task,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Spacer(Modifier.height(8.dp))

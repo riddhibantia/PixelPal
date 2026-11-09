@@ -20,6 +20,8 @@ class AgentConnectionLogicTest {
         assertEquals(AgentState.ERROR, AgentState.fromId("FAILED"))
         assertEquals(AgentState.ERROR, AgentState.fromId("failed"))
         assertEquals(AgentState.IDLE, AgentState.fromId("STOPPED"))
+        assertEquals(AgentState.PAUSED, AgentState.fromId("PAUSED"))
+        assertEquals(AgentState.PAUSED, AgentState.fromId("interrupted"))
     }
 
     @Test

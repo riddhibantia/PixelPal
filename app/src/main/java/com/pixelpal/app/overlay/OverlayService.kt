@@ -172,6 +172,14 @@ class OverlayService : Service() {
                         "$agentName ran into an issue. Double-tap to inspect."
                     }
                 }
+                "PAUSED" -> {
+                    val task = prioritySession.currentTask?.takeIf { it.isNotBlank() && it != "PAUSED" }
+                    if (task != null) {
+                        "$agentName is paused: ${task.take(35)}. Double-tap to view."
+                    } else {
+                        "$agentName is paused. Double-tap to view."
+                    }
+                }
                 "COMPLETED" -> {
                     val task = prioritySession.currentTask?.takeIf { it.isNotBlank() && it != "COMPLETED" }
                     if (task != null) {
@@ -208,6 +216,9 @@ class OverlayService : Service() {
                 }
                 AgentState.OFFLINE -> {
                     return "Agent is offline. Double-tap to check settings."
+                }
+                AgentState.PAUSED -> {
+                    return "Agent is paused. Double-tap to view."
                 }
                 AgentState.IDLE, AgentState.ONLINE -> {
                     return "Agent is ready when you are. Double-tap to open."

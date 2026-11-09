@@ -194,51 +194,85 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
     discarded while the user is reading or idle.
     """
     all_sessions = [s for s in fetch_sessions(port) if isinstance(s, dict)]
+    # Only root/main sessions represent the user's agent in a repo.
+    main_sessions = [s for s in all_sessions if not s.get("parentID") and not s.get("parentId")]
+    if not main_sessions:
+        main_sessions = all_sessions
 
-    status_map = {
-        "busy": "WORKING",
-        "running": "WORKING",
-        "working": "WORKING",
-        "idle": "IDLE",
-        "ready": "IDLE",
-        "error": "ERROR",
-        "failed": "ERROR",
-    }
-    now = time.time()
-
-    scored = []
+    children_by_parent: dict[str, list[dict]] = {}
     for s in all_sessions:
-        updated_at = _session_updated_at(s)
-        status = str(s.get("status") or s.get("outcome") or "").lower()
-        t = s.get("time") if isinstance(s.get("time"), dict) else {}
+        pid = s.get("parentID") or s.get("parentId")
+        if pid:
+            children_by_parent.setdefault(pid, []).append(s)
+
+    def _is_busy(sess: dict) -> bool:
+        status_val = str(sess.get("status") or sess.get("outcome") or "").lower()
+        if status_val in ("busy", "running", "working"):
+            return True
+        t = sess.get("time") if isinstance(sess.get("time"), dict) else {}
         busy_time = t.get("busy") or 0
         idle_time = t.get("idle") or 0
-        if busy_time > idle_time:
+        return busy_time > idle_time
+
+    now = time.time()
+    scored = []
+    for s in main_sessions:
+        mid = s.get("id")
+        children = children_by_parent.get(mid, [])
+        m_busy = _is_busy(s)
+        busy_child = next((c for c in children if _is_busy(c)), None)
+        outcome = str(s.get("outcome") or "").lower()
+        status_field = str(s.get("status") or "").lower()
+
+        if m_busy:
             mapped = "WORKING"
-        elif status in status_map:
-            mapped = status_map[status]
+            msg = str(s.get("title") or "working")
+            cur_task = str(s.get("title") or "working")
+        elif busy_child:
+            mapped = "WORKING"
+            child_title = busy_child.get("title") or "subtask"
+            msg = f"Working: {child_title}"
+            cur_task = str(s.get("title") or child_title)
+        elif outcome == "interrupted" or status_field == "interrupted":
+            mapped = "PAUSED"
+            msg = "Paused"
+            cur_task = str(s.get("title") or "Paused")
+        elif outcome == "failed" or status_field in ("failed", "error"):
+            mapped = "ERROR"
+            msg = str(s.get("title") or "failed")
+            cur_task = str(s.get("title") or None)
+        elif outcome == "succeeded":
+            mapped = "COMPLETED"
+            msg = str(s.get("title") or "completed")
+            cur_task = str(s.get("title") or None)
         else:
             mapped = "IDLE"
+            msg = str(s.get("title") or "ready")
+            cur_task = str(s.get("title") or None)
 
-        # Prioritize active WORKING sessions first, then most recently updated
-        priority = (0 if mapped == "WORKING" else 1, -(updated_at or 0.0))
-        scored.append((priority, updated_at, mapped, status, s))
+        all_ts = [t for t in ([_session_updated_at(s)] + [_session_updated_at(c) for c in children]) if t is not None]
+        updated_at = max(all_ts) if all_ts else None
+
+        # Prioritize active WORKING sessions, then PAUSED, then most recently updated
+        p_rank = 0 if mapped == "WORKING" else (1 if mapped == "PAUSED" else 2)
+        priority = (p_rank, -(updated_at or 0.0))
+        scored.append((priority, updated_at, mapped, msg, cur_task, s))
 
     scored.sort(key=lambda x: x[0])
 
     # Deduplicate: keep only the single newest/most active main agent per repo
     seen_repos: set[str] = set()
     deduped = []
-    for priority, updated_at, mapped, status, s in scored:
+    for priority, updated_at, mapped, msg, cur_task, s in scored:
         rk = _repo_key(s)
         if rk in seen_repos:
             continue
         seen_repos.add(rk)
-        deduped.append((updated_at, mapped, status, s))
+        deduped.append((updated_at, mapped, msg, cur_task, s))
 
     client_count = _running_client_count()
     envelopes = []
-    for idx, (updated_at, mapped, status, session) in enumerate(deduped[:MAX_SESSIONS]):
+    for idx, (updated_at, mapped, msg, cur_task, session) in enumerate(deduped[:MAX_SESSIONS]):
         is_running_client = idx < client_count
         if updated_at is not None:
             age = max(0, int(now - updated_at))
@@ -266,8 +300,8 @@ def poll_envelopes(port: int = DEFAULT_PORT) -> list[dict]:
                 "sessionId": str(session.get("id") or "default"),
                 "project": project,
                 "status": mapped,
-                "message": str(session.get("title") or status or "idle")[:80],
-                "currentTask": (session.get("title") or None),
+                "message": msg[:80],
+                "currentTask": cur_task,
                 "pendingApproval": None,
                 "lastEventAgeSeconds": age,
             }
