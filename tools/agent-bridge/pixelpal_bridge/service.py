@@ -92,16 +92,24 @@ def _package_root() -> str | None:
       * install.sh (no venv) -> the package sits in
         ~/.local/share/pixelpal-bridge and is only reachable via PYTHONPATH.
 
-    Returns None when the running interpreter can already import the package.
+    Returns None when the running interpreter can already import the package
+    without any PYTHONPATH set.
     """
-    try:
-        import pixelpal_bridge  # noqa: F401  (probe only)
-        return None
-    except ImportError:
-        pass
     candidate = Path.home() / ".local" / "share" / "pixelpal-bridge"
     if (candidate / "pixelpal_bridge").is_dir():
         return str(candidate)
+    try:
+        clean_env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        res = subprocess.run(
+            [_python(), "-c", "import pixelpal_bridge"],
+            env=clean_env,
+            capture_output=True,
+            timeout=5,
+        )
+        if res.returncode == 0:
+            return None
+    except Exception:
+        pass
     # Last resort: the directory containing this file's parent package.
     return str(Path(__file__).resolve().parent.parent)
 

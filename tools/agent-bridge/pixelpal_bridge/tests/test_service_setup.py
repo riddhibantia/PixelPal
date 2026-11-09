@@ -55,29 +55,30 @@ class TestSystemdUnit:
         """
         Regression: install.sh drops the package in ~/.local/share/pixelpal-bridge
         and only the wrapper script sets PYTHONPATH. The unit calls python
-        directly, so it crash-looped 33 times with
+        directly, so it crash-looped with
         "No module named 'pixelpal_bridge'" before reporting success.
         """
         root = tmp_path / ".local" / "share" / "pixelpal-bridge"
         (root / "pixelpal_bridge").mkdir(parents=True)
         monkeypatch.setattr(service.Path, "home", staticmethod(lambda: tmp_path))
-        # Pretend the current interpreter cannot import the package (the
-        # systemd case); otherwise _package_root() correctly returns None.
-        import builtins
-
-        real_import = builtins.__import__
-
-        def blocked(name, *args, **kwargs):
-            if name == "pixelpal_bridge":
-                raise ImportError("simulated systemd interpreter")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", blocked)
         text = service._systemd_unit_text(8787)
         assert f"Environment=PYTHONPATH={root}" in text, (
             "without PYTHONPATH the daemon cannot find the package and "
             "crash-loops on every restart"
         )
+
+    def test_package_root_prefers_candidate_even_when_importable(
+        self, tmp_path, monkeypatch
+    ):
+        """
+        When ~/.local/share/pixelpal-bridge/pixelpal_bridge exists, _package_root()
+        must return it even if the current Python process can already import
+        pixelpal_bridge (e.g. because PYTHONPATH was set by the CLI wrapper).
+        """
+        root = tmp_path / ".local" / "share" / "pixelpal-bridge"
+        (root / "pixelpal_bridge").mkdir(parents=True)
+        monkeypatch.setattr(service.Path, "home", staticmethod(lambda: tmp_path))
+        assert service._package_root() == str(root)
 
     def test_install_writes_and_enables(self, isolated):
         description = service.install_systemd(8787)
